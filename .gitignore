@@ -1,0 +1,73 @@
+metadata/
+org/
+data/
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Виртуальные окружения
+.venv/
+venv/
+ENV/
+env/
+
+# Пакеты и сборка
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# =========================
+# R
+# =========================
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+
+# Папка RStudio
+.Rproj.user/
+
+# Сборка пакета R
+.Rproj
+.Rproj.user
+.Rcheck/
+
+# R Markdown
+*_cache/
+cache/
+*.utf8.md
+*.knit.md
+
+# =========================
+# IDE
+# =========================
+# VS Code
+.vscode/
+# PyCharm
+.idea/
+# RStudio
+.Rproj.user/
+
+# =========================
+# Логи
+# =========================
+*.log
+logs/
