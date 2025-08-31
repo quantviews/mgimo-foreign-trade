@@ -95,7 +95,7 @@ graph TD
 
     subgraph "Программный комплекс (ETL)"
         D["Collectors (National)"] --> G["raw_national_data"]
-        E["FTS Bulk Importer"] --> H["raw_fts_data"]
+        E["FTS Collector"] --> H["raw_fts_data"]
         F["Comtrade Collector"] --> I["raw_comtrade_data"]
         
         J["Движок Гармонизации<br/>и Верификации"]
