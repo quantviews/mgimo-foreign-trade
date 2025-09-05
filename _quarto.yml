@@ -1,0 +1,15 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "mgimo-foreign-trade"
+  site-url: "https://quantviews.github.io/mgimo-foreign-trade/"
+  navbar:
+    left:
+      - text: "Вводная презентация"
+        href: other/intro-presentation.qmd   # ВАШ ФАЙЛ В ПАПКЕ other/
+
+format:
+  html:
+    theme: cosmo
