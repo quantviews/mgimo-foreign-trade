@@ -2,8 +2,8 @@ name: Quarto Publish
 
 on:
   push:
-    branches: [ main ]       # запускается при пуше в main
-  workflow_dispatch:          # возможность запустить руками из вкладки Actions
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build-deploy:
@@ -13,12 +13,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Quarto
+      - name: Setup Quarto (pin version)
         uses: quarto-dev/quarto-actions/setup@v2
         with:
-          version: "latest"   # 
+          # укажите конкретную версию, которая есть в Releases:
+          version: "1.7.34"
 
-      # Если у вас есть Python/R-код внутри .qmd — раскомментируйте:
+      - name: Show Quarto version (debug)
+        run: quarto --version
+
+      # Если в .qmd есть код на Python/R — раскомментируйте нужные блоки
       # - name: Setup Python
       #   uses: actions/setup-python@v5
       #   with:
@@ -31,7 +35,7 @@ jobs:
       - name: Render site
         uses: quarto-dev/quarto-actions/render@v2
         with:
-          path: "."           # рендерим весь проект (подхватит other/intro-presentation.qmd)
+          path: "."
 
       - name: Publish to GitHub Pages
         uses: quarto-dev/quarto-actions/publish@v2
