@@ -1,14 +1,16 @@
 project:
   type: website
   output-dir: _site
+  render:
+   # - index.qmd                  # (если есть)
+    - other/intro-presentation.qmd
 
 website:
   title: "mgimo-foreign-trade"
-  site-url: "https://quantviews.github.io/mgimo-foreign-trade/"
   navbar:
     left:
       - text: "Вводная презентация"
-        href: other/intro-presentation.qmd   # ВАШ ФАЙЛ В ПАПКЕ other/
+        href: other/intro-presentation.qmd
 
 format:
   html:
