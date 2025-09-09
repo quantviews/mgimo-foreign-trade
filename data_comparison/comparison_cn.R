@@ -12,9 +12,11 @@ setwd("D:/Работа/mgimo-foreign-trade")
 fts_files <- list.files('data_raw/fts_data')
 fts <- list()
 for (i in 1:length(fts_files)){
-  fts[[i]] <- read.csv(paste0('data_raw/fts_data/', fts_files[i]))
+  fts[[i]] <- read.csv(paste0('data_raw/fts_data/', fts_files[i])) %>% mutate(PERIOD = fts_files[i])
 }
-fts <- bind_rows(fts) %>% filter(STRANA == 'CN')
+
+fts <- bind_rows(fts) %>% filter(STRANA == 'CN') %>% 
+  mutate(PERIOD = str_remove(PERIOD, "\\.csv$") %>% ym())
 
 # import comtrade
 
@@ -61,7 +63,7 @@ comtrade <- bind_rows(comtrade) %>%
 
 df_6 <- fts %>%
   mutate(Source = 'FTS',
-         TNVED = gsub('0000', '', TNVED),
+         TNVED = str_replace(TNVED, "0000$", ""),
          STRANA = if_else(STRANA == 'CN', 'CHN', STRANA)) %>%
   filter(STRANA == 'CHN',
          nchar(TNVED) == 6) %>%
