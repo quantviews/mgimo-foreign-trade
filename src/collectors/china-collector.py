@@ -36,48 +36,39 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
         os.remove(source_file)
 
     options = webdriver.ChromeOptions()
+    # Stealth options to avoid bot detection
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+    
+    options.add_argument('--start-maximized')
+    options.add_argument('--ignore-certificate-errors')
+    options.add_argument('--allow-running-insecure-content')
+    options.add_argument('--disable-extensions')
     # You might need to adjust preferences depending on your setup
     # prefs = {"download.default_directory": str(download_dir)}
     # options.add_experimental_option("prefs", prefs)
 
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
-    
+    # Evade detection
+    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+
     try:
+        print("Opening browser to the Chinese customs statistics website...")
         driver.get("http://stats.customs.gov.cn/indexEn")
-
-        # Set Flow (Import/Export)
-        flow_map = {'ИМ': 'i', 'ЭК': 'e'}
-        driver.find_element(By.ID, f"radio_{flow_map[flow]}").click()
-
-        # Set Period
-        driver.find_element(By.ID, "select_year").send_keys(year)
-        driver.find_element(By.ID, "select_month").send_keys(month)
-        # Ensure 'By month' is checked
-        if not driver.find_element(By.ID, "check_month").is_selected():
-            driver.find_element(By.ID, "check_month").click()
-        
-        # Set Partner
-        partner_input = driver.find_element(By.ID, "partnerCode")
-        partner_input.send_keys(partner_code)
-
-        # Click Enquiry to trigger CAPTCHA
-        driver.find_element(By.CSS_SELECTOR, "input[value='Enquiry']").click()
         
         print("\n" + "="*50)
-        print("Please solve the CAPTCHA in the browser window.")
-        print("After the results page has loaded, press Enter here to continue.")
+        print("Please fill out the form, solve the CAPTCHA, and download the data file.")
+        print("Once the 'downloadData.csv' file has finished downloading,")
+        print("press Enter here to continue.")
         print("="*50)
         input()
 
-        # Wait for download button and click it
-        wait = WebDriverWait(driver, 30) # 30-second timeout
-        download_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.table-operate-btn.operate-download")))
-        download_button.click()
-
-        # Wait for download to complete
-        print("Downloading file...")
-        while not source_file.exists():
-            time.sleep(1)
+        # Wait for download to be present, assuming user has completed it.
+        print("Checking for downloaded file...")
+        wait = WebDriverWait(driver, 300) # 5-minute timeout for manual process
+        wait.until(lambda d: source_file.exists())
         
         print("Download complete.")
         return True
@@ -88,16 +79,62 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
     finally:
         driver.quit()
 
+def run_raw_data_checks(file_path: Path):
+    """
+    Runs a series of checks on the raw downloaded CSV file to ensure data integrity
+    before any processing is done.
+    """
+    print("Running raw data quality checks...")
+    checks_passed = True
+    
+    try:
+        # Read only the first 5 rows for efficiency
+        df_sample = pd.read_csv(file_path, encoding='ISO-8859-1', on_bad_lines='skip', nrows=5)
+
+        # 1. Raw Column Check
+        expected_raw_cols = {'Date of data', 'Trading partner code', 'Commodity code', 'Quantity'}
+        
+        # Check for one of the value columns
+        has_value_col = 'Renminbi Yuan' in df_sample.columns or 'US dollar' in df_sample.columns
+        
+        missing_cols = expected_raw_cols - set(df_sample.columns)
+        if missing_cols or not has_value_col:
+            print(f"  [FAIL] Missing expected raw columns. Missing: {missing_cols}")
+            if not has_value_col: print("  [FAIL] Missing a value column ('Renminbi Yuan' or 'US dollar').")
+            checks_passed = False
+        else:
+            print("  [PASS] All expected raw columns are present.")
+
+        # 2. Date Format Check
+        if not (df_sample['Date of data'].astype(str).str.len() == 6).all():
+            print("  [FAIL] 'Date of data' column does not have a length of 6.")
+            checks_passed = False
+        else:
+            print("  [PASS] 'Date of data' column format is correct.")
+        
+        # 3. Numeric Value Check for Quantity
+        # Ensure it's a string, remove commas, then check if it's all digits
+        if not df_sample['Quantity'].astype(str).str.replace(',', '').str.isdigit().all():
+            print("  [FAIL] 'Quantity' column contains non-numeric values.")
+            checks_passed = False
+        else:
+            print("  [PASS] 'Quantity' column contains numeric values.")
+
+    except Exception as e:
+        print(f"  [FAIL] An error occurred during raw data checks: {e}")
+        return False
+        
+    if not checks_passed:
+        print("\nRaw data quality checks failed. Please check the downloaded file.")
+        return False
+        
+    print("\nAll raw data quality checks passed successfully.")
+    return True
+
 
 def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
     """
     Processes the manually downloaded 'downloadData.csv' file from Chinese customs.
-
-    Args:
-        year: The year of the data (e.g., '2025').
-        month: The month of the data (e.g., '05').
-        flow: The trade flow, either 'ИМ' (import) or 'ЭК' (export).
-        output_dir: The base directory to save the processed files.
     """
     downloads_path = get_download_path()
     source_file = downloads_path / 'downloadData.csv'
@@ -111,9 +148,36 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
     import_path.mkdir(parents=True, exist_ok=True)
     export_path.mkdir(parents=True, exist_ok=True)
 
-    try:
-        df = pd.read_csv(source_file, encoding='ISO-8859-1', on_bad_lines='skip')
+    month_str = str(month).zfill(2)
 
+    # Determine paths based on mirrored flow
+    if flow == 'ИМ':
+        raw_dest_path = export_path
+        processed_dest_path = export_path
+    else: # 'ЭК'
+        raw_dest_path = import_path
+        processed_dest_path = import_path
+        
+    # 1. Save a copy of the raw data first
+    raw_file_name = f"raw_{year}{month_str}_{flow}.csv"
+    raw_file_path = raw_dest_path / raw_file_name
+    source_file.rename(raw_file_path)
+    print(f"Saved raw data to '{raw_file_path}'")
+    
+    # 1.5. Run Raw Data Quality Checks
+    if not run_raw_data_checks(raw_file_path):
+        # We might want to move the file to a 'quarantine' folder here in a real pipeline
+        return # Stop if checks fail
+
+    try:
+        # 2. Read the raw data for processing
+        df = pd.read_csv(raw_file_path, encoding='ISO-8859-1', on_bad_lines='skip')
+        
+        # Check for Renminbi column and rename, otherwise use US dollar
+        if 'Renminbi Yuan' in df.columns:
+             df = df.rename(columns={'Renminbi Yuan': 'STOIM_YUAN'}) # Keep for reference if needed
+             print("Processing based on 'Renminbi Yuan' column.")
+        
         df = df.rename(columns={
             'Commodity code': 'TNVED',
             'US dollar': 'STOIM',
@@ -140,24 +204,21 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
         df['STOIM'] = df['STOIM'].astype(str).str.replace(",", "").astype(float)
         df['STRANA'] = 'CH'
 
-        month_str = str(month).zfill(2)
         
         # Mirror the trade flow for Russia's perspective
         if flow == 'ИМ':
             df['NAPR'] = 'ЭК'
-            output_file = export_path / f'data{year}{month_str}.csv'
+            output_file = processed_dest_path / f'data{year}{month_str}.csv'
         elif flow == 'ЭК':
             df['NAPR'] = 'ИМ'
-            output_file = import_path / f'data{year}{month_str}.csv'
+            output_file = processed_dest_path / f'data{year}{month_str}.csv'
         else:
             print(f"Error: Invalid flow type '{flow}'. Use 'ИМ' or 'ЭК'.")
             return
 
+        # 3. Save processed file
         df.to_csv(output_file, index=False, encoding='utf-8-sig')
-        print(f"Successfully processed and saved data to '{output_file}'")
-
-        os.remove(source_file)
-        print(f"Removed source file: '{source_file}'")
+        print(f"\nSuccessfully processed and saved data to '{output_file}'")
 
     except Exception as e:
         print(f"An error occurred during processing: {e}")
@@ -185,6 +246,9 @@ def main():
     print(f"Starting automation for Year: {args.year}, Month: {month_padded}, Flow: {args.flow}, Partner: {args.partner}")
     
     # Step 1: Automate the download
+    if not Path(r"D:\Anaconda2022\envs\mgimo_trade\python.exe").exists():
+        print("Could not find python interpreter in conda env")
+        return
     download_successful = automate_download(args.year, month_padded, args.flow, args.partner)
 
     # Step 2: Process the downloaded file
