@@ -1,7 +1,9 @@
-import argparse, asyncio, re, json, time
+import re, os, argparse
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
 from pathlib import Path
+from io import StringIO
+import pandas as pd
+import numpy as np
 from datetime import datetime
 
 
@@ -9,14 +11,13 @@ def parse_arguments():
     """
     Обработчик аргументов для запуска модуля из командной строки.
 
-    usage: new_collector.py [-h] [-c] [-v] year
-    -c, --codes - загружает только коды за определенный год
+    usage: processor.py [-h] [-v] year
 
     :return: возвращает список аргументов для запуска модуля
     """
     current_year = datetime.now().year
     parser = argparse.ArgumentParser(
-        description="Module downloads data from Turkey Institute of Statistics"
+        description="Module processes raw data, compiles normalized dataset and saves result into a parquet file"
     )
 
     def valid_year(value):
@@ -40,14 +41,6 @@ def parse_arguments():
         help=f"year (from 2005 to {current_year})",
     )
 
-    # Опциональные (флаги, опции)
-    parser.add_argument(
-        "-c",
-        "--codes",
-        action="store_true",
-        help="download only codes for a specific year",
-    )
-
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
 
     # Парсинг аргументов
@@ -55,203 +48,261 @@ def parse_arguments():
     return args
 
 
-async def download_codes(playwright, year: str) -> dict:
-    """
-    Функция подключается к сайту института статистики Турции и выгружает все возможные коды HS8 за определенный год
-    :param playwright:
-    :param year:
-    :return: dict
-    """
-    browser = await playwright.chromium.launch(headless=True)
-    page = await browser.new_page()
-    await page.goto(DATA_URL)
-    html_content = await page.content()
-    doc = BeautifulSoup(html_content, "html.parser")
+def table_clean(df, year):
+    # Удаление дубликатов
+    df = df.drop_duplicates().copy()
 
-    for i in [1, 11, 26, 28, 30]:
-        id = doc.find_all(class_="z-radio-cnt")[i].get("for")
-        await page.check(f'[for= "{id}"]')
+    # Поиск положения "Month" в таблице
+    month_pos = np.where(df.values == "Month")
+    if len(month_pos[0]) > 1:
+        print("Can't parse: multiple 'Month' found")
+        return pd.DataFrame()
+    if len(month_pos[0]) == 0:
+        print("One of the tables is empty: no 'Month' found")
+        return pd.DataFrame()
 
-    await page.get_by_text(year).click()
-    await page.get_by_text("<< All months >>").click(delay=300)
+    month_row, month_col = month_pos[0][0], month_pos[1][0]
+    df = df.iloc[month_row:, month_col:].copy()
 
-    text_id = doc.find_all(class_="z-textbox")[0].get("id")
-    await page.fill(f"#{text_id}", COUNTRY_ID)
+    # Если последняя строка в 4-м столбце начинается с "Note:" или содержит "provisional", удалить её.
+    # Проверка на слово "provisional" выполняется отдельно, так как на странице могут быть оба совпадения.
+    last_row_val = df.iloc[-1, 3]
+    if isinstance(last_row_val, str) and last_row_val.startswith("Note:"):
+        df = df.iloc[:-1].copy()
+    last_row_val = df.iloc[-1, 3]
+    if isinstance(last_row_val, str) and "provisional" in last_row_val:
+        df = df.iloc[:-1].copy()
 
-    hs_codes = {}
-    pattern = r"\d{2,10} - .+"  # regex шаблон формата "01234567 - Text..."
-    cn_id = doc.find_all(class_="z-textbox")[3].get("id")
+    # Удалить столбцы, полностью состоящие из NaN
+    df.dropna(axis=1, how="all", inplace=True)
 
-    # Ждём загрузки кнопки "Ara" после клика
-    for two_digits in [f"{i:02}" for i in range(1, 100)]:
-        await page.fill(f"#{cn_id}", two_digits)
-        await page.get_by_role("button", name="Ara").click(delay=300, timeout=2000)
-        await page.wait_for_timeout(2000)
-        output = await page.content()
-        bs_elements = BeautifulSoup(output, "html.parser").find_all(class_="z-listcell")
-        for el in bs_elements:
-            s = el.get_text()
-            if re.fullmatch(pattern, s):
-                key, value = s.split(" - ", 1)
-                hs_codes[key] = value
-        print(f"{two_digits} - {len(hs_codes)} codes in total")
+    # Маска для строк, содержащих цифры в 4-м столбце
+    mask = df.iloc[:, 3].astype(str).str.contains(r"\d", na=False)
+    if not mask.any():
+        print("Table is empty: no digits in 4th column")
+        return pd.DataFrame()
 
-    await browser.close()
+    last_idx = mask[mask].index[-1]
+    df = df.loc[:last_idx].copy()
 
-    return hs_codes
+    # Удаление строк с "total" в 4-м столбце (регистронезависимо)
+    total_mask = (
+        df.iloc[:, 3]
+        .astype(str)
+        .str.fullmatch(r"\s*total\s*:?\s*", case=False, na=False)
+    )
+    df = df.loc[~total_mask].copy()
 
+    # Первая строка — имена столбцов
+    df.columns = df.iloc[0]
+    df = df.iloc[1:].reset_index(drop=True)
+    df.columns.name = year
 
-async def save_codes(year: str, filepath) -> dict:
-    """
-    Функция загружает коды с помощью функции download_codes(), сохраняет результат в json-файл и возвращает
-    словарь с кодами
-    :param year:
-    :param filepath:
-    :return: dict
-    """
-    print(f"Downloading codes for {year}...")
-    async with async_playwright() as playwright:
-        codes = await download_codes(playwright, year)
-    with open(filepath, "w", encoding="utf-8") as file:
-        json.dump(codes, file, indent=4)
-    print(f"Codes were saved in  {filepath.name}")
-    return codes
+    # Удаление дублированных названий столбцов
+    df = df.loc[:, ~df.columns.duplicated()]
+
+    # Заполнение пропусков в первых трёх столбцах вперёд
+    df.iloc[:, 0:3] = df.iloc[:, 0:3].ffill()
+
+    return df
 
 
-async def setup_page(page, year: str):
-    """
-    Функция производит  первоначальную навигацию и настройки фильтров на странице перед началом выгрузки данных
-    :param page:
-    :return:
-    """
-    await page.goto(DATA_URL)
-    await page.get_by_text("Monthly").click()
-    await page.get_by_text(year).click()
-    await page.get_by_text("<< All months >>").click()
-    await page.get_by_text("I know country code").click()
-    await page.get_by_text("I know HS8(CN) code").click()
-    await page.get_by_text("Export").click()
-    await page.get_by_text("Import").click()
-    await page.get_by_text("$(Dollar)").click()
+def load_df(filename, year):
+    with open(filename, "r", encoding="utf-8", errors="ignore") as file:
+        html_content = file.read()
+
+    soup = BeautifulSoup(html_content, "html.parser").find_all("table")
+
+    dfs = [
+        table_clean(pd.read_html(StringIO(str(table)), flavor="lxml")[0], year)
+        for table in soup
+    ]
+
+    # Фильтруем пустые DataFrame, чтобы избежать ошибок конкатенации
+    dfs = [df for df in dfs if not df.empty]
+
+    if dfs:
+        return pd.concat(dfs, axis=0, ignore_index=True)
+    else:
+        print(f"No valid tables in file {os.path.basename(filename)}")
+        return pd.DataFrame()
 
 
-async def collect_data(playwright, year: str, html_tables_dir):
-    """
-    Функция подключается к сайту института статистики Турции и выгружает данные за заданный год используя
-    ранее выгруженные HS8 коды. Результат сохраняется в виде html таблиц для дальнейшей обработки.
-    :param playwright:
-    :param year:
-    :param html_tables_dir:
-    :return:
-    """
-    browser = await playwright.chromium.launch(headless=True)
-    context = await browser.new_context()
-    page = await context.new_page()
+def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
+    print("Harmonizing consolidated data...")
+    # Переименование колонок и удаление лишних сразу
+    df.rename(
+        columns={
+            "Month": "PERIOD",
+            "Country": "STRANA",
+            "HS8": "TNVED",
+            "Unit": "EDIZM",
+        },
+        inplace=True,
+    )
+    df.drop(["Country\xa0name", "HS8\xa0name"], axis=1, inplace=True)
 
-    await page.goto(DATA_URL)
+    # Форматирование периода
+    df["PERIOD"] = pd.to_datetime(df["PERIOD"].str.zfill(2).radd(f"{year}-").add("-01"))
 
-    # Настроим страницу и получим id нужных полей
-    await setup_page(page, year)
+    # Страна и строковые столбцы
+    df["STRANA"] = "TR"
+    df["EDIZM_ISO"] = df["EDIZM"]
 
-    html_content = await page.content()
-    doc = BeautifulSoup(html_content, "html.parser")
-    textboxes = doc.find_all(class_="z-textbox")
+    # TNVED разбивка без многократного обращения к колонке
+    df["TNVED4"] = df["TNVED"].str[:4]
+    df["TNVED6"] = df["TNVED"].str[:6]
+    df["TNVED2"] = df["TNVED"].str[:2]
 
-    if len(textboxes) < 3:
-        raise RuntimeError("Can't find required input fields on page")
+    # Маппинг EDIZM и EDIZM_ISO
+    edizm_map = {k: v[2] if len(v) > 2 else None for k, v in UNITS.items()}
+    edizm_iso_map = {k: v[0] if len(v) > 0 else None for k, v in UNITS.items()}
+    df["EDIZM"] = df["EDIZM"].map(edizm_map)
+    df["EDIZM_ISO"] = df["EDIZM_ISO"].map(edizm_iso_map)
 
-    country_input_id = textboxes[0].get("id")
-    cn_input_id = textboxes[2].get("id")
+    # Маски выборки: вместо index/loc — boolean index
+    mask_in = df["Export\xa0Dollar"] != "0"
+    mask_out = df["Import\xa0Dollar"] != "0"
 
-    # Вводим страну
-    await page.fill(f"#{country_input_id}", COUNTRY_ID)
+    # inbound (ИМ)
+    df_in = df[mask_in].copy()
+    df_in.drop(
+        ["Import\xa0quantity\xa01", "Import\xa0quantity\xa02", "Import\xa0Dollar"],
+        axis=1,
+        inplace=True,
+    )
+    df_in.rename(
+        columns={
+            "Export\xa0quantity\xa01": "NETTO",
+            "Export\xa0quantity\xa02": "KOL",
+            "Export\xa0Dollar": "STOIM",
+        },
+        inplace=True,
+    )
+    df_in["NAPR"] = "ИМ"
 
-    # Загружаем коды hs, делим по пакетам
+    # outbound (ЭК)
+    df_out = df[mask_out].copy()
+    df_out.drop(
+        ["Export\xa0quantity\xa01", "Export\xa0quantity\xa02", "Export\xa0Dollar"],
+        axis=1,
+        inplace=True,
+    )
+    df_out.rename(
+        columns={
+            "Import\xa0quantity\xa01": "NETTO",
+            "Import\xa0quantity\xa02": "KOL",
+            "Import\xa0Dollar": "STOIM",
+        },
+        inplace=True,
+    )
+    df_out["NAPR"] = "ЭК"
 
-    codes_file_path = Path.cwd() / "hs_codes_json" / f"turkey_codes{year}.json"
-    with open(codes_file_path, "r") as f:
-        hs_codes = json.load(f)
+    # Итоговое объединение
+    result = pd.concat([df_in, df_out], ignore_index=True)
 
-    keys = list(hs_codes.keys())
-    batches = [keys[i : i + BATCH_SIZE] for i in range(0, len(keys), BATCH_SIZE)]
+    cols = [
+        "NAPR",
+        "PERIOD",
+        "STRANA",
+        "TNVED",
+        "EDIZM",
+        "EDIZM_ISO",
+        "STOIM",
+        "NETTO",
+        "KOL",
+        "TNVED4",
+        "TNVED6",
+        "TNVED2",
+    ]
+    result = result[cols]
+    result.sort_values(by="PERIOD", inplace=True)
+    result.reset_index(drop=True, inplace=True)
 
-    for batch in batches:
-        start_t = time.time()
+    # Преобразование типов
+    for col in ["STOIM", "NETTO", "KOL"]:
+        result[col] = (
+            pd.to_numeric(result[col], errors="coerce").fillna(0).astype(float)
+        )
 
-        # Заполнение поля с пакетами кодов
-        await page.fill(f"#{cn_input_id}", ",".join(batch))
-
-        # Ожидание открытия новой вкладки с отчетом
-        async with context.expect_page() as new_page_info:
-            await page.wait_for_selector(
-                'button:has-text("Make Report")', state="visible"
-            )
-            await page.get_by_role("button", name="Make Report").click(delay=300)
-
-        new_page = await new_page_info.value
-
-        # Ожидание полной загрузки содержимого
-        await new_page.wait_for_load_state("networkidle")
-        output = await new_page.content()
-
-        # Сохранение HTML файла с отчетом
-        filename = html_tables_dir / f"{batch[0]}-{batch[-1]}-{year}.html"
-        filename.write_text(output, encoding="utf-8")
-        print(f"{filename.name} is ready")
-
-        stop_t = time.time()
-        elapsed = stop_t - start_t
-        print(f"Elapsed time: {int(elapsed // 60):02}:{int(elapsed % 60):02}\n")
-
-        # Закрываем вкладку с отчетом
-        await new_page.close()
-
-    # Завершение работы браузера и Playwright
-    await context.close()
-    await browser.close()
+    return result
 
 
-async def main():
+def main():
     args = parse_arguments()
+    html_files_path = Path.cwd() / "raw_html_tables" / args.year
 
-    hs_codes_dir = Path.cwd() / "hs_codes_json"
-    hs_codes_dir.mkdir(parents=True, exist_ok=True)
-
-    codes_file_path = hs_codes_dir / f"turkey_codes{args.year}.json"
-
-    try:
-        if not codes_file_path.exists():
-            codes = await save_codes(args.year, codes_file_path)
+    if not html_files_path.is_dir():
+        print(
+            f"{html_files_path} directory is absent. Can't fetch raw html tables for {args.year}."
+        )
+    else:
+        pattern = re.compile(r"\d{2,10}-\d{2,10}-20\d{2}\.html")
+        html_files = [
+            f
+            for f in html_files_path.iterdir()
+            if f.is_file() and pattern.match(f.name)
+        ]
+        if not html_files:
+            print(f"There are no required files for {args.year}.")
         else:
-            try:
-                with open(codes_file_path, "r", encoding="utf-8") as f:
-                    codes = json.load(f)
-                print(f"Will use previously downloaded HS8 codes for {args.year}.")
-            except (json.JSONDecodeError, IOError):
-                print(
-                    f"Couldn't process the file with codes for {args.year}. Downloading again..."
-                )
-                codes = await save_codes(args.year, codes_file_path)
-    except Exception as e:
-        print(f"Error handling file: {e}")
+            dfs = []
+            for index, f in enumerate(html_files):
+                print(f"{index}/{len(html_files)} Working with: {f.name}")
+                df = load_df(f, args.year)
+                if not df.empty:
+                    dfs.append(df)
 
-    if not args.codes:
-        print("Downloading data...")
-        html_tables_dir = Path.cwd() / "raw_html_tables" / args.year
-        html_tables_dir.mkdir(parents=True, exist_ok=True)
+        if dfs:
+            final_df = pd.concat(dfs, axis=0, ignore_index=True)
 
-        async with async_playwright() as playwright:
-            await collect_data(playwright, args.year, html_tables_dir)
+            # Сбросить пустые строки
+            final_df = final_df.dropna(subset=[final_df.columns[3]]).reset_index(
+                drop=True
+            )
 
-        print("Raw data download completed.")
+            final_df = harmonize_df(final_df, args.year)
 
-    # if args.verbose:
-    #     print(f"Запущено с аргументами: {args}")
-    #
+            final_df.to_parquet(f"turkey_{args.year}_processed.parquet")
+            print(
+                f'Data consolidation and harmonization completed. \nFile "turkey_{args.year}_processed.parquet" was saved.'
+            )
+
+        else:
+            print("No data to process")
 
 
 if __name__ == "__main__":
-    DATA_URL = "https://biruni.tuik.gov.tr/disticaretapp/disticaret_ing.zul?param1=4&param2=24&sitcrev=0&isicrev=0&sayac=5902"
-    COUNTRY_ID = "75"  ## 75 - Россия
-    BATCH_SIZE = 25  # максимальное количество кодов в одном отчете - 25
-    asyncio.run(main())
+    UNITS = {
+        "KG/ÇİFT": ["715", "ПАР", "ПАРА"],
+        "KG": ["?", "?", "?"],
+        "KG/METR E": ["006", "МЕТР", "М"],
+        "KG/1000A DET": ["798", "ТЫСЯЧА ШТУК", "1000 ШТ"],
+        "KG/KG P2O5": ["865", "КИЛОГРАММ ПЯТИОКИСИ ФОСФОРА", "КГ P2O5"],
+        "KG/ADET": ["796", "ШТУКА", "ШТ"],
+        "KG/M3": ["113", "КУБИЧЕСКИЙ МЕТР", "М3"],
+        "KG/KG K2O": ["852", "КИЛОГРАММ ОКСИДА КАЛИЯ", "КГ K2O"],
+        "KG/KG MET.AM.": ["?", "КИЛОГРАММ МЕТИЛАМИНА", "KG MET.AM"],
+        "KG/1000LI TRE": ["130", "1000 ЛИТРОВ", "1000 Л"],
+        "KG/CE-El": ["745", "ЭЛЕМЕНТ", "ЭЛЕМ"],
+        "KG/LİTRE": ["112", "ЛИТР", "Л"],
+        "KG/BAŞ": ["836", "ГОЛОВА", "ГОЛ"],
+        "KG/KARA T": ["162", "МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ", "КАР"],
+        "KG/100AD ET": ["797", "СТО ШТУК", "100 ШТ"],
+        "KG/KG\xa0N": ["861", "КИЛОГРАММ АЗОТА", "КГ N"],
+        "KG/M2": ["055", "КВАДРАТНЫЙ МЕТР", "М2"],
+        "KG/LT- ALK%100": ["831", "ЛИТР ЧИСТОГО (100%) СПИРТА", "Л 100% СПИРТА"],
+        "KG/KG H2O2": ["841", "КИЛОГРАММ ПЕРОКСИДА ВОДОРОДА", "КГ H2O2"],
+        "KG/GRAM": ["163", "ГРАММ", "Г"],
+        "KG/KG\xa0U": ["867", "КИЛОГРАММ УРАНА", "КГ U"],
+        "KG/1000M 3": ["114", "1000 КУБИЧЕСКИХ МЕТРОВ", "1000 М3"],
+        "KG/gi\xa0F/S": ["?", "?", "gi F/S"],
+        "-": ["?", "?", "?"],
+        "KG/CT-L": ["?", "?", "CT-L"],
+        "G.T/ADET": ["796", "ШТУКА", "ШТ"],
+        "KG/KG NET\xa0EDA": ["?", "?", "KG NET EDA"],
+        "KG/KG %90\xa0SDT": ["845", "КИЛОГРАММ СУХОГО НА 90 % ВЕЩЕСТВА", "КГ 90% С/В"],
+        "KG/KG KOH": ["859", "КИЛОГРАММ ГИДРОКСИДА КАЛИЯ", "КГ KOH"],
+        "KG/KG NaOH": ["863", "КИЛОГРАММ ГИДРОКСИДА НАТРИЯ", "КГ NAOH"],
+    }
+    main()

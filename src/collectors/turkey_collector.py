@@ -9,7 +9,7 @@ def parse_arguments():
     """
     Обработчик аргументов для запуска модуля из командной строки.
 
-    usage: collector.py [-h] [-c] [-v] year
+    usage: new_collector.py [-h] [-c] [-v] year
     -c, --codes - загружает только коды за определенный год
 
     :return: возвращает список аргументов для запуска модуля
@@ -237,7 +237,7 @@ async def main():
 
     if not args.codes:
         print("Downloading data...")
-        html_tables_dir = Path.cwd() / "raw_html_tables"
+        html_tables_dir = Path.cwd() / "raw_html_tables" / args.year
         html_tables_dir.mkdir(parents=True, exist_ok=True)
 
         async with async_playwright() as playwright:
