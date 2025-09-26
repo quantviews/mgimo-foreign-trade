@@ -95,7 +95,7 @@ def table_clean(df, year):
 
     # Первая строка — имена столбцов
     df.columns = df.iloc[0]
-    df = df.iloc[1:].reset_index(drop=True)
+    df = df.iloc[1:]
     df.columns.name = year
 
     # Удаление дублированных названий столбцов
@@ -103,6 +103,10 @@ def table_clean(df, year):
 
     # Заполнение пропусков в первых трёх столбцах вперёд
     df.iloc[:, 0:3] = df.iloc[:, 0:3].ffill()
+
+    # Удаление дублированных строк и сброс индекса
+    df.drop_duplicates(inplace=True)
+    df.reset_index(drop=True, inplace=True)
 
     return df
 
@@ -221,9 +225,8 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
 
     # Преобразование типов
     for col in ["STOIM", "NETTO", "KOL"]:
-        result[col] = (
-            pd.to_numeric(result[col], errors="coerce").fillna(0).astype(float)
-        )
+        clean_col = result[col].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+        result[col] = pd.to_numeric(clean_col, errors="coerce").fillna(0).astype(float)
 
     return result
 
@@ -248,7 +251,7 @@ def main():
         else:
             dfs = []
             for index, f in enumerate(html_files):
-                print(f"{index}/{len(html_files)} Working with: {f.name}")
+                print(f"{index + 1}/{len(html_files)} Working with: {f.name}")
                 df = load_df(f, args.year)
                 if not df.empty:
                     dfs.append(df)
