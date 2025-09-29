@@ -1,3 +1,4 @@
+#!/Users/kost/.pyenv/shims/python3.11
 import re, os, argparse
 from bs4 import BeautifulSoup
 from pathlib import Path
@@ -37,8 +38,16 @@ def parse_arguments():
     parser.add_argument(
         "year",
         type=valid_year,
+        nargs="?",
         metavar=f"[2005-{current_year}]",
         help=f"year (from 2005 to {current_year})",
+    )
+
+    parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="process data for the all available years",
     )
 
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
@@ -50,7 +59,7 @@ def parse_arguments():
 
 def table_clean(df, year):
     # Удаление дубликатов
-    df = df.drop_duplicates().copy()
+    df.drop_duplicates(inplace=True)
 
     # Поиск положения "Month" в таблице
     month_pos = np.where(df.values == "Month")
@@ -104,9 +113,18 @@ def table_clean(df, year):
     # Заполнение пропусков в первых трёх столбцах вперёд
     df.iloc[:, 0:3] = df.iloc[:, 0:3].ffill()
 
+    # Проверка и исправление ошибки в исходных данных с отсутствующим нулем в начале HS8 кода
+    mask = df["HS8"].str.len() < 8
+
+    df.loc[mask, "HS8"] = df.loc[mask, "HS8"].apply(
+        lambda x: x if x.startswith("0") else "0" + x
+    )
+
     # Удаление дублированных строк и сброс индекса
     df.drop_duplicates(inplace=True)
     df.reset_index(drop=True, inplace=True)
+
+    # print(df[df["HS8"].str.len() < 8]["HS8"]) # найти и напечатать слишком короткие коды
 
     return df
 
@@ -225,19 +243,23 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
 
     # Преобразование типов
     for col in ["STOIM", "NETTO", "KOL"]:
-        clean_col = result[col].str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
+        clean_col = (
+            result[col]
+            .str.replace(".", "", regex=False)
+            .str.replace(",", ".", regex=False)
+        )
         result[col] = pd.to_numeric(clean_col, errors="coerce").fillna(0).astype(float)
 
     return result
 
 
-def main():
-    args = parse_arguments()
-    html_files_path = Path.cwd() / "raw_html_tables" / args.year
+def build_for_year(year):
+
+    html_files_path = Path.cwd() / "raw_html_tables" / str(year)
 
     if not html_files_path.is_dir():
         print(
-            f"{html_files_path} directory is absent. Can't fetch raw html tables for {args.year}."
+            f"{html_files_path} folder is absent. Can't fetch raw html tables for {year}."
         )
     else:
         pattern = re.compile(r"\d{2,10}-\d{2,10}-20\d{2}\.html")
@@ -246,13 +268,14 @@ def main():
             for f in html_files_path.iterdir()
             if f.is_file() and pattern.match(f.name)
         ]
+        html_files.sort()
         if not html_files:
-            print(f"There are no required files for {args.year}.")
+            print(f"There are no required files for {year}.")
         else:
             dfs = []
             for index, f in enumerate(html_files):
                 print(f"{index + 1}/{len(html_files)} Working with: {f.name}")
-                df = load_df(f, args.year)
+                df = load_df(f, year)
                 if not df.empty:
                     dfs.append(df)
 
@@ -264,15 +287,58 @@ def main():
                 drop=True
             )
 
-            final_df = harmonize_df(final_df, args.year)
+            return final_df
 
-            final_df.to_parquet(f"turkey_{args.year}_processed.parquet")
+        else:
+            print(f"No data to process for {year}")
+
+
+def main():
+    args = parse_arguments()
+
+    if args.all:
+
+        pattern = re.compile(r"20\d{2}")
+
+        # Находим все папки с данными по годам
+        working_dir = Path.cwd() / "raw_html_tables"
+        years = sorted(
+            [
+                p.name
+                for p in working_dir.iterdir()
+                if p.is_dir() and pattern.fullmatch(p.name)
+            ]
+        )
+
+        if years:
+            dfs = []
+            for year in years:
+                print(f"\n{'=' * 30}\n Processing {year}")
+                df = build_for_year(year)
+                df = harmonize_df(df, year)
+                dfs.append(df)
+
+            full_df = pd.concat(dfs, axis=0, ignore_index=True)
+            full_df.to_parquet("tr_full.parquet")
             print(
-                f'Data consolidation and harmonization completed. \nFile "turkey_{args.year}_processed.parquet" was saved.'
+                'Data consolidation and harmonization completed. \nFile "tr_full.parquet" was saved.'
             )
 
         else:
-            print("No data to process")
+            print("No folders with data.")
+
+    elif args.year:
+        df = build_for_year(args.year)
+        df = harmonize_df(df, args.year)
+
+        df.to_parquet(f"turkey_{args.year}_processed.parquet")
+        print(
+            f'Data consolidation and harmonization completed. \nFile "turkey_{args.year}_processed.parquet" was saved.'
+        )
+    else:
+        print(
+            "Use a 'year' option to extract data for a specific year or '--all' for all available years"
+        )
 
 
 if __name__ == "__main__":
