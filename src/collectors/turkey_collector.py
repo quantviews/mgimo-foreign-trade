@@ -167,15 +167,15 @@ async def setup_page(page, year: str):
     await page.get_by_text("$(Dollar)").click()
 
 
-async def collect_data(playwright, year: str, html_tables_dir, hs_codes: dict):
+async def collect_data(playwright, year: str, hs_codes: dict):
     """
     Функция подключается к сайту института статистики Турции и выгружает данные за заданный год используя
     ранее выгруженные HS8 коды. Результат сохраняется в виде html таблиц для дальнейшей обработки.
     :param playwright:
     :param year:
-    :param html_tables_dir:
     :return:
     """
+
     browser = await playwright.chromium.launch(headless=True)
     context = await browser.new_context()
     page = await context.new_page()
@@ -223,6 +223,8 @@ async def collect_data(playwright, year: str, html_tables_dir, hs_codes: dict):
         output = await new_page.content()
 
         # Сохранение HTML файла с отчетом
+        html_tables_dir = Path.cwd() / "raw_html_tables" / year
+        html_tables_dir.mkdir(parents=True, exist_ok=True)
         filename = html_tables_dir / f"{batch[0]}-{batch[-1]}-{year}.html"
         filename.write_text(output, encoding="utf-8")
         print(f"{filename.name} is ready")
@@ -248,13 +250,10 @@ async def main():
 
     else:
 
-        html_tables_dir = Path.cwd() / "raw_html_tables" / args.year
-        html_tables_dir.mkdir(parents=True, exist_ok=True)
-
         async with async_playwright() as playwright:
             hs_codes = await load_codes(playwright, args.year)
             print("\nDownloading data...\n")
-            await collect_data(playwright, args.year, html_tables_dir, hs_codes)
+            await collect_data(playwright, args.year, hs_codes)
 
         print("Raw data download completed.")
 
