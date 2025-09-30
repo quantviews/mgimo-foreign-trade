@@ -1,6 +1,6 @@
 """
-Модуль позволяет выгружать сырые данные с сайта института статистики Турции в виде html таблиц. Также с помощью
-этого модуля можно выгружать HS8 коды по годам.
+Модуль позволяет выгружать HS8 коды и сырые данные с сайта института статистики Турции в виде html таблиц. HS8 коды
+сохраняются отдельно в виде json файлов.
 """
 
 import argparse, asyncio, re, json, time
@@ -97,28 +97,57 @@ async def download_codes(playwright, year: str) -> dict:
             if re.fullmatch(pattern, s):
                 key, value = s.split(" - ", 1)
                 hs_codes[key] = value
-        print(f"{two_digits} - {len(hs_codes)} codes in total")
+        print(f"HS2 {two_digits}; {len(hs_codes)} codes loaded")
 
     await browser.close()
 
     return hs_codes
 
 
-async def save_codes(year: str, filepath) -> dict:
+async def load_codes(playwright, year: str) -> dict:
     """
-    Функция загружает коды с помощью функции download_codes(), сохраняет результат в json-файл и возвращает
-    словарь с кодами
+    Если файл с кодами отсутствует, функция загружает коды с помощью функции download_codes(), сохраняет результат
+    в json-файл и возвращает словарь с кодами. Если файл существует, то выполняется его проверка, выгружаются коды
+    и возвращается словарь с кодами.
     :param year:
-    :param filepath:
-    :return: dict
+    :return hs_codes:
     """
-    print(f"Downloading codes for {year}...")
-    async with async_playwright() as playwright:
-        codes = await download_codes(playwright, year)
-    with open(filepath, "w", encoding="utf-8") as file:
-        json.dump(codes, file, indent=4)
-    print(f"Codes were saved in  {filepath.name}")
-    return codes
+    hs_codes = None
+    hs_codes_dir = Path.cwd() / "hs_codes_json"
+    codes_file_path = hs_codes_dir / f"turkey_codes{year}.json"
+
+    try:
+        if not codes_file_path.exists():
+            hs_codes_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Downloading codes for {year}...")
+            hs_codes = await download_codes(playwright, year)
+            with open(codes_file_path, "w", encoding="utf-8") as file:
+                json.dump(hs_codes, file, indent=4)
+            print(f"Codes were saved in {codes_file_path.name}")
+
+        else:
+            try:
+                with open(codes_file_path, "r", encoding="utf-8") as f:
+                    hs_codes = json.load(f)
+                print(f"Will use previously downloaded HS8 codes for {year}.")
+
+            except (json.JSONDecodeError, IOError):
+                print(
+                    f"Couldn't process the file with codes for {year}. Downloading again..."
+                )
+                hs_codes = await download_codes(playwright, year)
+                with open(codes_file_path, "w", encoding="utf-8") as file:
+                    json.dump(hs_codes, file, indent=4)
+                print(f"Codes were saved in {codes_file_path.name}")
+
+    except Exception as e:
+        print(f"Error handling file: {e}")
+
+    # Проверка, что hs_codes обязательно имеет значение перед возвратом
+    if hs_codes is None:
+        raise RuntimeError(f"Failed to load or download codes for {year}")
+
+    return hs_codes
 
 
 async def setup_page(page, year: str):
@@ -138,7 +167,7 @@ async def setup_page(page, year: str):
     await page.get_by_text("$(Dollar)").click()
 
 
-async def collect_data(playwright, year: str, html_tables_dir):
+async def collect_data(playwright, year: str, html_tables_dir, hs_codes: dict):
     """
     Функция подключается к сайту института статистики Турции и выгружает данные за заданный год используя
     ранее выгруженные HS8 коды. Результат сохраняется в виде html таблиц для дальнейшей обработки.
@@ -169,11 +198,7 @@ async def collect_data(playwright, year: str, html_tables_dir):
     # Вводим страну
     await page.fill(f"#{country_input_id}", COUNTRY_ID)
 
-    # Загружаем коды hs, делим по пакетам
-
-    codes_file_path = Path.cwd() / "hs_codes_json" / f"turkey_codes{year}.json"
-    with open(codes_file_path, "r") as f:
-        hs_codes = json.load(f)
+    # Подготавливаем пакеты кодов для загрузки
 
     keys = list(hs_codes.keys())
     batches = [keys[i : i + BATCH_SIZE] for i in range(0, len(keys), BATCH_SIZE)]
@@ -209,7 +234,7 @@ async def collect_data(playwright, year: str, html_tables_dir):
         # Закрываем вкладку с отчетом
         await new_page.close()
 
-    # Завершение работы браузера и Playwright
+    # Завершение работы браузера
     await context.close()
     await browser.close()
 
@@ -217,40 +242,21 @@ async def collect_data(playwright, year: str, html_tables_dir):
 async def main():
     args = parse_arguments()
 
-    hs_codes_dir = Path.cwd() / "hs_codes_json"
-    hs_codes_dir.mkdir(parents=True, exist_ok=True)
+    if args.codes:
+        async with async_playwright() as playwright:
+            await load_codes(playwright, args.year)
 
-    codes_file_path = hs_codes_dir / f"turkey_codes{args.year}.json"
+    else:
 
-    try:
-        if not codes_file_path.exists():
-            codes = await save_codes(args.year, codes_file_path)
-        else:
-            try:
-                with open(codes_file_path, "r", encoding="utf-8") as f:
-                    codes = json.load(f)
-                print(f"Will use previously downloaded HS8 codes for {args.year}.")
-            except (json.JSONDecodeError, IOError):
-                print(
-                    f"Couldn't process the file with codes for {args.year}. Downloading again..."
-                )
-                codes = await save_codes(args.year, codes_file_path)
-    except Exception as e:
-        print(f"Error handling file: {e}")
-
-    if not args.codes:
-        print("Downloading data...")
         html_tables_dir = Path.cwd() / "raw_html_tables" / args.year
         html_tables_dir.mkdir(parents=True, exist_ok=True)
 
         async with async_playwright() as playwright:
-            await collect_data(playwright, args.year, html_tables_dir)
+            hs_codes = await load_codes(playwright, args.year)
+            print("\nDownloading data...\n")
+            await collect_data(playwright, args.year, html_tables_dir, hs_codes)
 
         print("Raw data download completed.")
-
-    # if args.verbose:
-    #     print(f"Запущено с аргументами: {args}")
-    #
 
 
 if __name__ == "__main__":
