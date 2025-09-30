@@ -1,3 +1,8 @@
+"""
+Модуль позволяет выгружать сырые данные с сайта института статистики Турции в виде html таблиц. Также с помощью
+этого модуля можно выгружать HS8 коды по годам.
+"""
+
 import argparse, asyncio, re, json, time
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
@@ -9,7 +14,7 @@ def parse_arguments():
     """
     Обработчик аргументов для запуска модуля из командной строки.
 
-    usage: new_collector.py [-h] [-c] [-v] year
+    usage: new_collector.py [-h] [-c] year
     -c, --codes - загружает только коды за определенный год
 
     :return: возвращает список аргументов для запуска модуля
@@ -48,8 +53,6 @@ def parse_arguments():
         help="download only codes for a specific year",
     )
 
-    parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
-
     # Парсинг аргументов
     args = parser.parse_args()
     return args
@@ -79,7 +82,7 @@ async def download_codes(playwright, year: str) -> dict:
     await page.fill(f"#{text_id}", COUNTRY_ID)
 
     hs_codes = {}
-    pattern = r"\d{2,10} - .+"  # regex шаблон формата "01234567 - Text..."
+    pattern = r"\d{8} - .+"  # regex шаблон формата "01234567 - Text..."
     cn_id = doc.find_all(class_="z-textbox")[3].get("id")
 
     # Ждём загрузки кнопки "Ara" после клика
@@ -120,7 +123,7 @@ async def save_codes(year: str, filepath) -> dict:
 
 async def setup_page(page, year: str):
     """
-    Функция производит  первоначальную навигацию и настройки фильтров на странице перед началом выгрузки данных
+    Функция производит первоначальную навигацию и настройки фильтров на странице перед началом выгрузки данных
     :param page:
     :return:
     """
