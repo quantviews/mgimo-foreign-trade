@@ -1,4 +1,8 @@
-#!/Users/kost/.pyenv/shims/python3.11
+"""
+Модуль находит сырые данные в виде html файлов, производит их предварительную обработку и  объединяет в единый датасет,
+который затем гармонизируется в соответствии с моделью данных и сохраняется в виде parquet файла.
+"""
+
 import re, os, argparse
 from bs4 import BeautifulSoup
 from pathlib import Path
@@ -12,7 +16,7 @@ def parse_arguments():
     """
     Обработчик аргументов для запуска модуля из командной строки.
 
-    usage: processor.py [-h] [-v] year
+    usage: processor.py [-h] [-a] year
 
     :return: возвращает список аргументов для запуска модуля
     """
@@ -50,14 +54,25 @@ def parse_arguments():
         help="process data for the all available years",
     )
 
-    parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
+    # parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
 
     # Парсинг аргументов
     args = parser.parse_args()
     return args
 
 
-def table_clean(df, year):
+def table_clean(df: pd.DataFrame, year) -> pd.DataFrame:
+    """
+    Функция производит очистку таблицы полученной из сырых данных.
+    - удаляются дублирующиеся строки,
+    - определяются позиции референсных ячеек для сепарации полезных данных от артефактов форматирования
+    - заполняются отсутствующие значения в столбцах "Month", "Country", "Country name"
+    - исправляются ошибки в кодах с ведущим нулем
+
+    :param df: pandas.DataFrame
+    :param year:
+    :return: pd.DataFrame
+    """
     # Удаление дубликатов
     df.drop_duplicates(inplace=True)
 
@@ -129,7 +144,15 @@ def table_clean(df, year):
     return df
 
 
-def load_df(filename, year):
+def load_df(filename, year) -> pd.DataFrame:
+    """
+    Функция загружает данные из определенного html файла, обнаруживает в нем таблицы для обработки,
+    производит их очистку с помощью функции table_clean() объединяет и возвращает pd.DataFrame с результатом.
+
+    :param filename:
+    :param year:
+    :return: pd.DataFrame
+    """
     with open(filename, "r", encoding="utf-8", errors="ignore") as file:
         html_content = file.read()
 
@@ -151,6 +174,13 @@ def load_df(filename, year):
 
 
 def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
+    """
+    Функция выполняет гармонизацию данных в соответствии с моделью данных.
+
+    :param df:
+    :param year:
+    :return:
+    """
     print("Harmonizing consolidated data...")
     # Переименование колонок и удаление лишних сразу
     df.rename(
@@ -254,6 +284,13 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
 
 
 def build_for_year(year):
+    """
+    Функция загружает обработанные и очищенные данные с помощью функции load_df() из всех html файлов за определенный
+    год и возвращает результирующий датасет за определенный год.
+
+    :param year:
+    :return:
+    """
 
     html_files_path = Path.cwd() / "raw_html_tables" / str(year)
 
@@ -342,6 +379,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # словарь который используется для конвертации единиц измерения при гармонизации данных
     UNITS = {
         "KG/ÇİFT": ["715", "ПАР", "ПАРА"],
         "KG": ["?", "?", "?"],
