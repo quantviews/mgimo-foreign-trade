@@ -14,7 +14,7 @@
 
 ## 2. Использование
 
-[Схема процесса сбора и обработки данных](https://github.com/quantviews/mgimo-foreign-trade/blob/main/fig/turkey-data-collection.png?raw=true)
+[Схема процесса сбора и обработки данных](https://github.com/quantviews/mgimo-foreign-trade/blob/main/fig/turkey-data-collection.png)
 
 ### Шаг 1: Сбор сырых данных с `turkey_collector.py`
 
