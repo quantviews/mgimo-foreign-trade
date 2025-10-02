@@ -2,6 +2,8 @@ metadata/
 org/
 data_raw/
 data_processed/
+db/
+
 *_files/
 *.html
 # =========================
