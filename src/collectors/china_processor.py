@@ -143,8 +143,8 @@ def process_and_merge_china_data(raw_data_dir: Path, output_file: Path, codes_di
                 df['STRANA'] = 'CN'
             
             # Convert STOIM from thousands USD to USD
-            if 'STOIM' in df.columns:
-                df['STOIM'] = df['STOIM'] * 1000
+            #if 'STOIM' in df.columns:
+            #    df['STOIM'] = df['STOIM'] * 1000
 
             # Rename columns to match the old notebook's standard
             df = df.rename(columns={

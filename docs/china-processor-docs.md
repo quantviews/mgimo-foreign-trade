@@ -53,12 +53,7 @@ english_to_iso_mapping = {
    df['STRANA'] = 'CN'  # Все записи относятся к Китаю
    ```
 
-3. **Преобразование стоимости:**
-   ```python
-   df['STOIM'] = df['STOIM'] * 1000  # Тысячи USD → USD
-   ```
-
-4. **Переименование колонок:**
+3. **Переименование колонок:**
    ```python
    df = df.rename(columns={
        'Supplementary Quantity': 'KOL',
@@ -66,7 +61,7 @@ english_to_iso_mapping = {
    })
    ```
 
-5. **Нормализация TNVED кодов:**
+4. **Нормализация TNVED кодов:**
    ```python
    tnved_cols = {'TNVED': 8, 'TNVED2': 2, 'TNVED4': 4, 'TNVED6': 6}
    for col, length in tnved_cols.items():
