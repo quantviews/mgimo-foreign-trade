@@ -64,6 +64,11 @@ cache/
 *.utf8.md
 *.knit.md
 
+# Quarto cache
+.quarto/
+_freeze/
+_site/
+
 # =========================
 # IDE
 # =========================
