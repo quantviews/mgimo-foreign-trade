@@ -245,11 +245,12 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
 
 def main():
     """Main function to orchestrate the merging process."""
-    # Define paths
-    data_processed_dir = Path("../data_processed")
-    db_dir = Path("../db")
+    # Define paths using the script's location for robustness
+    project_root = Path(__file__).resolve().parent.parent
+    data_processed_dir = project_root / "data_processed"
+    db_dir = project_root / "db"
     output_db_path = db_dir / "unified_trade_data.duckdb"
-    
+
     # Ensure output directory exists
     db_dir.mkdir(exist_ok=True)
     

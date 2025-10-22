@@ -34,11 +34,14 @@ EDIZM_TO_ISO = {
 }
 
 def process_and_merge_india_data(raw_data_dir: Path, output_file: Path):
-
+    """
+    Сканирует директорию с необработанными данными, обрабатывает каждый CSV-файл,
+    объединяет их в один DataFrame и сохраняет в формате Parquet.
+    """
 
     logger.info("=== Начало обработки данных Индии ===")
 
-    all_files = sorted(raw_data_dir.glob("india_data_*.csv"))
+    all_files = sorted(raw_data_dir.glob("india_*.csv"))
     if not all_files:
         logger.error(f"Не найдено файлов в {raw_data_dir}")
         return
@@ -90,8 +93,6 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path):
     final_df.sort_values(by=['PERIOD', 'NAPR', 'TNVED'], inplace=True)
 
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    if output_file.exists():
-        os.remove(output_file)
 
     logger.info(f"Сохранение объединённого набора в {output_file}")
     try:
@@ -101,6 +102,10 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path):
         logger.error("Не установлен pyarrow. Установите: pip install pyarrow")
 
 def main():
+    """
+    Точка входа в скрипт. Определяет пути к данным и запускает
+    процесс обработки и слияния.
+    """
     try:
         project_root = Path(__file__).resolve().parent.parent.parent
     except NameError:

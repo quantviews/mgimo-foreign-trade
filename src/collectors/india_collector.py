@@ -14,46 +14,77 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
+from typing import Dict, Any, List, Optional
+import logging
+import os
+import argparse
+from datetime import datetime
+from pathlib import Path
 
-def fetch_meidb_data(session, url, data, headers):
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Constants
+BASE_URL = "https://tradestat.commerce.gov.in/meidb/"
+EXPORT_URL = f"{BASE_URL}country_wise_all_commodities_export"
+IMPORT_URL = f"{BASE_URL}country_wise_all_commodities_import"
+
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+ACCEPT_HEADER = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+ACCEPT_LANGUAGE_HEADER = 'en-US,en;q=0.5'
+
+DEFAULT_COUNTRY_CODE = 344
+COMMODITY_LEVEL = 8
+REPORT_YEAR_TYPE = 2
+
+
+def fetch_meidb_data(session: requests.Session, url: str, data: Dict[str, Any], headers: Dict[str, str], retries: int = 3, backoff_factor: float = 0.5) -> pd.DataFrame:
     """
-    Выполняет запрос к MEIDB и возвращает данные
+    Выполняет запрос к MEIDB и возвращает данные, с логикой повторных попыток.
     """
-    try:
-        response = session.post(url, data=data, headers=headers, timeout=30)
-        response.raise_for_status()
+    for attempt in range(retries):
+        try:
+            response = session.post(url, data=data, headers=headers, timeout=30)
+            response.raise_for_status()
 
-        # Парсим HTML с результатами
-        soup = BeautifulSoup(response.content, 'html.parser')
+            # Парсим HTML с результатами
+            soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Ищем таблицу с данными
-        table = soup.find('table', {'id': 'example1'})
+            # Ищем таблицу с данными
+            table = soup.find('table', {'id': 'example1'})
 
-        if not table:
-            print(f"Таблица не найдена для {url}")
-            return pd.DataFrame()
+            if not table:
+                logging.warning(f"Таблица не найдена для {url}")
+                return pd.DataFrame()
 
-        # Извлекаем заголовки
-        headers_list = []
-        for th in table.find_all('th'):
-            headers_list.append(th.get_text(strip=True).replace('\xa0', ' '))
+            # Извлекаем заголовки
+            headers_list = []
+            for th in table.find_all('th'):
+                headers_list.append(th.get_text(strip=True).replace('\xa0', ' '))
 
-        # Извлекаем данные
-        rows_data = []
-        for tr in table.find_all('tr')[1:]:  # Пропускаем строку заголовков
-            cells = tr.find_all('td')
-            if cells:
-                row_data = [cell.get_text(strip=True).replace('\xa0', ' ') for cell in cells]
-                rows_data.append(row_data)
+            # Извлекаем данные
+            rows_data = []
+            for tr in table.find_all('tr')[1:]:  # Пропускаем строку заголовков
+                cells = tr.find_all('td')
+                if cells:
+                    row_data = [cell.get_text(strip=True).replace('\xa0', ' ') for cell in cells]
+                    rows_data.append(row_data)
 
-        # Создаем DataFrame
-        df = pd.DataFrame(rows_data, columns=headers_list)
-        return df
-    except Exception as e:
-        print(f"Ошибка при выполнении запроса: {e}")
-        return pd.DataFrame()
+            # Создаем DataFrame
+            df = pd.DataFrame(rows_data, columns=headers_list)
+            return df
+        except requests.exceptions.RequestException as e:
+            if attempt < retries - 1:
+                sleep_time = backoff_factor * (2 ** attempt)
+                logging.warning(f"Ошибка запроса: {e}. Повторная попытка {attempt + 1}/{retries} через {sleep_time:.2f} сек...")
+                time.sleep(sleep_time)
+            else:
+                logging.error(f"Ошибка при выполнении запроса после {retries} попыток: {e}")
+                return pd.DataFrame()
+    return pd.DataFrame()
 
-def process_trade_data(df, flow_type, data_type):
+
+def process_trade_data(df: pd.DataFrame, flow_type: str, data_type: str) -> pd.DataFrame:
     """
     Обрабатывает данные торговли и возвращает обработанный DataFrame
     """
@@ -73,13 +104,13 @@ def process_trade_data(df, flow_type, data_type):
             value_cols.append(col)
 
     if not value_cols:
-        print("Не удалось найти столбец с данными о стоимости")
+        logging.warning("Не удалось найти столбец с данными о стоимости")
         return pd.DataFrame()
 
     value_col = value_cols[1] if len(value_cols) > 1 else value_cols[0]
 
     if not all([hs_col, commodity_col, value_col]):
-        print("Не удалось найти все необходимые столбцы")
+        logging.warning("Не удалось найти все необходимые столбцы")
         return pd.DataFrame()
 
     # Создаем базовый DataFrame с кодом и названием товара
@@ -117,83 +148,77 @@ def process_trade_data(df, flow_type, data_type):
     result_df['Flow'] = flow_type
     return result_df
 
-def get_trade_data_for_flow(year, month, country_code, flow_type):
+def get_trade_data_for_flow(year: int, month: int, country_code: int, flow_type: str) -> pd.DataFrame:
     """
     Получает все данные для указанного типа потока (экспорт/импорт)
     """
     # Определяем параметры в зависимости от типа торговли
     if flow_type == 'Ex':
-        url = 'https://tradestat.commerce.gov.in/meidb/country_wise_all_commodities_export'
+        url = EXPORT_URL
         month_field = 'cwcexddMonth'
         year_field = 'cwcexddYear'
         country_field = 'cwcexallcount'
         commodity_level_field = 'cwcexddCommodityLevel'
         report_val_field = 'cwcexddReportVal'
         report_year_field = 'cwcexddReportYear'
-        referer = 'https://tradestat.commerce.gov.in/meidb/country_wise_all_commodities_export'
+        referer = EXPORT_URL
     else:
-        url = 'https://tradestat.commerce.gov.in/meidb/country_wise_all_commodities_import'
+        url = IMPORT_URL
         month_field = 'cwcimMonth'
         year_field = 'cwcimYear'
         country_field = 'cwcimallcount'
         commodity_level_field = 'cwcimCommodityLevel'
         report_val_field = 'cwcimReportVal'
         report_year_field = 'cwcimReportYear'
-        referer = 'https://tradestat.commerce.gov.in/meidb/country_wise_all_commodities_import'
+        referer = IMPORT_URL
 
-    # Создаем сессию для сохранения куки
-    session = requests.Session()
-
-    # Первый GET-запрос для получения CSRF-токена
-    try:
-        response_get = session.get(url, timeout=30)
-        response_get.raise_for_status()
-
-        # Парсим HTML для извлечения CSRF-токена
-        soup = BeautifulSoup(response_get.content, 'html.parser')
-        token_input = soup.find('input', {'name': '_token'})
-        csrf_token = token_input.get('value') if token_input else None
-
-        if not csrf_token:
-            print(f"CSRF-токен не найден для {flow_type}")
-            return pd.DataFrame()
-    except Exception as e:
-        print(f"Ошибка при получении CSRF-токена для {flow_type}: {e}")
-        return pd.DataFrame()
-
-    # Заголовки для имитации браузера
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': referer,
-    }
-
-    # Создаем список для хранения результатов
     results = []
-
-    # Выполняем запросы для всех трех типов данных
     for data_type, report_val in [('usd', 1), ('inr', 3), ('quantity', 2)]:
-        # Подготавливаем данные для POST-запроса
-        data = {
-            month_field: month,
-            year_field: year,
-            country_field: country_code,
-            commodity_level_field: 8,
-            report_val_field: report_val,
-            report_year_field: 2,
-            '_token': csrf_token
-        }
+        try:
+            # Создаем новую сессию для каждого запроса
+            session = requests.Session()
+            
+            # Получаем свежий CSRF-токен
+            response_get = session.get(url, timeout=30)
+            response_get.raise_for_status()
+            soup = BeautifulSoup(response_get.content, 'html.parser')
+            token_input = soup.find('input', {'name': '_token'})
+            csrf_token = token_input.get('value') if token_input else None
 
-        print(f"Получение данных {flow_type} для типа {data_type}...")
-        df = fetch_meidb_data(session, url, data, headers)
+            if not csrf_token:
+                logging.warning(f"CSRF-токен не найден для {flow_type} ({data_type})")
+                continue
 
-        if not df.empty:
-            processed_df = process_trade_data(df, flow_type, data_type)
-            if not processed_df.empty:
-                results.append(processed_df)
+            headers = {
+                'User-Agent': USER_AGENT,
+                'Accept': ACCEPT_HEADER,
+                'Accept-Language': ACCEPT_LANGUAGE_HEADER,
+                'Referer': referer,
+            }
 
-        time.sleep(1)  # Пауза между запросами
+            data = {
+                month_field: month,
+                year_field: year,
+                country_field: country_code,
+                commodity_level_field: COMMODITY_LEVEL,
+                report_val_field: report_val,
+                report_year_field: REPORT_YEAR_TYPE,
+                '_token': csrf_token
+            }
+
+            logging.info(f"Получение данных {flow_type} для типа {data_type}...")
+            df = fetch_meidb_data(session, url, data, headers)
+
+            if not df.empty:
+                processed_df = process_trade_data(df, flow_type, data_type)
+                if not processed_df.empty:
+                    results.append(processed_df)
+            
+            time.sleep(2)  # Пауза между запросами
+
+        except Exception as e:
+            logging.error(f"Ошибка при получении данных для {flow_type} ({data_type}): {e}")
+            continue
 
     # Объединяем все результаты для этого потока
     if results:
@@ -216,81 +241,72 @@ def get_trade_data_for_flow(year, month, country_code, flow_type):
 
     return pd.DataFrame()
 
-def get_all_trade_data(year, month, country_code=344):
+
+def get_all_trade_data(year: int, month: int, country_code: int = DEFAULT_COUNTRY_CODE) -> pd.DataFrame:
     """
-    Получает данные и для экспорта, и для импорта параллельно
+    Получает данные и для экспорта, и для импорта последовательно
     """
-    results = {}
+    logging.info("Сбор данных по экспорту...")
+    export_df = get_trade_data_for_flow(year, month, country_code, 'Ex')
 
+    logging.info("Сбор данных по импорту...")
+    import_df = get_trade_data_for_flow(year, month, country_code, 'Im')
+    
+    all_dfs = []
+    if not export_df.empty:
+        all_dfs.append(export_df)
+    if not import_df.empty:
+        all_dfs.append(import_df)
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    if not all_dfs:
+        return pd.DataFrame()
 
-        future_to_flow = {
-            executor.submit(get_trade_data_for_flow, year, month, country_code, 'Ex'): 'Ex',
-            executor.submit(get_trade_data_for_flow, year, month, country_code, 'Im'): 'Im'
-        }
+    combined_df = pd.concat(all_dfs, ignore_index=True)
 
+    return post_process_data(combined_df) if not combined_df.empty else pd.DataFrame()
 
-        for future in as_completed(future_to_flow):
-            flow_type = future_to_flow[future]
-            try:
-                results[flow_type] = future.result()
-            except Exception as e:
-                print(f"Ошибка при получении данных для {flow_type}: {e}")
-                results[flow_type] = pd.DataFrame()
+def post_process_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Выполняет постобработку данных: переименование столбцов, создание новых и т.д.
+    """
+    df['USD'] = 1000 * df['USD']  # converting to thousand USD (prior - mln USD)
 
-
-    if not results['Ex'].empty and not results['Im'].empty:
-        combined_df = pd.concat([results['Ex'], results['Im']], ignore_index=True)
-    elif not results['Ex'].empty:
-        combined_df = results['Ex']
-    elif not results['Im'].empty:
-        combined_df = results['Im']
-    else:
-        combined_df = pd.DataFrame()
-
-    combined_df['USD'] = 1000 * combined_df['USD'] # converting to thousand USD (prior - mln USD)
-
-    combined_df.Flow = combined_df.Flow.apply(lambda x: 'ИМ' if x == 'Ex' else 'ЭК')
+    df.Flow = df.Flow.apply(lambda x: 'ИМ' if x == 'Ex' else 'ЭК')
 
     rename_dict = {'HSCode': 'TNVED', 'USD': 'STOIM', 'Flow': 'NAPR', 'INR': 'STOIM_NAC_VAL',
                    'Quantity': 'KOL', 'Unit': 'EDIZM'}
 
-    combined_df.rename(columns = rename_dict, inplace = True)
+    df.rename(columns=rename_dict, inplace=True)
 
-    combined_df.EDIZM = combined_df.EDIZM.apply(lambda x: 'KGS' if x == 'KG' else x)
+    df.EDIZM = df.EDIZM.apply(lambda x: 'KGS' if x == 'KG' else x)
 
-    combined_df['NETTO'] = np.where(combined_df.EDIZM == 'KGS', combined_df.KOL, np.nan)
+    df['NETTO'] = np.where(df.EDIZM == 'KGS', df.KOL, np.nan)
 
-    combined_df['TNVED2'] = combined_df['TNVED'].apply(lambda x: x[0:2])
+    df['TNVED2'] = df['TNVED'].apply(lambda x: x[0:2])
+    df['TNVED4'] = df['TNVED'].apply(lambda x: x[0:4])
+    df['TNVED6'] = df['TNVED'].apply(lambda x: x[0:6])
 
-    combined_df['TNVED4'] = combined_df['TNVED'].apply(lambda x: x[0:4])
+    df['PERIOD'] = pd.to_datetime(
+        df["Year"].astype(str) + "-" + df["Month"].astype(str).str.zfill(2) + "-01"
+    )
 
-    combined_df['TNVED6'] = combined_df['TNVED'].apply(lambda x: x[0:6])
+    df['STRANA'] = 'IN'
 
-    combined_df['PERIOD'] = pd.to_datetime(combined_df["Year"].astype(str) + "-" + combined_df["Month"].astype(str).str.zfill(2) + "-01")
+    return df
 
-    combined_df['STRANA'] = 'IN'
 
-    return combined_df
-
-from pathlib import Path
-import os
-
-def save_india_data(df, year, month, output_dir=None):
+def save_india_data(df: pd.DataFrame, year: int, month: int, output_dir: Optional[Path] = None) -> None:
     """
     Сохраняет все данные Индии (импорт и экспорт вместе)
-    в формате: data_raw/india/india_data_YYYY_MM.csv
+    в формате: data_raw/india/india_YYYY_MM.csv
     """
     if df.empty:
-        print("Нет данных для сохранения.")
+        logging.warning("Нет данных для сохранения.")
         return
 
     try:
-
-        project_root = Path(__file__).resolve().parent.parent
+        project_root = Path(__file__).resolve().parent.parent.parent
     except NameError:
-
         project_root = Path(os.getcwd())
 
     if output_dir is None:
@@ -300,37 +316,67 @@ def save_india_data(df, year, month, output_dir=None):
 
 
     month_str = str(month).zfill(2)
-    filename = f"india_data_{year}_{month_str}.csv"
+    filename = f"india_{year}_{month_str}.csv"
     save_path = output_dir / filename
 
 
     df.to_csv(save_path, index=False, encoding='utf-8-sig')
 
-    print(f"✅ Данные сохранены: {save_path}")
+    logging.info(f"✅ Данные сохранены: {save_path}")
 
-combined_data.describe()
+def main():
+    """
+    Основная функция для сбора данных.
+    """
+    parser = argparse.ArgumentParser(description="Сбор данных о торговле Индии.")
+    parser.add_argument('--year', type=int, help="Год для сбора данных (если указан, --month тоже обязателен).")
+    parser.add_argument('--month', type=int, help="Месяц для сбора данных (если указан, --year тоже обязателен).")
+    parser.add_argument('--start_year', type=int, default=None, help="Начальный год для сбора данных.")
+    parser.add_argument('--start_month', type=int, default=None, help="Начальный месяц для сбора данных.")
+    parser.add_argument('--end_year', type=int, default=None, help="Конечный год для сбора данных.")
+    parser.add_argument('--end_month', type=int, default=None, help="Конечный месяц для сбора данных.")
+    args = parser.parse_args()
 
-import itertools
-last = (2025,8)
-a = [x for x in range(2018, last[0]+1)]
-b = [x for x in range(1,13)]
-all_dates = sorted(set([x for x in list(itertools.product(a, b)) if (x[0]<=last[0]-1) or (x[0]==last[0] and x[1]<=last[1])]))
+    now = datetime.now()
 
-for (i, j) in all_dates:
-  if __name__ == "__main__":
-    print("Начало парсинга данных...")
-
-
-    combined_data = get_all_trade_data(i, j, 344)
-
-    if not combined_data.empty:
-        print(f"Данные успешно получены: {combined_data['Year'].iloc[0]}_{combined_data['Month'].iloc[0]:02d}")
-        print(combined_data.head())
-
-
-        filename = f"india_{combined_data['Year'].iloc[0]}_{combined_data['Month'].iloc[0]:02d}.csv"
-        combined_data.to_csv(filename, index=False, encoding='utf-8')
-        save_india_data(combined_data, i, j)
-        print(f"\nДанные сохранены в файл '{filename}'")
+    if args.year and args.month:
+        dates = [(args.year, args.month)]
+    elif args.year or args.month:
+        parser.error("--year и --month должны быть указаны вместе.")
+        return
     else:
-        print("Не удалось получить данные")
+        start_year = args.start_year if args.start_year is not None else 2018
+        start_month = args.start_month if args.start_month is not None else 1
+        
+        end_year = args.end_year if args.end_year is not None else now.year
+        
+        if args.end_month is not None:
+            end_month = args.end_month
+        else:
+            if args.end_year is None or args.end_year == now.year:
+                end_month = now.month
+            else:
+                end_month = 12
+        
+        dates = []
+        for year in range(start_year, end_year + 1):
+            s_month = start_month if year == start_year else 1
+            e_month = end_month if year == end_year else 12
+            for month in range(s_month, e_month + 1):
+                dates.append((year, month))
+
+    for (year, month) in dates:
+        logging.info(f"Начало парсинга данных за {year}-{month:02d}...")
+        combined_data = get_all_trade_data(year, month, DEFAULT_COUNTRY_CODE)
+
+        if not combined_data.empty:
+            logging.info(f"Данные успешно получены: {combined_data['Year'].iloc[0]}_{combined_data['Month'].iloc[0]:02d}")
+            logging.info(combined_data.head())
+
+            save_india_data(combined_data, year, month)
+            logging.info(f"\nДанные сохранены")
+        else:
+            logging.warning(f"Не удалось получить данные за {year}-{month:02d}")
+
+if __name__ == "__main__":
+    main()
