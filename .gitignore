@@ -3,10 +3,12 @@ org/
 data_raw/
 data_processed/
 db/
+superset/
 
 *.duckdb
 *.db
 *.csv
+.bat 
 
 *_files/
 *.html
