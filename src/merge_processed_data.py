@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 """
-Script to merge processed parquet files and save to DuckDB.
+Script to merge processed parquet files (data_processed/) and save to DuckDB.
 
 This script:
 1. Reads processed parquet files from data_processed/ folder
 2. Validates each dataset against the data model schema
-3. Merges all datasets into one unified dataset
-4. Saves the merged dataset to DuckDB format
+3. Optionally, loads and transforms Comtrade data for missing countries
+4. Merges all datasets into one unified dataset
+5. Excludes countries specified in --exclude-countries argument
+6. start_year argument to filter data from this year onwards
+7. Saves the merged dataset to DuckDB format in db/unified_trade_data.duckdb
 """
 
 import pandas as pd
 import duckdb
 from pathlib import Path
 import logging
-from typing import Dict
+import argparse
+import json
+from typing import Dict, List
 
 # Configure logging
 logging.basicConfig(
@@ -26,10 +31,11 @@ logger = logging.getLogger(__name__)
 EXPECTED_SCHEMA = {
     'NAPR': 'object',          # VARCHAR - торговый поток (ИМ/ЭК)
     'PERIOD': 'datetime64[ns]', # DATE - отчетный период
-    'STRANA': 'object',         # VARCHAR - страна-партнер (ISO код)
+    'STRANA': 'object',         # VARCHAR - страна-отчет (ISO код)
     'TNVED': 'object',          # VARCHAR - код ТН ВЭД (8-10 знаков)
     'EDIZM': 'object',          # VARCHAR - единица измерения
-    'STOIM': 'float64',         # DECIMAL - стоимость в USD
+    'EDIZM_ISO': 'object',      # VARCHAR - ISO код единицы измерения (опционально)
+    'STOIM': 'float64',         # DECIMAL - стоимость в ТЫСЯЧАХ USD
     'NETTO': 'float64',         # DECIMAL - вес нетто в кг
     'KOL': 'float64',           # DECIMAL - количество в дополнительной единице
     'TNVED4': 'object',         # VARCHAR - первые 4 знака TNVED
@@ -95,12 +101,13 @@ def validate_schema(df: pd.DataFrame, filename: str) -> bool:
     logger.info(f"Schema validation passed for {filename}")
     return True
 
-def load_and_validate_file(file_path: Path) -> pd.DataFrame:
+def load_and_validate_file(file_path: Path, start_year: int = None) -> pd.DataFrame:
     """
     Load parquet file and validate schema.
     
     Args:
         file_path: Path to parquet file
+        start_year: Optional year to filter data from
         
     Returns:
         Validated DataFrame or None if validation fails
@@ -109,6 +116,18 @@ def load_and_validate_file(file_path: Path) -> pd.DataFrame:
         logger.info(f"Loading {file_path}")
         df = pd.read_parquet(file_path)
         
+        if start_year:
+            if 'PERIOD' not in df.columns:
+                logger.warning(f"Cannot filter by year: {file_path.name} has no PERIOD column.")
+            else:
+                if df['PERIOD'].dtype != 'datetime64[ns]':
+                    df['PERIOD'] = pd.to_datetime(df['PERIOD'], errors='coerce')
+                
+                initial_rows = len(df)
+                df = df[df['PERIOD'].dt.year >= start_year].copy()
+                if len(df) < initial_rows:
+                    logger.info(f"Filtered {file_path.name} by start_year >= {start_year}. Kept {len(df)} of {initial_rows} rows.")
+
         # Validate schema
         if not validate_schema(df, file_path.name):
             logger.error(f"Schema validation failed for {file_path.name}")
@@ -243,14 +262,244 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
         logger.error(f"Failed to save to DuckDB: {e}")
         raise
 
+def load_partner_mapping(project_root: Path) -> Dict[int, str]:
+    """Loads Comtrade partner code (M49) to ISO2 mapping from JSON."""
+    mapping_file = project_root / "metadata" / "comtrate-partnerAreas.json"
+    if not mapping_file.exists():
+        logger.error(f"Partner mapping file not found at {mapping_file}")
+        return {}
+    
+    with open(mapping_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # M49 codes are numeric, ISO2 are strings
+    mapping = {
+        int(item['id']): item.get('PartnerCodeIsoAlpha2')
+        for item in data.get('results', []) if item.get('PartnerCodeIsoAlpha2')
+    }
+    return mapping
+
+def load_edizm_mapping(project_root: Path) -> Dict[int, str]:
+    """Loads Comtrade qtyCode to qtyAbbr mapping from JSON."""
+    mapping_file = project_root / "metadata" / "comtradte-QuantityUnits.json"
+    if not mapping_file.exists():
+        logger.error(f"Edizm mapping file not found at {mapping_file}")
+        return {}
+    
+    with open(mapping_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    mapping = {
+        item['qtyCode']: item.get('qtyAbbr')
+        for item in data.get('results', [])
+    }
+    return mapping
+
+def load_common_edizm_mapping(project_root: Path) -> Dict[str, Dict[str, str]]:
+    """Loads common EDIZM mapping from edizm.csv."""
+    mapping_file = project_root / "metadata" / "edizm.csv"
+    if not mapping_file.exists():
+        logger.error(f"Common EDIZM mapping file not found at {mapping_file}")
+        return {}
+    
+    try:
+        df = pd.read_csv(mapping_file, dtype={'KOD': str})
+        
+        # Create a flexible mapping from various names to a standard representation
+        mapping = {}
+        # Simple mappings from abbreviation to code
+        simple_map = {
+            "МЕТР": "м", "КВАДРАТНЫЙ МЕТР": "м2", 
+            "КИЛОГРАММ": "кг",
+            "ГРАММ": "г", 
+            "КУБИЧЕСКИЙ МЕТР": "м3", 
+            "ЛИТР": "л",
+            "ШТУКА": "шт", "ПАРА": "пары", "СТО ШТУК": "100 шт",
+            "ТЫСЯЧА ШТУК": "1000 шт", "МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ": "карат"
+        }
+        
+        for _, row in df.iterrows():
+            common_name = simple_map.get(row['NAME'], row['NAME'])
+            record = {'KOD': row['KOD'], 'COMMON_NAME': common_name}
+            
+            # Map from KOD, NAME, SHORT_NAME, and common_name
+            mapping[str(row['KOD'])] = record
+            mapping[row['NAME']] = record
+            if pd.notna(row['SHORT_NAME']):
+                mapping[row['SHORT_NAME']] = record
+            mapping[common_name] = record
+
+        # Add aliases for comtrade values
+        mapping.update({
+            'kg': mapping['КИЛОГРАММ'], 'u': mapping['ШТУКА'],
+            'l': mapping['ЛИТР'], 'm²': mapping['КВАДРАТНЫЙ МЕТР'],
+            'm³': mapping['КУБИЧЕСКИЙ МЕТР'], 'm': mapping['МЕТР'],
+            '2u': mapping['ПАРА'], 'carat': mapping['МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ'],
+            '1000u': mapping['ТЫСЯЧА ШТУК']
+        })
+            
+        return mapping
+    except Exception as e:
+        logger.error(f"Failed to load common EDIZM mapping: {e}")
+        return {}
+
+def load_and_transform_comtrade(
+    comtrade_db_path: Path,
+    project_root: Path,
+    exclude_countries: List[str],
+    start_year: int = None
+) -> pd.DataFrame:
+    """
+    Loads and transforms Comtrade data, excluding specified countries.
+
+    Args:
+        comtrade_db_path: Path to the Comtrade DuckDB database.
+        project_root: Path to the project root for metadata loading.
+        exclude_countries: List of ISO2 country codes to exclude.
+
+    Returns:
+        A DataFrame with Comtrade data transformed to the unified schema.
+    """
+    logger.info(f"Loading Comtrade data, excluding: {exclude_countries}")
+    
+    partner_mapping = load_partner_mapping(project_root)
+    if not partner_mapping:
+        return pd.DataFrame()
+    
+    edizm_mapping = load_edizm_mapping(project_root)
+    if not edizm_mapping:
+        logger.error("Could not load Edizm mapping, aborting Comtrade load.")
+        return pd.DataFrame()
+
+    # Convert ISO2 country codes to Comtrade M49 codes for the query
+    country_to_m49 = {v: k for k, v in partner_mapping.items()}
+    exclude_m49_codes = [
+        country_to_m49[c] for c in exclude_countries if c in country_to_m49
+    ]
+    logger.info(f"Excluding M49 codes: {exclude_m49_codes}")
+
+    try:
+        conn = duckdb.connect(str(comtrade_db_path), read_only=True)
+        
+        # Diagnostic: List tables in the database
+        tables = conn.execute("SHOW TABLES;").fetchall()
+        logger.info(f"Tables found in {comtrade_db_path}: {tables}")
+        
+        where_clauses = []
+        if exclude_m49_codes:
+            codes_str = ', '.join(map(str, exclude_m49_codes))
+            where_clauses.append(f"reporterCode NOT IN ({codes_str})")
+        
+        if start_year:
+            logger.info(f"Applying start_year filter to Comtrade data: year >= {start_year}")
+            where_clauses.append(f"refYear >= {start_year}")
+
+        where_clause = ""
+        if where_clauses:
+            where_clause = "WHERE " + " AND ".join(where_clauses)
+            
+        query = f"""
+            SELECT
+                period AS PERIOD,
+                reporterCode AS STRANA_CODE,
+                cmdCode AS TNVED,
+                CASE flowCode WHEN 'M' THEN 'ИМ' WHEN 'X' THEN 'ЭК' END AS NAPR,
+                qtyUnitCode AS EDIZM_CODE,
+                primaryValue AS STOIM,
+                netWgt AS NETTO,
+                qty AS KOL
+            FROM comtrade_data
+            {where_clause}
+        """
+        logger.info(f"Executing Comtrade query...")
+        comtrade_df = conn.execute(query).fetchdf()
+    except Exception as e:
+        logger.error(f"Failed to query Comtrade data: {e}")
+        return pd.DataFrame()
+    finally:
+        if 'conn' in locals():
+            conn.close()
+            
+    if comtrade_df.empty:
+        logger.info("Query returned no Comtrade data for the specified countries.")
+        return pd.DataFrame()
+    
+    logger.info(f"Query returned {len(comtrade_df)} rows from Comtrade DB.")
+        
+    # Post-processing transformations
+    logger.info("Transforming Comtrade data...")
+    comtrade_df['STRANA'] = comtrade_df['STRANA_CODE'].map(partner_mapping)
+    comtrade_df['EDIZM'] = comtrade_df['EDIZM_CODE'].map(edizm_mapping)
+    comtrade_df.fillna({'EDIZM': 'N/A'}, inplace=True)
+    
+    null_strana_count = comtrade_df['STRANA'].isnull().sum()
+    if null_strana_count > 0:
+        logger.warning(f"Found {null_strana_count} rows with reporter codes that could not be mapped to ISO2 codes. These will be dropped.")
+        unmapped_codes = comtrade_df[comtrade_df['STRANA'].isnull()]['STRANA_CODE'].unique()
+        logger.warning(f"Unmapped reporter codes (sample): {unmapped_codes[:10]}")
+
+    comtrade_df.dropna(subset=['STRANA'], inplace=True)
+    logger.info(f"{len(comtrade_df)} rows remaining after dropping unmapped countries.")
+
+    if comtrade_df.empty:
+        logger.warning("No Comtrade data remaining after transformation.")
+        return pd.DataFrame()
+        
+    comtrade_df['EDIZM_ISO'] = None
+
+    # Generate derived TNVED columns
+    comtrade_df['TNVED'] = comtrade_df['TNVED'].astype(str)
+    comtrade_df['TNVED2'] = comtrade_df['TNVED'].str.slice(0, 2)
+    comtrade_df['TNVED4'] = comtrade_df['TNVED'].str.slice(0, 4)
+    comtrade_df['TNVED6'] = comtrade_df['TNVED'].str.slice(0, 6)
+    
+    # Ensure data types match the expected schema
+    for col, expected_type in EXPECTED_SCHEMA.items():
+        if col in comtrade_df.columns and str(comtrade_df[col].dtype) != expected_type:
+            try:
+                if 'datetime' in expected_type:
+                    comtrade_df[col] = pd.to_datetime(comtrade_df[col])
+                else:
+                    comtrade_df[col] = comtrade_df[col].astype(expected_type)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Could not convert Comtrade column '{col}' to {expected_type}: {e}")
+
+    # Reorder columns to match the main schema
+    final_cols = [col for col in EXPECTED_SCHEMA.keys() if col in comtrade_df.columns]
+    return comtrade_df[final_cols]
+    
 def main():
     """Main function to orchestrate the merging process."""
+    parser = argparse.ArgumentParser(
+        description="Merge processed national data and optionally include Comtrade data."
+    )
+    parser.add_argument(
+        '--include-comtrade',
+        action='store_true',
+        help="Include Comtrade data for countries not present in national data."
+    )
+    parser.add_argument(
+        '--start-year',
+        type=int,
+        default=None,
+        help="Filter all data to include records from this year onwards."
+    )
+    parser.add_argument(
+        '--exclude-countries',
+        type=str,
+        nargs='+',
+        default=[],
+        help="List of ISO2 country codes to exclude from the merge (e.g., IN CN)."
+    )
+    args = parser.parse_args()
+
     # Define paths using the script's location for robustness
     project_root = Path(__file__).resolve().parent.parent
     data_processed_dir = project_root / "data_processed"
     db_dir = project_root / "db"
     output_db_path = db_dir / "unified_trade_data.duckdb"
-
+    comtrade_db_path = db_dir / "comtrade.db"
+    
     # Ensure output directory exists
     db_dir.mkdir(exist_ok=True)
     
@@ -260,46 +509,110 @@ def main():
     parquet_files = list(data_processed_dir.glob("*.parquet"))
     logger.info(f"Found {len(parquet_files)} parquet files: {[f.name for f in parquet_files]}")
     
-    if not parquet_files:
-        logger.error("No parquet files found in data_processed directory")
+    excluded_countries_upper = [c.upper() for c in args.exclude_countries]
+
+    # Load and validate national datasets
+    national_datasets = {}
+    if parquet_files:
+        for file_path in parquet_files:
+            country_code = file_path.stem.replace('_full', '').upper()
+            if country_code in excluded_countries_upper:
+                logger.info(f"Skipping {file_path.name} as per --exclude-countries argument.")
+                continue
+
+            df = load_and_validate_file(file_path, start_year=args.start_year)
+            if df is not None:
+                df_processed = generate_derived_columns(df)
+                national_datasets[country_code.lower()] = df_processed
+    else:
+        logger.warning("No national parquet files found in data_processed directory.")
+
+    all_dataframes = []
+    national_countries_iso = []
+
+    # Process national data
+    for df in national_datasets.values():
+        df['SOURCE'] = 'national'
+        all_dataframes.append(df)
+        if 'STRANA' in df.columns and not df.empty:
+            national_countries_iso.append(df['STRANA'].iloc[0])
+    
+    # Process Comtrade data if flag is set
+    if args.include_comtrade:
+        if not comtrade_db_path.exists():
+            logger.error(f"Comtrade database not found at {comtrade_db_path}. Cannot include Comtrade data.")
+        else:
+            # Always exclude national data countries from Comtrade pull
+            # And also add any user-specified exclusions
+            countries_to_exclude_from_comtrade = list(set(national_countries_iso + excluded_countries_upper))
+
+            comtrade_df = load_and_transform_comtrade(
+                comtrade_db_path, 
+                project_root, 
+                exclude_countries=countries_to_exclude_from_comtrade,
+                start_year=args.start_year
+            )
+            if not comtrade_df.empty:
+                comtrade_df['SOURCE'] = 'comtrade'
+                all_dataframes.append(comtrade_df)
+
+    if not all_dataframes:
+        logger.error("No data available to merge.")
         return
-    
-    # Load and validate each file
-    datasets = {}
-    for file_path in parquet_files:
-        country_name = file_path.stem.replace('_full', '')  # Extract country name
-        df = load_and_validate_file(file_path)
-        
-        if df is not None:
-            # Generate derived columns
-            df_processed = generate_derived_columns(df)
-            datasets[country_name] = df_processed
-    
-    if not datasets:
-        logger.error("No valid datasets loaded")
-        return
-    
+
     # Merge all datasets
-    merged_df = merge_datasets(datasets)
-    
+    merged_df = pd.concat(all_dataframes, ignore_index=True)
+    merged_df = merged_df.sort_values(['PERIOD', 'STRANA', 'TNVED'])
+
+    # Standardize EDIZM column
+    logger.info("Standardizing EDIZM column...")
+    common_edizm_map = load_common_edizm_mapping(project_root)
+    if common_edizm_map:
+        # Normalize original EDIZM values before mapping
+        merged_df['EDIZM_upper'] = merged_df['EDIZM'].str.upper().str.strip()
+        
+        # Map to common representation
+        mapped_values = merged_df['EDIZM_upper'].map(common_edizm_map)
+        
+        # Update EDIZM and EDIZM_ISO
+        merged_df['EDIZM'] = mapped_values.map(lambda x: x['COMMON_NAME'] if pd.notna(x) else None)
+        merged_df['EDIZM_ISO'] = mapped_values.map(lambda x: x['KOD'] if pd.notna(x) else None)
+        
+        # Handle unmapped values
+        unmapped_count = merged_df['EDIZM'].isnull().sum()
+        if unmapped_count > 0:
+            logger.warning(f"{unmapped_count} EDIZM values could not be mapped to a common standard.")
+            unmapped_sample = merged_df[merged_df['EDIZM'].isnull()]['EDIZM_upper'].unique()
+            logger.warning(f"Unmapped EDIZM sample: {unmapped_sample[:10]}")
+            
+        merged_df.drop(columns=['EDIZM_upper'], inplace=True)
+    else:
+        logger.error("Could not standardize EDIZM values due to mapping load failure.")
+
     # Display summary statistics
     logger.info("=== MERGE SUMMARY ===")
-    logger.info(f"Total sources: {len(datasets)}")
     logger.info(f"Total rows: {len(merged_df)}")
     logger.info(f"Unique countries: {merged_df['STRANA'].nunique()}")
     logger.info(f"Date range: {merged_df['PERIOD'].min()} to {merged_df['PERIOD'].max()}")
-    logger.info(f"Unique TNVED codes: {merged_df['TNVED'].nunique()}")
     
-    # Show data by source
-    logger.info("Data source:")
-    logger.info(f"  national: {len(merged_df):,} rows")
-    
-    # Show data by country
+    logger.info("Rows by source:")
+    source_counts = merged_df['SOURCE'].value_counts()
+    for source, count in source_counts.items():
+        logger.info(f"  {source}: {count:,} rows")
+        
     logger.info("Rows by country:")
-    country_counts = merged_df['STRANA'].value_counts().sort_index()
-    for country, count in country_counts.items():
-        logger.info(f"  {country}: {count:,} rows")
+    country_counts = merged_df.groupby('SOURCE')['STRANA'].value_counts()
+    logger.info(str(country_counts))
     
+    # Show EDIZM counts by country
+    logger.info("EDIZM counts by country:")
+    edizm_counts = merged_df.groupby(['STRANA', 'EDIZM']).size().reset_index(name='count')
+    edizm_counts = edizm_counts.sort_values(['STRANA', 'count'], ascending=[True, False])
+    for strana, group in edizm_counts.groupby('STRANA'):
+        logger.info(f"  Country: {strana}")
+        for _, row in group.head(5).iterrows(): # Log top 5 EDIZM for each country
+            logger.info(f"    - {row['EDIZM']}: {row['count']:,} rows")
+
     # Save to DuckDB
     save_to_duckdb(merged_df, output_db_path)
 
