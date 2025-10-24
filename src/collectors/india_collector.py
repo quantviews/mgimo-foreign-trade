@@ -271,7 +271,7 @@ def get_all_trade_data(year: int, month: int, country_code: int = DEFAULT_COUNTR
         return pd.DataFrame()
 
     combined_df = pd.concat(all_dfs, ignore_index=True)
-
+    # change - filter only numeric values 
     combined_df = combined_df[combined_df.HSCode.apply(lambda x: x.isnumeric())]
 
     return post_process_data(combined_df) if not combined_df.empty else pd.DataFrame()

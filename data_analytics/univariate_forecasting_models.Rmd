@@ -1,0 +1,193 @@
+---
+title: "Одномерные модели прогнозирования"
+author: "E. Tymchenko"
+date: "2025-10-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+# TLDR
+
+* Мы выбрали универсальный (базовый) способ прогнозирования. Если не найдём ничего лучше, будем использовать его.
+* Этот способ раскладывает ряд на тренд, цикл и сезонность. Сезонность моделируется через разложение Фурье (сумма синусов и косинусов).
+* Провели бенчмарки на скорость и точность.
+* Есть другой путь - использовать VAR модели, но подход не совсем универсальный (совсем не универсальный?)
+
+# Вступление
+
+Здесь я рассмотрю простые (ленивые) способы прогнозировать временные ряды по внешней торговле. Это одномерные модели, которые хорошо и быстро работают в R, они написаны на низкоуровневых языках и хорошо оптимизированы, подходят для всех рядов, если для этих рядов есть хоть какие-нибудь данные.
+
+Для иллюстрации я буду использовать данные по испорту из Китая из общей базы данных.
+
+Загрузка баблиотек:
+
+```{r}
+library(tidyverse)
+library(forecast) # модели для прогнозирования
+library(microbenchmark) # для бенчмарков
+library(duckdb) #~
+library(Metrics) # для метрик качества (совершенно не обязательно)
+
+source('~/MGIMO-FT/data_comparison/functions_forecasting.R')
+
+steps_ahead = 6 # число периодов для прогнозов
+```
+
+Подключаемся к базе данных.
+
+```{r}
+con <- con <- dbConnect(
+  duckdb::duckdb(),
+  "~/MGIMO-FT/db/unified_trade_data.sync-conflict-20251023-113528-7O7YZ3E.duckdb",
+  read_only = TRUE
+)
+
+dbGetQuery(con, "SHOW TABLES")
+
+# Don't forget to disconnect when done!
+#dbDisconnect(con, shutdown = TRUE)
+
+df <- dbGetQuery(con, "
+  SELECT TNVED, PERIOD, STOIM
+  FROM unified_trade_data
+  WHERE STRANA = 'CN' AND NAPR = 'ИМ'
+")
+```
+
+Проведём бенчмарки для одного ряда, например: "03035400".
+
+```{r}
+tnved <- "03035400"
+
+df_1 <- df %>% 
+  filter(TNVED == tnved) %>%
+  mutate(PERIOD = as.Date(PERIOD))
+
+# Left join to fill missing months with NA for other columns
+df_1 <- tibble(
+  PERIOD = seq.Date(from = min(df_1$PERIOD), to = max(df_1$PERIOD), by = "month"),
+  TNVED = tnved) %>%
+  left_join(df_1, by = c("PERIOD", "TNVED")) %>%
+  arrange(PERIOD) %>%
+  mutate(STOIM_log = log1p(STOIM) %>% forward_fill())
+```
+
+## Модели
+
+Небольшой обзор одномерных моделей, которые мы убдем использовать.
+
+### SARIMA
+
+**Представление в пространстве состояний**
+
+\[
+\begin{aligned}
+y_t &= Z \alpha_t + \varepsilon_t, \\
+\alpha_{t+1} &= T \alpha_t + R \eta_t,
+\end{aligned}
+\]
+
+где вектор состояния \(\alpha_t\) хранит последние значения и сезонные лаги (например \(t-12\) для месячных данных).
+
+**Концепция**
+- Линейная модель: авторегрессионная компонента (AR), скользящее среднее (MA) и разности.  
+- Сезонность задается через **линейные зависимости с периодом \(t-s\)**.  
+- Прогнозы вычисляются с помощью **фильтра Калмана** или рекурсивных уравнений ARMA.  
+- Модель захватывает стабильные, линейные, дискретные сезонные и трендовые паттерны.
+---
+
+### TBATS — Тригонометрическая, Box–Cox, ARMA, Тренд, Сезонность
+
+**Математическая форма**
+\[
+y_t^{(\lambda)} = \ell_{t-1} + b_{t-1} +
+\sum_{i=1}^{k} s_{i,t-1} + d_t,
+\]
+
+\[
+\begin{aligned}
+\ell_t &= \ell_{t-1} + b_{t-1} + \phi_1 d_t, \\
+b_t &= \phi_2 b_{t-1} + \phi_3 d_t, \\
+s_{i,t} &= s_{i,t-1}\cos(\omega_i) + s_{i,t-1}^*\sin(\omega_i) + \eta_{i,t}, \\
+s_{i,t}^* &= -s_{i,t-1}\sin(\omega_i) + s_{i,t-1}^*\cos(\omega_i) + \eta_{i,t}^*,
+\end{aligned}
+\]
+с параметром Box–Cox \(\lambda\).
+
+**Концепция**
+- Гибкая **модель в пространстве состояний** с:
+  - Уровнем (\(\ell_t\)) и трендом (\(b_t\)),
+  - **Тригонометрическими (Фурье) сезонными состояниями**,
+  - Компонентом ошибки ARMA \(d_t\).
+- Сезонность, в отличие от ARIMA, непрерывная, а не дискретная.
+---
+
+### STL + ETS — Декомпозиция сезон-тренд + Экспоненциальное сглаживание
+
+**Математическая форма**
+
+Декомпозиция:
+\[
+y_t = T_t + S_t + R_t
+\]
+где \(T_t\) (тренд) и \(S_t\) (сезонность) выделяются непараметрически (если я правильно понимаю).
+
+Модель ETS (применяется к тренд-корректированной серии):
+
+\[
+\begin{aligned}
+y_t &= \ell_{t-1} + b_{t-1} + s_{t-m} + \varepsilon_t, \\
+\ell_t &= \ell_{t-1} + b_{t-1} + \alpha \varepsilon_t, \\
+b_t &= b_{t-1} + \beta \varepsilon_t, \\
+s_t &= s_{t-m} + \gamma \varepsilon_t,
+\end{aligned}
+\]
+
+---
+
+```{r}
+tibble(fc_sarima = sarima_fun(df_1$STOIM_log, steps_ahead),
+       fc_tbats = tbats_fun(df_1$STOIM_log, steps_ahead),
+       fc_ets = stl_ets_fun(df_1$STOIM_log, steps_ahead)
+       )
+```
+
+Бенчмарк скорости:
+
+```{r}
+mbm <- microbenchmark(
+  sarima_fun(df_1$STOIM_log, steps_ahead),
+  tbats_fun(df_1$STOIM_log, steps_ahead),
+  stl_ets_fun(df_1$STOIM_log, steps_ahead),
+  times = 100  # number of repetitions
+)
+mbm
+```
+
+* stl_ets самая быстрая (но хуже всех прогнозирует) :rocket:
+* tbats - самая медленная (но лучше всех прогнозирует) :bulb:
+
+Бенчмарк качества моделей
+
+```{r}
+benchmark_quality <- run_forecasting_benchmark(con, steps_ahead = 6, n_samples = 100, n_cores = 10, seed = 123)
+```
+
+```{r}
+benchmark_quality %>%
+  filter(TNVED != '90151010') %>%
+  group_by(model) %>%
+  summarize(mean_mae = mean(MAE, na.rm = T),
+            mean_rmse = mean(RMSE, na.rm = T),
+            .groups = 'drop'
+  )
+```
+
+Нужно использовать sarima или tbats. tbats чуть получше вроде бы но одно и то же.
+Всё!

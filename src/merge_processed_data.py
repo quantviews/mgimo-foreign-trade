@@ -403,7 +403,7 @@ def load_and_transform_comtrade(
                 period AS PERIOD,
                 reporterCode AS STRANA_CODE,
                 cmdCode AS TNVED,
-                CASE flowCode WHEN 'M' THEN 'ИМ' WHEN 'X' THEN 'ЭК' END AS NAPR,
+                CASE flowCode WHEN 'M' THEN 'ЭК' WHEN 'X' THEN 'ИМ' WHEN 'ЭК' THEN 'ЭК' WHEN 'ИМ' THEN 'ИМ' END AS NAPR,
                 qtyUnitCode AS EDIZM_CODE,
                 primaryValue AS STOIM,
                 netWgt AS NETTO,
@@ -562,7 +562,23 @@ def main():
 
     # Merge all datasets
     merged_df = pd.concat(all_dataframes, ignore_index=True)
+    
+    # Apply country exclusions to the final merged dataset
+    if excluded_countries_upper:
+        initial_rows = len(merged_df)
+        merged_df = merged_df[~merged_df['STRANA'].isin(excluded_countries_upper)].copy()
+        excluded_rows = initial_rows - len(merged_df)
+        if excluded_rows > 0:
+            logger.info(f"Excluded {excluded_rows:,} rows for countries: {excluded_countries_upper}")
+    
     merged_df = merged_df.sort_values(['PERIOD', 'STRANA', 'TNVED'])
+    
+    # Remove rows where NAPR is NULL
+    initial_rows = len(merged_df)
+    merged_df = merged_df.dropna(subset=['NAPR']).copy()
+    null_napr_rows = initial_rows - len(merged_df)
+    if null_napr_rows > 0:
+        logger.info(f"Removed {null_napr_rows:,} rows with NULL NAPR values")
 
     # Standardize EDIZM column
     logger.info("Standardizing EDIZM column...")
