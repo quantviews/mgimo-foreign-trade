@@ -64,6 +64,9 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path):
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
 
+            # Convert STOIM from millions USD to thousands USD
+            if 'STOIM' in df.columns:
+                df['STOIM'] = df['STOIM'] * 1000
 
             if 'EDIZM' in df.columns:
                 df['EDIZM'] = df['EDIZM'].astype(str).str.strip().replace({'nan': '?', 'None': '?'})

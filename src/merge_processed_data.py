@@ -372,11 +372,22 @@ def load_and_transform_comtrade(
         return pd.DataFrame()
 
     # Convert ISO2 country codes to Comtrade M49 codes for the query
-    country_to_m49 = {v: k for k, v in partner_mapping.items()}
-    exclude_m49_codes = [
-        country_to_m49[c] for c in exclude_countries if c in country_to_m49
-    ]
-    logger.info(f"Excluding M49 codes: {exclude_m49_codes}")
+    # Create case-insensitive mapping: uppercase ISO2 -> M49
+    country_to_m49 = {v.upper(): k for k, v in partner_mapping.items() if v}
+    
+    # Log available country codes for debugging
+    logger.info(f"Available ISO2 codes in mapping (sample): {list(country_to_m49.keys())[:20]}")
+    
+    # Convert exclude list to uppercase and map to M49
+    exclude_countries_upper = [c.upper() for c in exclude_countries]
+    exclude_m49_codes = []
+    for c in exclude_countries_upper:
+        if c in country_to_m49:
+            exclude_m49_codes.append(country_to_m49[c])
+        else:
+            logger.warning(f"Could not find M49 code for country: {c}")
+    
+    logger.info(f"Excluding M49 codes: {exclude_m49_codes} (for countries: {exclude_countries_upper})")
 
     try:
         conn = duckdb.connect(str(comtrade_db_path), read_only=True)
@@ -429,6 +440,10 @@ def load_and_transform_comtrade(
     # Post-processing transformations
     logger.info("Transforming Comtrade data...")
     comtrade_df['STRANA'] = comtrade_df['STRANA_CODE'].map(partner_mapping)
+    
+    # Ensure STRANA is uppercase for consistency
+    comtrade_df['STRANA'] = comtrade_df['STRANA'].str.upper()
+    
     comtrade_df['EDIZM'] = comtrade_df['EDIZM_CODE'].map(edizm_mapping)
     comtrade_df.fillna({'EDIZM': 'N/A'}, inplace=True)
     
@@ -440,6 +455,10 @@ def load_and_transform_comtrade(
 
     comtrade_df.dropna(subset=['STRANA'], inplace=True)
     logger.info(f"{len(comtrade_df)} rows remaining after dropping unmapped countries.")
+    
+    # Verify unique countries in Comtrade data
+    comtrade_countries = comtrade_df['STRANA'].unique()
+    logger.info(f"Countries in Comtrade data after transformation: {sorted(comtrade_countries)}")
 
     if comtrade_df.empty:
         logger.warning("No Comtrade data remaining after transformation.")
@@ -523,6 +542,9 @@ def main():
             df = load_and_validate_file(file_path, start_year=args.start_year)
             if df is not None:
                 df_processed = generate_derived_columns(df)
+                # Ensure STRANA is uppercase for consistency
+                if 'STRANA' in df_processed.columns:
+                    df_processed['STRANA'] = df_processed['STRANA'].str.upper()
                 national_datasets[country_code.lower()] = df_processed
     else:
         logger.warning("No national parquet files found in data_processed directory.")
@@ -535,7 +557,11 @@ def main():
         df['SOURCE'] = 'national'
         all_dataframes.append(df)
         if 'STRANA' in df.columns and not df.empty:
-            national_countries_iso.append(df['STRANA'].iloc[0])
+            # Get all unique country codes from this dataset and ensure uppercase
+            unique_countries = df['STRANA'].dropna().unique()
+            for country in unique_countries:
+                if country.upper() not in national_countries_iso:
+                    national_countries_iso.append(country.upper())
     
     # Process Comtrade data if flag is set
     if args.include_comtrade:
@@ -545,6 +571,7 @@ def main():
             # Always exclude national data countries from Comtrade pull
             # And also add any user-specified exclusions
             countries_to_exclude_from_comtrade = list(set(national_countries_iso + excluded_countries_upper))
+            logger.info(f"Excluding countries from Comtrade data to avoid duplicates: {countries_to_exclude_from_comtrade}")
 
             comtrade_df = load_and_transform_comtrade(
                 comtrade_db_path, 
@@ -553,6 +580,13 @@ def main():
                 start_year=args.start_year
             )
             if not comtrade_df.empty:
+                # Double-check: filter out any national countries that might have slipped through
+                initial_comtrade_rows = len(comtrade_df)
+                comtrade_df = comtrade_df[~comtrade_df['STRANA'].isin(national_countries_iso)].copy()
+                filtered_rows = initial_comtrade_rows - len(comtrade_df)
+                if filtered_rows > 0:
+                    logger.info(f"Filtered {filtered_rows:,} duplicate rows from Comtrade data that matched national countries.")
+                
                 comtrade_df['SOURCE'] = 'comtrade'
                 all_dataframes.append(comtrade_df)
 

@@ -51,7 +51,7 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
     # prefs = {"download.default_directory": str(download_dir)}
     # options.add_experimental_option("prefs", prefs)
 
-    driver = uc.Chrome(options=options)
+    driver = uc.Chrome(options=options, version_main=141)
     # Evade detection
     # driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
@@ -99,6 +99,32 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
     try:
         df = pd.read_csv(source_file, encoding='ISO-8859-1', on_bad_lines='skip')
         
+        # Validate that all expected columns are present
+        expected_cols = {
+            'Date of data', 'Trading partner code', 'Trading partner', 
+            'Commodity code', 'Commodity', 'Quantity', 'Unit', 
+            'Supplementary Quantity', 'Supplementary Unit'
+        }
+        
+        missing_cols = expected_cols - set(df.columns)
+        if missing_cols:
+            print(f"\n[ERROR] The downloaded file is missing required columns: {sorted(list(missing_cols))}")
+            print("Please re-download, ensuring all columns are selected on the website.")
+            os.remove(source_file)
+            print(f"Removed incorrect source file: '{source_file}'")
+            return
+            
+        # Validate the date in the file matches the arguments
+        if 'Date of data' in df.columns and not df.empty:
+            file_date = str(df['Date of data'].iloc[0])
+            expected_date = f"{year}{month}"
+            if file_date != expected_date:
+                print(f"\n[ERROR] Date mismatch: The script was run for {expected_date}, but the file contains data for {file_date}.")
+                print("Please re-download the correct data file.")
+                os.remove(source_file)
+                print(f"Removed incorrect source file: '{source_file}'")
+                return
+            
         # Rename columns
         rename_map = {
             'Commodity code': 'TNVED',

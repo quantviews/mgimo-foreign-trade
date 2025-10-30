@@ -280,7 +280,7 @@ def post_process_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     Выполняет постобработку данных: переименование столбцов, создание новых и т.д.
     """
-    df['USD'] = 1000 * df['USD']  # converting to thousand USD (prior - mln USD)
+    #df['USD'] = 1000 * df['USD']  # converting to thousand USD (raw values are in millions of USD)
 
     df.Flow = df.Flow.apply(lambda x: 'ИМ' if x == 'Ex' else 'ЭК')
 
