@@ -158,10 +158,11 @@ def generate_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
     
     # Ensure TNVED columns are strings and generate derived columns
     if 'TNVED' in df_processed.columns:
-        # Convert TNVED to string and pad to minimum 8 characters
-        df_processed['TNVED'] = df_processed['TNVED'].astype(str).str.zfill(8)
+        # Convert TNVED to string and pad to minimum 10 characters
+        # TNVED codes can be 8 or 10 digits, so we pad to 10 to ensure consistency
+        df_processed['TNVED'] = df_processed['TNVED'].astype(str).str.zfill(10)
         
-        # Generate derived columns directly (more efficient than validate-then-correct)
+        # Generate derived columns directly from TNVED
         df_processed['TNVED2'] = df_processed['TNVED'].str[:2]
         df_processed['TNVED4'] = df_processed['TNVED'].str[:4]
         df_processed['TNVED6'] = df_processed['TNVED'].str[:6]
@@ -621,7 +622,8 @@ def load_and_transform_comtrade(
     comtrade_df['EDIZM_ISO'] = None
 
     # Generate derived TNVED columns
-    comtrade_df['TNVED'] = comtrade_df['TNVED'].astype(str)
+    # TNVED codes can be 8 or 10 digits, pad to 10 for consistency
+    comtrade_df['TNVED'] = comtrade_df['TNVED'].astype(str).str.zfill(10)
     comtrade_df['TNVED2'] = comtrade_df['TNVED'].str.slice(0, 2)
     comtrade_df['TNVED4'] = comtrade_df['TNVED'].str.slice(0, 4)
     comtrade_df['TNVED6'] = comtrade_df['TNVED'].str.slice(0, 6)
