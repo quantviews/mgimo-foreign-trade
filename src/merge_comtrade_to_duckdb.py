@@ -4,8 +4,6 @@ Script to merge Comtrade parquet files into a single DuckDB database.
 Uses DuckDB's native parquet reading capabilities.
 """
 
-import os
-import glob
 import logging
 from pathlib import Path
 
@@ -16,61 +14,83 @@ logger = logging.getLogger(__name__)
 # Try to import duckdb
 try:
     import duckdb
-    DUCKDB_AVAILABLE = True
 except ImportError:
     logger.error("DuckDB not available. Please install with: pip install duckdb")
-    DUCKDB_AVAILABLE = False
     exit(1)
 
-def get_parquet_files(data_dir: str) -> list:
+def get_parquet_files(data_dir: Path) -> list:
     """Get all parquet files from the comtrade data directory."""
-    pattern = os.path.join(data_dir, "*.parquet")
-    files = glob.glob(pattern)
-    return sorted(files)
+    if not data_dir.exists():
+        logger.warning(f"Data directory does not exist: {data_dir}")
+        return []
+    files = sorted(data_dir.glob("*.parquet"))
+    return [str(f) for f in files]
 
-def create_duckdb_database(parquet_files: list, db_path: str) -> None:
-    """Create DuckDB database from parquet files."""
+def create_duckdb_database(parquet_files: list, db_path: Path) -> None:
+    """
+    Create DuckDB database from parquet files.
+    
+    Args:
+        parquet_files: List of paths to parquet files
+        db_path: Path to output DuckDB database file
+    """
     logger.info(f"Creating DuckDB database at {db_path}")
     
     # Delete existing database file if it exists
-    if os.path.exists(db_path):
+    if db_path.exists():
         logger.info(f"Deleting existing database file: {db_path}")
-        os.remove(db_path)
+        db_path.unlink()
     
     # Connect to DuckDB
-    conn = duckdb.connect(db_path)
+    conn = duckdb.connect(str(db_path))
     
     try:
         # Create table from all parquet files
-        logger.info("Creating table from parquet files...")
+        logger.info(f"Processing {len(parquet_files)} parquet files...")
         
         # Build the UNION ALL query for all parquet files, filtering for detailed HS6 level data
-        # Convert period column to Date format
+        # Use DuckDB's safe parameter binding for file paths
         union_queries = []
+        failed_files = []
+        
         for file_path in parquet_files:
-            # Escape single quotes in file path for SQL
-            escaped_path = file_path.replace("'", "''")
-            union_queries.append(f"""
-                SELECT 
-                    refPeriodId, refYear, refMonth, 
-                    CAST(SUBSTR(CAST(period AS VARCHAR), 1, 4) || '-' || SUBSTR(CAST(period AS VARCHAR), 5, 2) || '-01' AS DATE) as period,
-                    reporterCode, 
-                    CASE flowCode WHEN 'M' THEN 'ЭК' WHEN 'X' THEN 'ИМ' END as flowCode,
-                    partnerCode, partner2Code, 
-                    classificationCode, classificationSearchCode, isOriginalClassification, 
-                    cmdCode, cmdDesc, aggrLevel, isLeaf, customsCode, 
-                    mosCode, motCode, qtyUnitCode, qty, 
-                    isQtyEstimated, altQtyUnitCode, altQtyUnitAbbr, altQty, 
-                    netWgt, isNetWgtEstimated, grossWgt, isGrossWgtEstimated, 
-                    cifvalue, fobvalue, primaryValue, legacyEstimationFlag, 
-                    isReported, isAggregate
-                FROM read_parquet('{escaped_path}') 
-                WHERE customsCode = 'C00' 
-                  AND motCode = 0 
-                  AND partner2Code = 0
-                  AND LENGTH(CAST(cmdCode AS VARCHAR)) = 6
-                  
-            """)
+            try:
+                # Use DuckDB's read_parquet with proper path handling
+                # DuckDB handles paths safely when using read_parquet function
+                file_path_str = str(Path(file_path).resolve())
+                union_queries.append(f"""
+                    SELECT 
+                        refPeriodId, refYear, refMonth, 
+                        -- Convert period from YYYYMM format to DATE
+                        CAST(STRPTIME(CAST(period AS VARCHAR), '%Y%m') AS DATE) as period,
+                        reporterCode, 
+                        -- Reverse flowCode: M (Import from reporter's perspective) -> ЭК (Export from partner's perspective)
+                        -- X (Export from reporter's perspective) -> ИМ (Import from partner's perspective)
+                        CASE flowCode WHEN 'M' THEN 'ЭК' WHEN 'X' THEN 'ИМ' END as flowCode,
+                        partnerCode, partner2Code, 
+                        classificationCode, classificationSearchCode, isOriginalClassification, 
+                        cmdCode, cmdDesc, aggrLevel, isLeaf, customsCode, 
+                        mosCode, motCode, qtyUnitCode, qty, 
+                        isQtyEstimated, altQtyUnitCode, altQtyUnitAbbr, altQty, 
+                        netWgt, isNetWgtEstimated, grossWgt, isGrossWgtEstimated, 
+                        cifvalue, fobvalue, primaryValue, legacyEstimationFlag, 
+                        isReported, isAggregate
+                    FROM read_parquet('{file_path_str.replace("'", "''")}') 
+                    WHERE customsCode = 'C00' 
+                      AND motCode = 0 
+                      AND partner2Code = 0
+                      AND LENGTH(CAST(cmdCode AS VARCHAR)) = 6
+                """)
+            except Exception as e:
+                logger.warning(f"Failed to process file {file_path}: {e}")
+                failed_files.append(file_path)
+                continue
+        
+        if not union_queries:
+            raise ValueError("No valid parquet files to process!")
+        
+        if failed_files:
+            logger.warning(f"Failed to process {len(failed_files)} files. Continuing with {len(union_queries)} files.")
         
         union_query = " UNION ALL ".join(union_queries)
         create_query = f"CREATE TABLE comtrade_data AS {union_query}"
@@ -80,7 +100,13 @@ def create_duckdb_database(parquet_files: list, db_path: str) -> None:
         
         # Get table info
         result = conn.execute("SELECT COUNT(*) as total_rows FROM comtrade_data").fetchone()
-        logger.info(f"Total rows in DuckDB (HS6 level, Russian perspective): {result[0]:,}")
+        row_count = result[0] if result else 0
+        
+        if row_count == 0:
+            logger.warning("Table created but contains no rows!")
+            return
+        
+        logger.info(f"Total rows in DuckDB (HS6 level, Russian perspective): {row_count:,}")
         
         # Check for potential duplicates and missing data
         logger.info("Checking for potential duplicates and data coverage...")
@@ -134,16 +160,26 @@ def create_duckdb_database(parquet_files: list, db_path: str) -> None:
         
         # Create indexes for common query patterns based on Comtrade schema
         logger.info("Creating indexes...")
-        try:
-            conn.execute("CREATE INDEX idx_refYear ON comtrade_data(refYear)")
-            conn.execute("CREATE INDEX idx_refMonth ON comtrade_data(refMonth)")
-            conn.execute("CREATE INDEX idx_reporterCode ON comtrade_data(reporterCode)")
-            conn.execute("CREATE INDEX idx_partnerCode ON comtrade_data(partnerCode)")
-            conn.execute("CREATE INDEX idx_flowCode ON comtrade_data(flowCode)")
-            conn.execute("CREATE INDEX idx_cmdCode ON comtrade_data(cmdCode)")
-            logger.info("Indexes created successfully")
-        except Exception as e:
-            logger.warning(f"Could not create indexes: {e}")
+        indexes = [
+            ("idx_refYear", "refYear"),
+            ("idx_refMonth", "refMonth"),
+            ("idx_reporterCode", "reporterCode"),
+            ("idx_partnerCode", "partnerCode"),
+            ("idx_flowCode", "flowCode"),
+            ("idx_cmdCode", "cmdCode"),
+            ("idx_period", "period"),
+        ]
+        
+        created_indexes = 0
+        for idx_name, col_name in indexes:
+            try:
+                # Check if index already exists
+                conn.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON comtrade_data({col_name})")
+                created_indexes += 1
+            except Exception as e:
+                logger.warning(f"Could not create index {idx_name} on {col_name}: {e}")
+        
+        logger.info(f"Created {created_indexes} out of {len(indexes)} indexes")
         
         # Get some basic statistics
         logger.info("Getting basic statistics...")
@@ -157,10 +193,13 @@ def create_duckdb_database(parquet_files: list, db_path: str) -> None:
             FROM comtrade_data
         """).fetchone()
         
-        logger.info(f"Year range: {stats[0]} - {stats[1]}")
-        logger.info(f"Unique reporters: {stats[2]:,}")
-        logger.info(f"Unique partners: {stats[3]:,}")
-        logger.info(f"Unique commodities: {stats[4]:,}")
+        if stats and stats[0] is not None:
+            logger.info(f"Year range: {stats[0]} - {stats[1]}")
+            logger.info(f"Unique reporters: {stats[2]:,}")
+            logger.info(f"Unique partners: {stats[3]:,}")
+            logger.info(f"Unique commodities: {stats[4]:,}")
+        else:
+            logger.warning("Could not retrieve statistics - table may be empty")
         
         # Get export and import sums by year
         logger.info("Getting export and import sums by year...")
@@ -215,33 +254,36 @@ def create_duckdb_database(parquet_files: list, db_path: str) -> None:
 
 def main():
     """Main function to orchestrate the merge and conversion process."""
-    # Define paths
-    data_dir = "data_raw/comtrade_data"
-    output_dir = "db"
-    db_path = os.path.join(output_dir, "comtrade.db")
+    # Define paths relative to script location
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
+    data_dir = project_root / "data_raw" / "comtrade_data"
+    output_dir = project_root / "db"
+    db_path = output_dir / "comtrade.db"
     
     # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir.mkdir(exist_ok=True)
     
     # Get all parquet files
     parquet_files = get_parquet_files(data_dir)
-    logger.info(f"Found {len(parquet_files)} parquet files")
+    logger.info(f"Found {len(parquet_files)} parquet files in {data_dir}")
     
     if not parquet_files:
-        logger.error("No parquet files found!")
+        logger.error(f"No parquet files found in {data_dir}!")
         return
     
     # Show first few files
     logger.info("First 5 files:")
     for i, file_path in enumerate(parquet_files[:5]):
-        logger.info(f"  {i+1}. {os.path.basename(file_path)}")
+        logger.info(f"  {i+1}. {Path(file_path).name}")
     
     # Create DuckDB database
     create_duckdb_database(parquet_files, db_path)
     
     logger.info("Process completed successfully!")
     logger.info(f"DuckDB database: {db_path}")
-    logger.info(f"Database size: {os.path.getsize(db_path) / (1024*1024):.1f} MB")
+    if db_path.exists():
+        logger.info(f"Database size: {db_path.stat().st_size / (1024*1024):.1f} MB")
 
 if __name__ == "__main__":
     main()

@@ -11,35 +11,64 @@ import pandas as pd
 from pathlib import Path
 import os
 import logging
+from typing import Dict
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 EDIZM_TO_ISO = {
-    "KGS": "166",
-    "KG": "166",
-    "T": "163",
-    "TON": "163",
-    "NOS": "796",
-    "NO": "796",
-    "PAIRS": "796",
-    "LTR": "876",
-    "L": "876",
-    "M2": "260",
-    "M3": "113",
-    "M": "006",
-    "U": "796",
+    "KGS": "166",   # КИЛОГРАММ
+    "KG": "166",    # КИЛОГРАММ
+    "T": "168",     # ТОННА
+    "TON": "168",   # ТОННА
+    "NOS": "796",   # ШТУКА
+    "NO": "796",    # ШТУКА
+    "PAIRS": "715", # ПАРА
+    "LTR": "112",   # ЛИТР
+    "L": "112",     # ЛИТР
+    "M2": "055",    # КВАДРАТНЫЙ МЕТР
+    "M3": "113",    # КУБИЧЕСКИЙ МЕТР
+    "M": "006",     # МЕТР
+    "U": "796",     # ШТУКА
     "?": None
 }
 
-def process_and_merge_india_data(raw_data_dir: Path, output_file: Path):
+def load_edizm_russian_mapping(edizm_file: Path) -> Dict[str, str]:
+    """
+    Loads a mapping from EDIZM ISO codes to their Russian names from edizm.csv.
+
+    Args:
+        edizm_file: Path to the metadata/edizm.csv file.
+
+    Returns:
+        A dictionary mapping ISO codes (str) to Russian names (str).
+    """
+    if not edizm_file.exists():
+        logger.warning(f"EDIZM mapping file not found: {edizm_file}")
+        return {}
+
+    try:
+        # Specify dtype for KOD to treat it as a string
+        df = pd.read_csv(edizm_file, dtype={'KOD': str})
+        # Clean the KOD column by removing quotes and stripping whitespace
+        df['KOD'] = df['KOD'].str.replace('"', '').str.strip()
+        mapping = pd.Series(df.NAME.values, index=df.KOD).to_dict()
+        logger.info(f"Loaded Russian EDIZM mapping with {len(mapping)} entries.")
+        return mapping
+    except Exception as e:
+        logger.error(f"Failed to load or process EDIZM mapping file {edizm_file}: {e}")
+        return {}
+
+def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_file: Path):
     """
     Сканирует директорию с необработанными данными, обрабатывает каждый CSV-файл,
     объединяет их в один DataFrame и сохраняет в формате Parquet.
     """
 
     logger.info("=== Начало обработки данных Индии ===")
+    
+    edizm_rus_mapping = load_edizm_russian_mapping(edizm_file)
 
     all_files = sorted(raw_data_dir.glob("india_*.csv"))
     if not all_files:
@@ -51,7 +80,12 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path):
     dfs = []
     for file_path in all_files:
         try:
-            df = pd.read_csv(file_path)
+            df = pd.read_csv(file_path, dtype={
+                'TNVED': str,
+                'TNVED2': str,
+                'TNVED4': str,
+                'TNVED6': str
+            })
             logger.info(f"  → {file_path.name}: {len(df)} строк")
 
             df['PERIOD'] = pd.to_datetime(
@@ -68,12 +102,19 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path):
             if 'STOIM' in df.columns:
                 df['STOIM'] = df['STOIM'] * 1000
 
+            # Map units to ISO and then to Russian names
             if 'EDIZM' in df.columns:
-                df['EDIZM'] = df['EDIZM'].astype(str).str.strip().replace({'nan': '?', 'None': '?'})
+                original_edizm = df['EDIZM'].astype(str).str.strip().replace({'nan': '?', 'None': '?'})
             else:
-                df['EDIZM'] = '?'
+                original_edizm = pd.Series('?', index=df.index)
 
-            df['EDIZM_ISO'] = df['EDIZM'].map(EDIZM_TO_ISO)
+            df['EDIZM_ISO'] = original_edizm.map(EDIZM_TO_ISO)
+
+            if edizm_rus_mapping:
+                df['EDIZM'] = df['EDIZM_ISO'].map(edizm_rus_mapping).fillna('?')
+            else:
+                # Fallback to original EDIZM if Russian mapping failed to load
+                df['EDIZM'] = original_edizm
 
             df_final = df[[
                 'NAPR', 'PERIOD', 'STRANA', 'TNVED',
@@ -116,8 +157,9 @@ def main():
 
     raw_data_dir = project_root / 'data_raw' / 'india_new'
     output_file = project_root / 'data_processed' / 'in_full.parquet'
+    edizm_file = project_root / 'metadata' / 'edizm.csv'
 
-    process_and_merge_india_data(raw_data_dir, output_file)
+    process_and_merge_india_data(raw_data_dir, output_file, edizm_file)
 
 
 if __name__ == "__main__":

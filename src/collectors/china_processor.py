@@ -313,7 +313,7 @@ def main():
     raw_data_dir = project_root / 'data_raw' / 'china'
     codes_dir = project_root / 'metadata' / 'china-codes'
     edizm_file = project_root / 'metadata' / 'edizm.csv'
-    output_file = project_root / 'data_processed' / 'ch_full.parquet'
+    output_file = project_root / 'data_processed' / 'cn_full.parquet'  # Using ISO 3166-1 alpha-2 code
     
     process_and_merge_china_data(raw_data_dir, output_file, codes_dir, edizm_file)
 

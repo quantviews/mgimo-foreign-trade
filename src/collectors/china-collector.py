@@ -159,7 +159,7 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
         if df['STOIM'].dtype == 'object':
             df['STOIM'] = df['STOIM'].str.replace(",", "").astype(float)
         
-        df['STRANA'] = 'CH'
+        df['STRANA'] = 'CN'  # ISO 3166-1 alpha-2 code for China
 
         month_str = str(month).zfill(2)
         

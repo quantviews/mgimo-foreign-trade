@@ -85,12 +85,14 @@ def validate_schema(df: pd.DataFrame, filename: str) -> bool:
             
             if actual_type != expected_type:
                 logger.error(f"Column {col} has wrong type in {filename}: expected {expected_type}, got {actual_type}")
+                return False
     
     # Validate specific values
     if 'NAPR' in df.columns:
         invalid_napr = df[~df['NAPR'].isin(['ИМ', 'ЭК'])]['NAPR'].unique()
         if len(invalid_napr) > 0:
             logger.error(f"Invalid NAPR values in {filename}: {invalid_napr}")
+            return False
     
     if 'PERIOD' in df.columns:
         invalid_periods = df[df['PERIOD'].isnull()]
@@ -154,113 +156,156 @@ def generate_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     df_processed = df.copy()
     
-    # Ensure TNVED columns are strings to avoid .str accessor errors
-    tnved_columns = ['TNVED', 'TNVED2', 'TNVED4', 'TNVED6']
-    for col in tnved_columns:
-        if col in df_processed.columns:
-            df_processed[col] = df_processed[col].astype(str).str.zfill(len(col)-2 if col != 'TNVED' else 8)
-    
-    # Generate TNVED2, TNVED4, TNVED6 if they don't exist or validate them
+    # Ensure TNVED columns are strings and generate derived columns
     if 'TNVED' in df_processed.columns:
-        if 'TNVED2' in df_processed.columns:
-            # Validate TNVED2
-            expected_tnved2 = df_processed['TNVED'].str[:2]
-            invalid_tnved2 = df_processed[df_processed['TNVED2'] != expected_tnved2]
-            if len(invalid_tnved2) > 0:
-                logger.warning(f"Found {len(invalid_tnved2)} rows with invalid TNVED2, correcting...")
-                df_processed['TNVED2'] = expected_tnved2
-        else:
-            df_processed['TNVED2'] = df_processed['TNVED'].str[:2]
+        # Convert TNVED to string and pad to minimum 8 characters
+        df_processed['TNVED'] = df_processed['TNVED'].astype(str).str.zfill(8)
         
-        if 'TNVED4' in df_processed.columns:
-            # Validate TNVED4
-            expected_tnved4 = df_processed['TNVED'].str[:4]
-            invalid_tnved4 = df_processed[df_processed['TNVED4'] != expected_tnved4]
-            if len(invalid_tnved4) > 0:
-                logger.warning(f"Found {len(invalid_tnved4)} rows with invalid TNVED4, correcting...")
-                df_processed['TNVED4'] = expected_tnved4
-        else:
-            df_processed['TNVED4'] = df_processed['TNVED'].str[:4]
-        
-        if 'TNVED6' in df_processed.columns:
-            # Validate TNVED6
-            expected_tnved6 = df_processed['TNVED'].str[:6]
-            invalid_tnved6 = df_processed[df_processed['TNVED6'] != expected_tnved6]
-            if len(invalid_tnved6) > 0:
-                logger.warning(f"Found {len(invalid_tnved6)} rows with invalid TNVED6, correcting...")
-                df_processed['TNVED6'] = expected_tnved6
-        else:
-            df_processed['TNVED6'] = df_processed['TNVED'].str[:6]
-    
+        # Generate derived columns directly (more efficient than validate-then-correct)
+        df_processed['TNVED2'] = df_processed['TNVED'].str[:2]
+        df_processed['TNVED4'] = df_processed['TNVED'].str[:4]
+        df_processed['TNVED6'] = df_processed['TNVED'].str[:6]
+        df_processed['TNVED8'] = df_processed['TNVED'].str[:8]
+            
     return df_processed
 
-def merge_datasets(datasets: Dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """
-    Merge multiple datasets into one unified dataset.
-    
-    Args:
-        datasets: Dictionary of country names to DataFrames
-        
-    Returns:
-        Merged DataFrame
-    """
-    if not datasets:
-        raise ValueError("No datasets to merge")
-    
-    logger.info("Merging datasets...")
-    
-    # Add SOURCE column to each dataset before merging
-    dataframes_with_source = []
-    for source_name, df in datasets.items():
-        df_with_source = df.copy()
-        df_with_source['SOURCE'] = 'national'
-        dataframes_with_source.append(df_with_source)
-    
-    # Concatenate all dataframes
-    merged_df = pd.concat(dataframes_with_source, ignore_index=True)
-    
-    # Sort by PERIOD and STRANA for consistent ordering
-    merged_df = merged_df.sort_values(['PERIOD', 'STRANA', 'TNVED'])
-    
-    logger.info(f"Successfully merged {len(datasets)} datasets: {len(merged_df)} total rows")
-    
-    return merged_df
 
-def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unified_trade_data'):
+def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unified_trade_data', chunk_size: int = 100000):
     """
-    Save DataFrame to DuckDB database.
+    Save DataFrame to DuckDB database in chunks to conserve memory.
     
     Args:
         df: DataFrame to save
         output_path: Path to DuckDB file
         table_name: Name of the table in database
+        chunk_size: Number of rows to write per chunk
     """
     logger.info(f"Saving merged data to DuckDB: {output_path}")
-    
+
+    # It's safer to delete the old DB file to ensure a clean write.
+    if output_path.exists():
+        output_path.unlink()
+
+    if df.empty:
+        logger.warning("Input DataFrame is empty. Nothing to save to DuckDB.")
+        return
+
     try:
-        # Connect to DuckDB
         conn = duckdb.connect(str(output_path))
         
-        # Register DataFrame
-        conn.register('merged_data', df)
-        
-        # Create table from DataFrame
-        conn.execute(f"""
-        CREATE OR REPLACE TABLE {table_name} AS 
-        SELECT * FROM merged_data
-        """)
-        
+        # Create the table and insert the first chunk
+        first_chunk = df.iloc[:chunk_size]
+        conn.register('first_chunk_df', first_chunk)
+        conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM first_chunk_df")
+        conn.unregister('first_chunk_df')
+        logger.info(f"  ... created table and inserted first {len(first_chunk):,} rows")
+
+        # Insert the rest of the data in chunks using the efficient append method
+        for i in range(chunk_size, len(df), chunk_size):
+            chunk = df.iloc[i:i + chunk_size]
+            conn.append(table_name, chunk)
+            logger.info(f"  ... inserted {i + len(chunk):,} / {len(df):,} rows")
+
         # Get row count for verification
         result = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
         row_count = result[0]
         
         conn.close()
+
+        if row_count != len(df):
+            logger.warning(f"Row count mismatch! Expected {len(df):,}, but DuckDB table has {row_count:,}.")
         
-        logger.info(f"Successfully saved {row_count} rows to {output_path}")
+        logger.info(f"Successfully saved {row_count:,} rows to {output_path}")
         
     except Exception as e:
         logger.error(f"Failed to save to DuckDB: {e}")
         raise
+
+def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
+    """
+    Save reference tables (TNVED names, country names) as separate tables in DuckDB.
+    This normalizes the database structure and reduces data duplication.
+    
+    Args:
+        conn: DuckDB connection
+        project_root: Path to project root for metadata loading
+    """
+    logger.info("Creating reference tables...")
+    
+    # Save TNVED mappings
+    tnved_mappings = load_tnved_mapping(project_root)
+    if tnved_mappings:
+        # Create unified TNVED reference table
+        tnved_refs = []
+        for level_name, mapping in tnved_mappings.items():
+            # Extract level number from key like 'tnved2', 'tnved10', etc.
+            level_num = level_name.replace('tnved', '').replace('TNVED', '')
+            try:
+                level_int = int(level_num)
+            except ValueError:
+                logger.warning(f"Could not parse TNVED level from '{level_name}', skipping...")
+                continue
+            for code, name in mapping.items():
+                tnved_refs.append({
+                    'TNVED_CODE': code,
+                    'TNVED_LEVEL': level_int,
+                    'TNVED_NAME': name
+                })
+        
+        if tnved_refs:
+            tnved_df = pd.DataFrame(tnved_refs)
+            conn.register('tnved_ref_df', tnved_df)
+            conn.execute("""
+                CREATE TABLE tnved_reference AS 
+                SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME
+                FROM tnved_ref_df
+                ORDER BY TNVED_LEVEL, TNVED_CODE
+            """)
+            conn.unregister('tnved_ref_df')
+            logger.info(f"  ... created tnved_reference table with {len(tnved_df)} rows")
+            
+            # Create index for faster joins
+            conn.execute("CREATE INDEX idx_tnved_ref_code_level ON tnved_reference(TNVED_CODE, TNVED_LEVEL)")
+    
+    # Save country name mappings
+    strana_mapping = load_strana_mapping(project_root)
+    if strana_mapping:
+        country_refs = [{'STRANA': k, 'STRANA_NAME': v} for k, v in strana_mapping.items()]
+        country_df = pd.DataFrame(country_refs)
+        conn.register('country_ref_df', country_df)
+        conn.execute("""
+            CREATE TABLE country_reference AS 
+            SELECT DISTINCT STRANA, STRANA_NAME
+            FROM country_ref_df
+            ORDER BY STRANA
+        """)
+        conn.unregister('country_ref_df')
+        logger.info(f"  ... created country_reference table with {len(country_df)} rows")
+        
+        # Create index for faster joins
+        conn.execute("CREATE INDEX idx_country_ref_strana ON country_reference(STRANA)")
+    
+    # Create convenience view that joins main table with reference tables
+    logger.info("Creating convenience view with joined reference data...")
+    conn.execute("""
+        CREATE OR REPLACE VIEW unified_trade_data_enriched AS
+        SELECT 
+            t.*,
+            c.STRANA_NAME,
+            t2.TNVED_NAME AS TNVED2_NAME,
+            t4.TNVED_NAME AS TNVED4_NAME,
+            t6.TNVED_NAME AS TNVED6_NAME,
+            t8.TNVED_NAME AS TNVED8_NAME,
+            COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME
+        FROM unified_trade_data t
+        LEFT JOIN country_reference c ON t.STRANA = c.STRANA
+        LEFT JOIN tnved_reference t2 ON t.TNVED2 = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
+        LEFT JOIN tnved_reference t4 ON t.TNVED4 = t4.TNVED_CODE AND t4.TNVED_LEVEL = 4
+        LEFT JOIN tnved_reference t6 ON t.TNVED6 = t6.TNVED_CODE AND t6.TNVED_LEVEL = 6
+        LEFT JOIN tnved_reference t8 ON t.TNVED8 = t8.TNVED_CODE AND t8.TNVED_LEVEL = 8
+        LEFT JOIN tnved_reference t10 ON t.TNVED = t10.TNVED_CODE AND t10.TNVED_LEVEL = 10
+    """)
+    logger.info("  ... created unified_trade_data_enriched view")
 
 def load_partner_mapping(project_root: Path) -> Dict[int, str]:
     """Loads Comtrade partner code (M49) to ISO2 mapping from JSON."""
@@ -296,51 +341,133 @@ def load_edizm_mapping(project_root: Path) -> Dict[int, str]:
     return mapping
 
 def load_common_edizm_mapping(project_root: Path) -> Dict[str, Dict[str, str]]:
-    """Loads common EDIZM mapping from edizm.csv."""
+    """Loads a comprehensive, case-insensitive mapping for EDIZM values."""
     mapping_file = project_root / "metadata" / "edizm.csv"
     if not mapping_file.exists():
         logger.error(f"Common EDIZM mapping file not found at {mapping_file}")
         return {}
-    
+
     try:
-        df = pd.read_csv(mapping_file, dtype={'KOD': str})
+        # Read all columns as strings and prevent pandas from interpreting "NA" as NaN
+        df = pd.read_csv(mapping_file, dtype=str, na_filter=False)
         
-        # Create a flexible mapping from various names to a standard representation
-        mapping = {}
-        # Simple mappings from abbreviation to code
-        simple_map = {
-            "МЕТР": "м", "КВАДРАТНЫЙ МЕТР": "м2", 
-            "КИЛОГРАММ": "кг",
-            "ГРАММ": "г", 
-            "КУБИЧЕСКИЙ МЕТР": "м3", 
-            "ЛИТР": "л",
-            "ШТУКА": "шт", "ПАРА": "пары", "СТО ШТУК": "100 шт",
-            "ТЫСЯЧА ШТУК": "1000 шт", "МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ": "карат"
+        # Standardize column names and values to uppercase for case-insensitive matching
+        df.columns = df.columns.str.upper()
+        df['KOD'] = df['KOD'].str.replace('"', '').str.strip()
+        df['NAME'] = df['NAME'].str.upper().str.strip()
+
+        # Create canonical records from the main edizm file (vectorized)
+        canonical_records = {}
+        # Use itertuples for better performance than iterrows
+        for row in df.itertuples(index=False):
+            record = {'KOD': row.KOD, 'NAME': row.NAME}
+            canonical_records[row.NAME] = record
+            # Also map by KOD if it exists
+            if row.KOD:
+                canonical_records[row.KOD] = record
+
+        final_mapping = {}
+        # Populate mapping from the edizm file itself (KOD, NAME) - vectorized
+        for row in df.itertuples(index=False):
+            record = canonical_records[row.NAME]
+            final_mapping[row.NAME] = record
+            if row.KOD:
+                final_mapping[row.KOD] = record
+        
+        # Add a comprehensive set of aliases. All keys must be uppercase.
+        aliases = {
+            # Russian abbreviations
+            'ШТ': canonical_records.get('ШТУКА'),
+            'КГ': canonical_records.get('КИЛОГРАММ'),
+            'Т': canonical_records.get('ТОННА, МЕТРИЧЕСКАЯ ТОННА (1000 КГ)'),
+            'М': canonical_records.get('МЕТР'),
+            'М2': canonical_records.get('КВАДРАТНЫЙ МЕТР'),
+            'М3': canonical_records.get('КУБИЧЕСКИЙ МЕТР'),
+            'Л': canonical_records.get('ЛИТР'),
+            'Г': canonical_records.get('ГРАММ'),
+            'КАРАТ': canonical_records.get('МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ'),
+
+            # Comtrade abbreviations (from comtradte-QuantityUnits.json)
+            'KG': canonical_records.get('КИЛОГРАММ'),
+            'U': canonical_records.get('ШТУКА'),
+            'L': canonical_records.get('ЛИТР'),
+            'M²': canonical_records.get('КВАДРАТНЫЙ МЕТР'),
+            'M3': canonical_records.get('КУБИЧЕСКИЙ МЕТР'),
+            '2U': canonical_records.get('ПАРА'),
+            'CARAT': canonical_records.get('МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ'),
+            '1000U': canonical_records.get('ТЫСЯЧА ШТУК'),
+            'G': canonical_records.get('ГРАММ'),
+            '1000 KWH': canonical_records.get('1000 КИЛОВАТТ-ЧАС'),
+            '1000 L': canonical_records.get('1000 ЛИТРОВ'),
+            '1000 KG': canonical_records.get('ТОННА, МЕТРИЧЕСКАЯ ТОННА (1000 КГ)'),
+            'L ALC 100%': canonical_records.get('ЛИТР ЧИСТОГО (100%) СПИРТА'),
+
+            # Other observed values from logs
+            'KG NET EDA': canonical_records.get('КИЛОГРАММ'),
+            'Л 100% СПИРТА': canonical_records.get('ЛИТР ЧИСТОГО (100%) СПИРТА'),
+            'КГ NAOH': canonical_records.get('КИЛОГРАММ ГИДРОКСИДА НАТРИЯ'),
+            'КГ KOH': canonical_records.get('КИЛОГРАММ ГИДРОКСИДА КАЛИЯ'),
+            'КГ N': canonical_records.get('КИЛОГРАММ АЗОТА'),
+            'КГ K2O': canonical_records.get('КИЛОГРАММ ОКСИДА КАЛИЯ'),
+            'КГ P2O5': canonical_records.get('КИЛОГРАММ ПЯТИОКИСИ ФОСФОРА'),
+            'КГ H2O2': canonical_records.get('КИЛОГРАММ ПЕРОКСИДА ВОДОРОДА'),
+            'КГ 90 %-ГО СУХОГО ВЕЩЕСТВА': canonical_records.get('КИЛОГРАММ 90 %-ГО СУХОГО ВЕЩЕСТВА'),
+            'КГ U': canonical_records.get('КИЛОГРАММ УРАНА'),
         }
         
-        for _, row in df.iterrows():
-            common_name = simple_map.get(row['NAME'], row['NAME'])
-            record = {'KOD': row['KOD'], 'COMMON_NAME': common_name}
-            
-            # Map from KOD, NAME, SHORT_NAME, and common_name
-            mapping[str(row['KOD'])] = record
-            mapping[row['NAME']] = record
-            if pd.notna(row['SHORT_NAME']):
-                mapping[row['SHORT_NAME']] = record
-            mapping[common_name] = record
+        final_mapping.update(aliases)
+        
+        # Filter out any None values that may have resulted from missing keys
+        final_mapping = {k: v for k, v in final_mapping.items() if v is not None and k is not None}
 
-        # Add aliases for comtrade values
-        mapping.update({
-            'kg': mapping['КИЛОГРАММ'], 'u': mapping['ШТУКА'],
-            'l': mapping['ЛИТР'], 'm²': mapping['КВАДРАТНЫЙ МЕТР'],
-            'm³': mapping['КУБИЧЕСКИЙ МЕТР'], 'm': mapping['МЕТР'],
-            '2u': mapping['ПАРА'], 'carat': mapping['МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ'],
-            '1000u': mapping['ТЫСЯЧА ШТУК']
-        })
-            
-        return mapping
+        logger.info(f"Loaded common EDIZM mapping with {len(final_mapping)} case-insensitive keys.")
+        return final_mapping
     except Exception as e:
         logger.error(f"Failed to load common EDIZM mapping: {e}")
+        return {}
+
+def load_strana_mapping(project_root: Path) -> Dict[str, str]:
+    """Loads ISO2 to country name mapping from STRANA.csv."""
+    mapping_file = project_root / "metadata" / "STRANA.csv"
+    if not mapping_file.exists():
+        logger.error(f"Country name mapping file not found at {mapping_file}")
+        return {}
+    
+    try:
+        # Assuming the separator is a tab.
+        df = pd.read_csv(mapping_file, sep='	', dtype=str)
+        df.columns = df.columns.str.upper()
+        # Create case-insensitive mapping: uppercase KOD (ISO2) -> NAME
+        mapping = pd.Series(df.NAME.values, index=df.KOD.str.upper()).to_dict()
+        logger.info(f"Loaded country name mapping for {len(mapping)} countries.")
+        return mapping
+    except Exception as e:
+        logger.error(f"Failed to load country name mapping: {e}")
+        return {}
+
+def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, str]]:
+    """Loads TNVED code to name mappings from tnved.csv."""
+    mapping_file = project_root / "metadata" / "tnved.csv"
+    if not mapping_file.exists():
+        logger.error(f"TNVED mapping file not found at {mapping_file}")
+        return {}
+
+    try:
+        df = pd.read_csv(mapping_file, dtype={'KOD': str, 'NAME': str, 'level': int})
+        df.columns = df.columns.str.upper()
+
+        mappings = {
+            'tnved2': df[df['LEVEL'] == 2].set_index('KOD')['NAME'].to_dict(),
+            'tnved4': df[df['LEVEL'] == 4].set_index('KOD')['NAME'].to_dict(),
+            'tnved6': df[df['LEVEL'] == 6].set_index('KOD')['NAME'].to_dict(),
+            'tnved8': df[df['LEVEL'] == 8].set_index('KOD')['NAME'].to_dict(),
+            'tnved10': df[df['LEVEL'] == 10].set_index('KOD')['NAME'].to_dict()
+        }
+        
+        logger.info("Successfully loaded TNVED mappings for all levels.")
+        return mappings
+    except Exception as e:
+        logger.error(f"Failed to load TNVED mapping: {e}")
         return {}
 
 def load_and_transform_comtrade(
@@ -375,53 +502,65 @@ def load_and_transform_comtrade(
     # Create case-insensitive mapping: uppercase ISO2 -> M49
     country_to_m49 = {v.upper(): k for k, v in partner_mapping.items() if v}
     
-    # Log available country codes for debugging
-    logger.info(f"Available ISO2 codes in mapping (sample): {list(country_to_m49.keys())[:20]}")
-    
     # Convert exclude list to uppercase and map to M49
     exclude_countries_upper = [c.upper() for c in exclude_countries]
     exclude_m49_codes = []
     for c in exclude_countries_upper:
         if c in country_to_m49:
-            exclude_m49_codes.append(country_to_m49[c])
+            m49_code = country_to_m49[c]
+            exclude_m49_codes.append(m49_code)
+            logger.info(f"Excluding country '{c}' (M49 code: {m49_code}) from Comtrade data")
         else:
             logger.warning(f"Could not find M49 code for country: {c}")
     
-    logger.info(f"Excluding M49 codes: {exclude_m49_codes} (for countries: {exclude_countries_upper})")
+    logger.info(f"Total countries to exclude from Comtrade: {len(exclude_m49_codes)}")
 
     try:
         conn = duckdb.connect(str(comtrade_db_path), read_only=True)
         
-        # Diagnostic: List tables in the database
+        # Diagnostic: List tables and schema in the database
         tables = conn.execute("SHOW TABLES;").fetchall()
         logger.info(f"Tables found in {comtrade_db_path}: {tables}")
+        try:
+            table_info = conn.execute("DESCRIBE comtrade_data;").df()
+            logger.info(f"Schema for comtrade_data:\n{table_info}")
+        except Exception as e:
+            logger.warning(f"Could not describe comtrade_data table: {e}")
+        
+        # Build query with safe formatting (M49 codes are always integers, so safe to format)
+        query_parts = ["SELECT"]
+        query_parts.append("    period AS PERIOD,")
+        query_parts.append("    reporterCode AS STRANA_CODE,")
+        query_parts.append("    cmdCode AS TNVED,")
+        query_parts.append("    CASE flowCode WHEN 'M' THEN 'ЭК' WHEN 'X' THEN 'ИМ' WHEN 'ЭК' THEN 'ЭК' WHEN 'ИМ' THEN 'ИМ' END AS NAPR,")
+        query_parts.append("    qtyUnitCode,")
+        query_parts.append("    altQtyUnitCode,")
+        query_parts.append("    primaryValue AS STOIM,")
+        query_parts.append("    netWgt AS NETTO,")
+        query_parts.append("    qty,")
+        query_parts.append("    altQty")
+        query_parts.append("FROM comtrade_data")
         
         where_clauses = []
+        
         if exclude_m49_codes:
+            # M49 codes are always integers, safe to format directly
+            # Validate all codes are integers for safety
+            if not all(isinstance(code, int) for code in exclude_m49_codes):
+                raise ValueError("All exclude_m49_codes must be integers")
             codes_str = ', '.join(map(str, exclude_m49_codes))
             where_clauses.append(f"reporterCode NOT IN ({codes_str})")
         
         if start_year:
             logger.info(f"Applying start_year filter to Comtrade data: year >= {start_year}")
+            if not isinstance(start_year, int):
+                raise ValueError("start_year must be an integer")
             where_clauses.append(f"refYear >= {start_year}")
-
-        where_clause = ""
+        
         if where_clauses:
-            where_clause = "WHERE " + " AND ".join(where_clauses)
-            
-        query = f"""
-            SELECT
-                period AS PERIOD,
-                reporterCode AS STRANA_CODE,
-                cmdCode AS TNVED,
-                CASE flowCode WHEN 'M' THEN 'ЭК' WHEN 'X' THEN 'ИМ' WHEN 'ЭК' THEN 'ЭК' WHEN 'ИМ' THEN 'ИМ' END AS NAPR,
-                qtyUnitCode AS EDIZM_CODE,
-                primaryValue AS STOIM,
-                netWgt AS NETTO,
-                qty AS KOL
-            FROM comtrade_data
-            {where_clause}
-        """
+            query_parts.append("WHERE " + " AND ".join(where_clauses))
+        
+        query = "\n".join(query_parts)
         logger.info(f"Executing Comtrade query...")
         comtrade_df = conn.execute(query).fetchdf()
     except Exception as e:
@@ -439,6 +578,21 @@ def load_and_transform_comtrade(
         
     # Post-processing transformations
     logger.info("Transforming Comtrade data...")
+
+    # Choose the non-weight quantity as the primary supplementary quantity (KOL).
+    # The Comtrade code for Kilogram is 8.
+    # If the primary quantity unit (`qtyUnitCode`) is KG, we prefer the alternate quantity.
+    # Otherwise, we stick with the primary quantity.
+    # This logic assumes altQty and altQtyUnitCode columns exist in comtrade_data.
+    if 'altQtyUnitCode' in comtrade_df.columns and 'altQty' in comtrade_df.columns:
+        use_alt_quantity = comtrade_df['qtyUnitCode'] == 8
+        comtrade_df['EDIZM_CODE'] = comtrade_df['altQtyUnitCode'].where(use_alt_quantity, comtrade_df['qtyUnitCode'])
+        comtrade_df['KOL'] = comtrade_df['altQty'].where(use_alt_quantity, comtrade_df['qty'])
+    else:
+        logger.warning("altQtyUnitCode or altQty not found in Comtrade data. Using primary quantity fields.")
+        comtrade_df['EDIZM_CODE'] = comtrade_df['qtyUnitCode']
+        comtrade_df['KOL'] = comtrade_df['qty']
+
     comtrade_df['STRANA'] = comtrade_df['STRANA_CODE'].map(partner_mapping)
     
     # Ensure STRANA is uppercase for consistency
@@ -471,6 +625,7 @@ def load_and_transform_comtrade(
     comtrade_df['TNVED2'] = comtrade_df['TNVED'].str.slice(0, 2)
     comtrade_df['TNVED4'] = comtrade_df['TNVED'].str.slice(0, 4)
     comtrade_df['TNVED6'] = comtrade_df['TNVED'].str.slice(0, 6)
+    comtrade_df['TNVED8'] = comtrade_df['TNVED'].str.slice(0, 8)
     
     # Ensure data types match the expected schema
     for col, expected_type in EXPECTED_SCHEMA.items():
@@ -553,15 +708,16 @@ def main():
     national_countries_iso = []
 
     # Process national data
-    for df in national_datasets.values():
+    for source_name, df in national_datasets.items():
         df['SOURCE'] = 'national'
         all_dataframes.append(df)
         if 'STRANA' in df.columns and not df.empty:
             # Get all unique country codes from this dataset and ensure uppercase
             unique_countries = df['STRANA'].dropna().unique()
             for country in unique_countries:
-                if country.upper() not in national_countries_iso:
-                    national_countries_iso.append(country.upper())
+                country_upper = country.upper()
+                if country_upper not in national_countries_iso:
+                    national_countries_iso.append(country_upper)
     
     # Process Comtrade data if flag is set
     if args.include_comtrade:
@@ -582,7 +738,8 @@ def main():
             if not comtrade_df.empty:
                 # Double-check: filter out any national countries that might have slipped through
                 initial_comtrade_rows = len(comtrade_df)
-                comtrade_df = comtrade_df[~comtrade_df['STRANA'].isin(national_countries_iso)].copy()
+                indices_to_drop = comtrade_df[comtrade_df['STRANA'].isin(national_countries_iso)].index
+                comtrade_df.drop(indices_to_drop, inplace=True)
                 filtered_rows = initial_comtrade_rows - len(comtrade_df)
                 if filtered_rows > 0:
                     logger.info(f"Filtered {filtered_rows:,} duplicate rows from Comtrade data that matched national countries.")
@@ -600,7 +757,8 @@ def main():
     # Apply country exclusions to the final merged dataset
     if excluded_countries_upper:
         initial_rows = len(merged_df)
-        merged_df = merged_df[~merged_df['STRANA'].isin(excluded_countries_upper)].copy()
+        indices_to_drop = merged_df[merged_df['STRANA'].isin(excluded_countries_upper)].index
+        merged_df.drop(indices_to_drop, inplace=True)
         excluded_rows = initial_rows - len(merged_df)
         if excluded_rows > 0:
             logger.info(f"Excluded {excluded_rows:,} rows for countries: {excluded_countries_upper}")
@@ -609,7 +767,7 @@ def main():
     
     # Remove rows where NAPR is NULL
     initial_rows = len(merged_df)
-    merged_df = merged_df.dropna(subset=['NAPR']).copy()
+    merged_df.dropna(subset=['NAPR'], inplace=True)
     null_napr_rows = initial_rows - len(merged_df)
     if null_napr_rows > 0:
         logger.info(f"Removed {null_napr_rows:,} rows with NULL NAPR values")
@@ -618,26 +776,82 @@ def main():
     logger.info("Standardizing EDIZM column...")
     common_edizm_map = load_common_edizm_mapping(project_root)
     if common_edizm_map:
-        # Normalize original EDIZM values before mapping
-        merged_df['EDIZM_upper'] = merged_df['EDIZM'].str.upper().str.strip()
+        # Normalize original EDIZM values before mapping (astype(str) is crucial)
+        merged_df['EDIZM_upper'] = merged_df['EDIZM'].astype(str).str.upper().str.strip()
         
         # Map to common representation
         mapped_values = merged_df['EDIZM_upper'].map(common_edizm_map)
         
         # Update EDIZM and EDIZM_ISO
-        merged_df['EDIZM'] = mapped_values.map(lambda x: x['COMMON_NAME'] if pd.notna(x) else None)
+        merged_df['EDIZM'] = mapped_values.map(lambda x: x['NAME'] if pd.notna(x) else None)
         merged_df['EDIZM_ISO'] = mapped_values.map(lambda x: x['KOD'] if pd.notna(x) else None)
         
         # Handle unmapped values
-        unmapped_count = merged_df['EDIZM'].isnull().sum()
-        if unmapped_count > 0:
-            logger.warning(f"{unmapped_count} EDIZM values could not be mapped to a common standard.")
-            unmapped_sample = merged_df[merged_df['EDIZM'].isnull()]['EDIZM_upper'].unique()
+        unmapped_mask = merged_df['EDIZM'].isnull()
+        if unmapped_mask.sum() > 0:
+            logger.warning(f"{unmapped_mask.sum()} EDIZM values could not be mapped to a common standard.")
+            unmapped_sample = merged_df[unmapped_mask]['EDIZM_upper'].unique()
             logger.warning(f"Unmapped EDIZM sample: {unmapped_sample[:10]}")
             
         merged_df.drop(columns=['EDIZM_upper'], inplace=True)
     else:
         logger.error("Could not standardize EDIZM values due to mapping load failure.")
+
+    # Nullify KOL where EDIZM is KG to avoid duplication with NETTO
+    logger.info("Checking for supplementary units in KG to avoid duplication with NETTO...")
+    kg_iso_code = '166'  # ISO code for Kilogram
+    if 'EDIZM_ISO' in merged_df.columns:
+        # Use .loc to avoid SettingWithCopyWarning
+        kg_rows_mask = merged_df['EDIZM_ISO'] == kg_iso_code
+        num_kg_rows = kg_rows_mask.sum()
+
+        if num_kg_rows > 0:
+            logger.info(f"Found {num_kg_rows:,} rows where the supplementary unit is KG. "
+                        f"Setting KOL, EDIZM, and EDIZM_ISO to NULL for these rows.")
+            merged_df.loc[kg_rows_mask, 'KOL'] = None
+            merged_df.loc[kg_rows_mask, 'EDIZM'] = None
+            merged_df.loc[kg_rows_mask, 'EDIZM_ISO'] = None
+    else:
+        logger.warning("Cannot perform KG duplication check: EDIZM_ISO column not found.")
+
+    # Handle Tonnes: convert to KG if NETTO is missing, otherwise nullify to avoid duplication
+    logger.info("Checking for supplementary units in Tonnes to convert or remove...")
+    tonne_iso_code = '168'
+    if 'EDIZM_ISO' in merged_df.columns:
+        tonne_mask = (merged_df['EDIZM_ISO'] == tonne_iso_code) & merged_df['KOL'].notna()
+        num_tonne_rows = tonne_mask.sum()
+
+        if num_tonne_rows > 0:
+            logger.info(f"Found {num_tonne_rows:,} rows with supplementary unit in Tonnes.")
+            
+            # Case 1: NETTO is missing or zero, so we can backfill it from KOL
+            netto_missing_mask = tonne_mask & ((merged_df['NETTO'].isnull()) | (merged_df['NETTO'] == 0))
+            num_to_convert = netto_missing_mask.sum()
+            if num_to_convert > 0:
+                logger.info(f"  - Converting {num_to_convert:,} Tonne values to KG and filling NETTO.")
+                # Convert Tonnes in KOL to KG and assign to NETTO
+                merged_df.loc[netto_missing_mask, 'NETTO'] = merged_df.loc[netto_missing_mask, 'KOL'] * 1000
+                # Nullify the supplementary unit columns as the value is now in NETTO
+                merged_df.loc[netto_missing_mask, 'KOL'] = None
+                merged_df.loc[netto_missing_mask, 'EDIZM'] = None
+                merged_df.loc[netto_missing_mask, 'EDIZM_ISO'] = None
+
+            # Case 2: NETTO already has a value, so KOL is redundant
+            # Re-calculate the mask to only affect rows not already handled above
+            tonne_mask = (merged_df['EDIZM_ISO'] == tonne_iso_code) & merged_df['KOL'].notna()
+            netto_present_mask = tonne_mask & merged_df['NETTO'].notna() & (merged_df['NETTO'] != 0)
+            num_to_remove = netto_present_mask.sum()
+            if num_to_remove > 0:
+                logger.info(f"  - Removing {num_to_remove:,} redundant Tonne values as NETTO is already populated.")
+                merged_df.loc[netto_present_mask, 'KOL'] = None
+                merged_df.loc[netto_present_mask, 'EDIZM'] = None
+                merged_df.loc[netto_present_mask, 'EDIZM_ISO'] = None
+    else:
+        logger.warning("Cannot perform Tonne duplication check: EDIZM_ISO column not found.")
+
+    # Note: Country names and TNVED names are now stored in separate reference tables
+    # and can be joined via the unified_trade_data_enriched view or directly in queries
+    logger.info("Reference tables (country names, TNVED names) will be created as separate tables in the database.")
 
     # Display summary statistics
     logger.info("=== MERGE SUMMARY ===")
@@ -665,6 +879,16 @@ def main():
 
     # Save to DuckDB
     save_to_duckdb(merged_df, output_db_path)
+    
+    # Save reference tables and create convenience view
+    conn = duckdb.connect(str(output_db_path))
+    try:
+        save_reference_tables(conn, project_root)
+        conn.close()
+    except Exception as e:
+        conn.close()
+        logger.error(f"Failed to create reference tables: {e}")
+        raise
 
 if __name__ == "__main__":
     main()
