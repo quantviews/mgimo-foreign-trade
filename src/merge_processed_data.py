@@ -158,9 +158,21 @@ def generate_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
     
     # Ensure TNVED columns are strings and generate derived columns
     if 'TNVED' in df_processed.columns:
-        # Convert TNVED to string and pad to minimum 10 characters
-        # TNVED codes can be 8 or 10 digits, so we pad to 10 to ensure consistency
-        df_processed['TNVED'] = df_processed['TNVED'].astype(str).str.zfill(10)
+        # Convert TNVED to string
+        df_processed['TNVED'] = df_processed['TNVED'].astype(str).str.strip()
+        
+        # Remove leading zeros first, then pad to 10 digits on the RIGHT
+        # This ensures codes like "0000870421" become "8704210000" (not "0000870421")
+        # Step 1: Remove leading zeros
+        df_processed['TNVED'] = df_processed['TNVED'].str.lstrip('0')
+        # Step 2: Handle all-zeros case
+        df_processed.loc[df_processed['TNVED'] == '', 'TNVED'] = '0'
+        # Step 3: Pad to 10 digits on the RIGHT (not left!)
+        def pad_right(code):
+            if len(code) >= 10:
+                return code[:10]
+            return code + '0' * (10 - len(code))
+        df_processed['TNVED'] = df_processed['TNVED'].apply(pad_right)
         
         # Generate derived columns directly from TNVED
         df_processed['TNVED2'] = df_processed['TNVED'].str[:2]
@@ -247,8 +259,25 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
                 logger.warning(f"Could not parse TNVED level from '{level_name}', skipping...")
                 continue
             for code, name in mapping.items():
+                # Normalize code to match format in unified_trade_data
+                # Codes in unified_trade_data are padded to 10 digits, then sliced
+                # So we need to pad codes to the appropriate length based on level
+                code_str = str(code).strip()
+                if level_int == 2:
+                    normalized_code = code_str.zfill(2)  # "01" -> "01"
+                elif level_int == 4:
+                    normalized_code = code_str.zfill(4)  # "0101" -> "0101"
+                elif level_int == 6:
+                    normalized_code = code_str.zfill(6)  # "010121" -> "010121"
+                elif level_int == 8:
+                    normalized_code = code_str.zfill(8)  # "01012100" -> "01012100"
+                elif level_int == 10:
+                    normalized_code = code_str.zfill(10)  # "0101210000" -> "0101210000"
+                else:
+                    normalized_code = code_str
+                
                 tnved_refs.append({
-                    'TNVED_CODE': code,
+                    'TNVED_CODE': normalized_code,
                     'TNVED_LEVEL': level_int,
                     'TNVED_NAME': name
                 })
@@ -292,12 +321,16 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
         CREATE OR REPLACE VIEW unified_trade_data_enriched AS
         SELECT 
             t.*,
-            c.STRANA_NAME,
+            c.STRANA_NAME AS COUNTRY_NAME,
             t2.TNVED_NAME AS TNVED2_NAME,
             t4.TNVED_NAME AS TNVED4_NAME,
             t6.TNVED_NAME AS TNVED6_NAME,
             t8.TNVED_NAME AS TNVED8_NAME,
-            COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME
+            COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
+            ROW_NUMBER() OVER (
+                PARTITION BY t.STRANA
+                ORDER BY t.PERIOD DESC
+            ) AS period_rank
         FROM unified_trade_data t
         LEFT JOIN country_reference c ON t.STRANA = c.STRANA
         LEFT JOIN tnved_reference t2 ON t.TNVED2 = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
@@ -622,8 +655,15 @@ def load_and_transform_comtrade(
     comtrade_df['EDIZM_ISO'] = None
 
     # Generate derived TNVED columns
-    # TNVED codes can be 8 or 10 digits, pad to 10 for consistency
-    comtrade_df['TNVED'] = comtrade_df['TNVED'].astype(str).str.zfill(10)
+    # Remove leading zeros first, then pad to 10 digits on the RIGHT
+    comtrade_df['TNVED'] = comtrade_df['TNVED'].astype(str).str.strip()
+    comtrade_df['TNVED'] = comtrade_df['TNVED'].str.lstrip('0')
+    comtrade_df.loc[comtrade_df['TNVED'] == '', 'TNVED'] = '0'
+    def pad_right(code):
+        if len(code) >= 10:
+            return code[:10]
+        return code + '0' * (10 - len(code))
+    comtrade_df['TNVED'] = comtrade_df['TNVED'].apply(pad_right)
     comtrade_df['TNVED2'] = comtrade_df['TNVED'].str.slice(0, 2)
     comtrade_df['TNVED4'] = comtrade_df['TNVED'].str.slice(0, 4)
     comtrade_df['TNVED6'] = comtrade_df['TNVED'].str.slice(0, 6)
