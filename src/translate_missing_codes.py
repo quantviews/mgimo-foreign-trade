@@ -18,6 +18,13 @@ import time
 from openai import OpenAI
 from collections import defaultdict
 
+# Try to load .env file if python-dotenv is available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv is optional
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -196,12 +203,29 @@ customs classification documents."""
             return translated
             
         except Exception as e:
-            logger.warning(f"Translation attempt {attempt + 1} failed: {e}")
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)  # Exponential backoff
+            error_str = str(e)
+            
+            # Check for quota/rate limit errors
+            if 'insufficient_quota' in error_str or '429' in error_str:
+                logger.error("=" * 60)
+                logger.error("QUOTA ERROR: OpenAI API quota exceeded!")
+                logger.error("Please check your OpenAI account:")
+                logger.error("  1. Go to https://platform.openai.com/usage")
+                logger.error("  2. Check your billing and quota")
+                logger.error("  3. Add payment method if needed")
+                logger.error("=" * 60)
+                if attempt < max_retries - 1:
+                    logger.info(f"Waiting before retry {attempt + 1}/{max_retries}...")
+                    time.sleep(5)  # Wait longer for quota issues
+                else:
+                    raise Exception("OpenAI API quota exceeded. Please check your account and billing.")
             else:
-                logger.error(f"Failed to translate after {max_retries} attempts: {text}")
-                return ''
+                logger.warning(f"Translation attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    logger.error(f"Failed to translate after {max_retries} attempts: {text}")
+                    return ''
     
     return ''
 
@@ -211,7 +235,8 @@ def translate_missing_codes(
     russian_names: dict,
     api_key: str,
     output_file: Path,
-    resume_file: Path = None
+    resume_file: Path = None,
+    max_codes: int = None
 ) -> dict:
     """
     Translate missing codes to Russian.
@@ -222,6 +247,7 @@ def translate_missing_codes(
         api_key: OpenAI API key
         output_file: Path to save translations
         resume_file: Path to resume file (for continuing after interruption)
+        max_codes: Maximum number of codes to translate (None for all, useful for testing)
         
     Returns:
         Dictionary mapping code -> Russian translation
@@ -231,13 +257,26 @@ def translate_missing_codes(
     # Initialize OpenAI client
     client = OpenAI(api_key=api_key)
     
-    # Load existing translations if resuming
+    # Load existing translations from both output_file and resume_file
     translations = {}
+    
+    # First, try to load from output_file (final translations)
+    if output_file.exists():
+        try:
+            with open(output_file, 'r', encoding='utf-8') as f:
+                translations = json.load(f)
+            logger.info(f"Loaded {len(translations)} existing translations from {output_file}")
+        except Exception as e:
+            logger.warning(f"Failed to load output file: {e}")
+    
+    # Then, load from resume_file (may have more recent progress)
     if resume_file and resume_file.exists():
         try:
             with open(resume_file, 'r', encoding='utf-8') as f:
-                translations = json.load(f)
-            logger.info(f"Loaded {len(translations)} existing translations from {resume_file}")
+                resume_translations = json.load(f)
+            # Merge resume translations (they may be more recent)
+            translations.update(resume_translations)
+            logger.info(f"Loaded {len(resume_translations)} additional translations from {resume_file}")
         except Exception as e:
             logger.warning(f"Failed to load resume file: {e}")
     
@@ -260,8 +299,14 @@ def translate_missing_codes(
     logger.info(f"Codes already in Russian reference: {sum(1 for c in missing_codes.keys() if c in russian_names):,}")
     logger.info(f"Codes already translated: {len(translations):,}")
     
+    # Limit number of codes if max_codes is specified (for testing)
+    if max_codes is not None and max_codes > 0:
+        codes_to_translate = codes_to_translate[:max_codes]
+        logger.info(f"TEST MODE: Limiting to first {max_codes} codes")
+    
     # Translate codes
     total = len(codes_to_translate)
+    skipped_count = 0
     for idx, (code, name) in enumerate(codes_to_translate, 1):
         if idx % 10 == 0:
             logger.info(f"Progress: {idx}/{total} ({idx/total*100:.1f}%)")
@@ -269,6 +314,11 @@ def translate_missing_codes(
             if resume_file:
                 with open(resume_file, 'w', encoding='utf-8') as f:
                     json.dump(translations, f, ensure_ascii=False, indent=2)
+        
+        # Check if code is already translated (double-check before API call)
+        if code in translations:
+            skipped_count += 1
+            continue
         
         translated = translate_with_chatgpt(client, name)
         if translated:
@@ -282,6 +332,9 @@ def translate_missing_codes(
         
         # Rate limiting - small delay to avoid hitting rate limits
         time.sleep(0.5)
+    
+    if skipped_count > 0:
+        logger.info(f"Skipped {skipped_count} codes that were already translated")
     
     # Save final translations
     with open(output_file, 'w', encoding='utf-8') as f:
@@ -328,6 +381,18 @@ def save_translations_csv(translations: dict, missing_codes: dict, output_csv: P
 
 def main():
     """Main function."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Translate missing TNVED codes to Russian using ChatGPT API')
+    parser.add_argument(
+        '--test',
+        type=int,
+        default=None,
+        metavar='N',
+        help='Test mode: translate only first N codes (e.g., --test 5 for 5 codes)'
+    )
+    args = parser.parse_args()
+    
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
     
@@ -337,11 +402,24 @@ def main():
     output_dir = project_root / 'metadata' / 'translations'
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Get API key from environment variable
+    # Get API key from environment variable or .env file
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
-        logger.error("OPENAI_API_KEY environment variable not set!")
-        logger.info("Please set it with: export OPENAI_API_KEY='your-key-here'")
+        logger.error("OPENAI_API_KEY not found!")
+        logger.info("")
+        logger.info("Please set it using one of these methods:")
+        logger.info("")
+        logger.info("1. Create a .env file in project root with:")
+        logger.info("   OPENAI_API_KEY=your-key-here")
+        logger.info("")
+        logger.info("2. Set environment variable:")
+        logger.info("   Windows PowerShell: $env:OPENAI_API_KEY='your-key-here'")
+        logger.info("   Windows CMD: set OPENAI_API_KEY=your-key-here")
+        logger.info("   Linux/Mac: export OPENAI_API_KEY='your-key-here'")
+        logger.info("")
+        logger.info("3. Install python-dotenv for .env support:")
+        logger.info("   pip install python-dotenv")
+        logger.info("")
         return
     
     # Load Russian names
@@ -351,10 +429,15 @@ def main():
     # Load missing codes
     missing_codes = load_missing_codes_with_names(reports_dir)
     
-    # Output files
-    output_json = output_dir / 'missing_codes_translations.json'
-    output_csv = output_dir / 'missing_codes_translations.csv'
-    resume_file = output_dir / 'translations_resume.json'
+    # Output files (use test prefix if in test mode)
+    if args.test:
+        output_json = output_dir / 'missing_codes_translations_test.json'
+        output_csv = output_dir / 'missing_codes_translations_test.csv'
+        resume_file = output_dir / 'translations_resume_test.json'
+    else:
+        output_json = output_dir / 'missing_codes_translations.json'
+        output_csv = output_dir / 'missing_codes_translations.csv'
+        resume_file = output_dir / 'translations_resume.json'
     
     # Translate
     translations = translate_missing_codes(
@@ -362,7 +445,8 @@ def main():
         russian_names,
         api_key,
         output_json,
-        resume_file
+        resume_file,
+        max_codes=args.test
     )
     
     # Save CSV

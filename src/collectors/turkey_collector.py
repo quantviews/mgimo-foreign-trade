@@ -52,6 +52,11 @@ def parse_arguments():
         action="store_true",
         help="download only codes for a specific year",
     )
+    parser.add_argument(
+        "--skip-codes",
+        action="store_true",
+        help="skip code download/check, use existing codes file only",
+    )
 
     # Парсинг аргументов
     args = parser.parse_args()
@@ -104,12 +109,13 @@ async def download_codes(playwright, year: str) -> dict:
     return hs_codes
 
 
-async def load_codes(playwright, year: str) -> dict:
+async def load_codes(playwright, year: str, skip_download: bool = False) -> dict:
     """
     Если файл с кодами отсутствует, функция загружает коды с помощью функции download_codes(), сохраняет результат
     в json-файл и возвращает словарь с кодами. Если файл существует, то выполняется его проверка, выгружаются коды
     и возвращается словарь с кодами.
     :param year:
+    :param skip_download: Если True, не загружает коды, только читает существующий файл
     :return hs_codes:
     """
     hs_codes = None
@@ -117,7 +123,19 @@ async def load_codes(playwright, year: str) -> dict:
     codes_file_path = hs_codes_dir / f"turkey_codes{year}.json"
 
     try:
-        if not codes_file_path.exists():
+        if skip_download:
+            # Режим пропуска загрузки - только чтение существующего файла
+            if not codes_file_path.exists():
+                raise FileNotFoundError(
+                    f"Codes file not found: {codes_file_path}. "
+                    f"Run without --skip-codes to download codes first."
+                )
+            with open(codes_file_path, "r", encoding="utf-8") as f:
+                hs_codes = json.load(f)
+            print(f"Using existing HS8 codes from {codes_file_path.name}")
+        elif not codes_file_path.exists():
+            if playwright is None:
+                raise RuntimeError("Playwright is required to download codes, but was not provided")
             hs_codes_dir.mkdir(parents=True, exist_ok=True)
             print(f"Downloading codes for {year}...")
             hs_codes = await download_codes(playwright, year)
@@ -132,6 +150,11 @@ async def load_codes(playwright, year: str) -> dict:
                 print(f"Will use previously downloaded HS8 codes for {year}.")
 
             except (json.JSONDecodeError, IOError):
+                if playwright is None:
+                    raise RuntimeError(
+                        f"Codes file {codes_file_path} is corrupted and playwright is not available. "
+                        f"Run without --skip-codes to re-download."
+                    )
                 print(
                     f"Couldn't process the file with codes for {year}. Downloading again..."
                 )
@@ -219,7 +242,15 @@ async def collect_data(playwright, year: str, hs_codes: dict):
         new_page = await new_page_info.value
 
         # Ожидание полной загрузки содержимого
-        await new_page.wait_for_load_state("networkidle")
+        # Увеличиваем таймаут и добавляем обработку ошибок
+        try:
+            await new_page.wait_for_load_state("networkidle", timeout=60000)  # 60 секунд вместо 30
+        except Exception as e:
+            print(f"Warning: Timeout waiting for networkidle, trying alternative approach: {e}")
+            # Альтернативный подход: ждем загрузки DOM и небольшой задержки
+            await new_page.wait_for_load_state("domcontentloaded", timeout=30000)
+            await asyncio.sleep(3)  # Дополнительная задержка для завершения загрузки
+        
         output = await new_page.content()
 
         # Сохранение HTML файла с отчетом
@@ -246,14 +277,21 @@ async def main():
 
     if args.codes:
         async with async_playwright() as playwright:
-            await load_codes(playwright, args.year)
+            await load_codes(playwright, args.year, skip_download=False)
 
     else:
-
         async with async_playwright() as playwright:
-            hs_codes = await load_codes(playwright, args.year)
-            print("\nDownloading data...\n")
-            await collect_data(playwright, args.year, hs_codes)
+            # Если skip_codes=True, не передаем playwright в load_codes (не нужен для чтения файла)
+            if args.skip_codes:
+                # В режиме skip_codes не нужен playwright для загрузки кодов
+                # Но все равно нужен для collect_data, так что создаем контекст
+                hs_codes = await load_codes(None, args.year, skip_download=True)
+                print("\nDownloading data (using existing codes)...\n")
+                await collect_data(playwright, args.year, hs_codes)
+            else:
+                hs_codes = await load_codes(playwright, args.year, skip_download=False)
+                print("\nDownloading data...\n")
+                await collect_data(playwright, args.year, hs_codes)
 
         print("Raw data download completed.")
 

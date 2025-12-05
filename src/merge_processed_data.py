@@ -19,6 +19,8 @@ import logging
 import argparse
 import json
 from typing import Dict, List
+import numpy as np
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -42,6 +44,482 @@ EXPECTED_SCHEMA = {
     'TNVED6': 'object',         # VARCHAR - первые 6 знаков TNVED
     'TNVED2': 'object'          # VARCHAR - первые 2 знака TNVED
 }
+
+#--------------------------------
+# Функции для выделения выбросов:
+#--------------------------------
+
+def show_outliers(x: pd.Series, nsd: float, tv: float) -> int:
+    """
+    Подсчитывает количество выбросов в ряде данных.
+    
+    Выбросом считается значение, где:
+    - |z-score| > nsd (число стандартных отклонений)
+    - значение > tv (пороговое значение)
+    
+    Args:
+        x: Ряд данных для анализа
+        nsd: Количество стандартных отклонений для определения выброса
+        tv: Пороговое значение (выброс должен быть больше этого значения)
+        
+    Returns:
+        Количество выбросов
+    """
+    if x.empty or x.isna().all():
+        return 0
+    
+    mean_val = x.mean(skipna=True)
+    std_val = x.std(skipna=True)
+    
+    if std_val == 0 or pd.isna(std_val):
+        return 0
+    
+    z = (x - mean_val) / std_val
+    outliers = ((z.abs() > nsd) & (x > tv)).sum()
+    
+    return int(outliers)
+
+
+def outlier_frac(x: pd.Series, y: pd.Series, nsd: float, tv: float) -> int:
+    """
+    Подсчитывает количество выбросов в отношении x/y.
+    
+    Выбросом считается значение, где:
+    - |z-score отношения x/y| > nsd
+    - x > tv (пороговое значение)
+    
+    Args:
+        x: Числитель (первый ряд данных)
+        y: Знаменатель (второй ряд данных)
+        nsd: Количество стандартных отклонений для определения выброса
+        tv: Пороговое значение для x
+        
+    Returns:
+        Количество выбросов
+    """
+    if x.empty or y.empty or x.isna().all() or y.isna().all():
+        return 0
+    
+    # Вычисляем отношение x/y, избегая деления на ноль
+    ratio = x / y.replace(0, np.nan)
+    
+    if ratio.isna().all():
+        return 0
+    
+    mean_ratio = ratio.mean(skipna=True)
+    std_ratio = ratio.std(skipna=True)
+    
+    if std_ratio == 0 or pd.isna(std_ratio):
+        return 0
+    
+    z_sc = (ratio - mean_ratio) / std_ratio
+    outliers = ((z_sc.abs() > nsd) & (x > tv)).sum()
+    
+    return int(outliers)
+
+
+def detect_outliers_in_dataframe(
+    df: pd.DataFrame,
+    nsd: float = 3.0,
+    tv_kol: float = 0.0
+) -> Dict[str, int]:
+    """
+    Обнаруживает выбросы в колонке KOL (количество в дополнительной единице).
+    
+    Args:
+        df: DataFrame для анализа
+        nsd: Количество стандартных отклонений для определения выброса (по умолчанию 3.0)
+        tv_kol: Пороговое значение для KOL (по умолчанию 0.0)
+        
+    Returns:
+        Словарь с количеством выбросов в KOL
+    """
+    results = {}
+    
+    # Выбросы в KOL
+    if 'KOL' in df.columns:
+        results['kol_outliers'] = show_outliers(df['KOL'], nsd, tv_kol)
+    else:
+        results['kol_outliers'] = 0
+    
+    return results
+
+
+def detect_outliers_by_time_series(
+    df: pd.DataFrame,
+    nsd: float = 6.0,
+    tv: float = 1e6,
+    require_all_methods: bool = True
+) -> pd.DataFrame:
+    """
+    Обнаруживает выбросы в KOL, группируя данные по временным рядам (STRANA, TNVED, NAPR).
+    
+    Использует три метода обнаружения выбросов:
+    1. show_outliers(KOL) - выбросы в абсолютных значениях KOL
+    2. outlier_frac(KOL, STOIM) - выбросы в отношении KOL/STOIM
+    3. outlier_frac(KOL, NETTO) - выбросы в отношении KOL/NETTO
+    
+    Args:
+        df: DataFrame для анализа (должен содержать STRANA, TNVED, NAPR, KOL, STOIM, NETTO, PERIOD)
+        nsd: Количество стандартных отклонений для определения выброса (по умолчанию 6.0, как в outlier_detection.Rmd)
+        tv: Пороговое значение для KOL (по умолчанию 10^6, как в outlier_detection.Rmd)
+        require_all_methods: Если True, возвращает только ряды, где все три метода нашли выбросы
+        
+    Returns:
+        DataFrame с колонками: STRANA, TNVED, NAPR, outliers_1, outliers_2, outliers_3
+        где outliers_1 - выбросы в KOL, outliers_2 - в KOL/STOIM, outliers_3 - в KOL/NETTO
+    """
+    required_cols = ['STRANA', 'TNVED', 'NAPR', 'KOL', 'PERIOD']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        logger.warning(f"Cannot detect outliers by time series: missing columns {missing_cols}")
+        return pd.DataFrame()
+    
+    # Сортируем по периоду для правильной группировки временных рядов
+    df_sorted = df.sort_values('PERIOD').copy()
+    
+    # Группируем по временным рядам
+    results = []
+    
+    for (strana, tnved, napr), group in df_sorted.groupby(['STRANA', 'TNVED', 'NAPR']):
+        if group.empty:
+            continue
+        
+        # Метод 1: выбросы в KOL
+        kol_series = group['KOL'].dropna()
+        outliers_1 = show_outliers(kol_series, nsd, tv) if not kol_series.empty else 0
+        
+        # Метод 2: выбросы в KOL/STOIM
+        outliers_2 = 0
+        if 'STOIM' in group.columns:
+            valid_mask = group['STOIM'].notna() & group['KOL'].notna() & (group['STOIM'] != 0)
+            if valid_mask.sum() > 0:
+                outliers_2 = outlier_frac(
+                    group.loc[valid_mask, 'KOL'],
+                    group.loc[valid_mask, 'STOIM'],
+                    nsd,
+                    tv
+                )
+        
+        # Метод 3: выбросы в KOL/NETTO
+        outliers_3 = 0
+        if 'NETTO' in group.columns:
+            valid_mask = group['NETTO'].notna() & group['KOL'].notna() & (group['NETTO'] != 0)
+            if valid_mask.sum() > 0:
+                outliers_3 = outlier_frac(
+                    group.loc[valid_mask, 'KOL'],
+                    group.loc[valid_mask, 'NETTO'],
+                    nsd,
+                    tv
+                )
+        
+        # Если require_all_methods=True, пропускаем ряды где не все методы нашли выбросы
+        if require_all_methods:
+            if not (outliers_1 >= 1 and outliers_2 >= 1 and outliers_3 >= 1):
+                continue
+        
+        results.append({
+            'STRANA': strana,
+            'TNVED': tnved,
+            'NAPR': napr,
+            'outliers_1': outliers_1,  # KOL
+            'outliers_2': outliers_2,    # KOL/STOIM
+            'outliers_3': outliers_3     # KOL/NETTO
+        })
+    
+    if not results:
+        return pd.DataFrame(columns=['STRANA', 'TNVED', 'NAPR', 'outliers_1', 'outliers_2', 'outliers_3'])
+    
+    return pd.DataFrame(results)
+
+
+def replace_outliers_with_nan(
+    df: pd.DataFrame,
+    outlier_series: pd.DataFrame,
+    nsd: float = 6.0,
+    tv: float = 1e6
+) -> pd.DataFrame:
+    """
+    Заменяет выбросы в KOL на NaN для временных рядов, где все три метода обнаружили выбросы.
+    
+    Args:
+        df: DataFrame с данными
+        outlier_series: DataFrame с результатами detect_outliers_by_time_series
+        nsd: Количество стандартных отклонений (должно совпадать с параметром обнаружения)
+        tv: Пороговое значение (должно совпадать с параметром обнаружения)
+        
+    Returns:
+        DataFrame с замененными выбросами
+    """
+    if outlier_series.empty:
+        logger.info("No outlier series to process, skipping replacement")
+        return df
+    
+    df_result = df.copy()
+    replaced_count = 0
+    
+    # Для каждого временного ряда с выбросами
+    for _, outlier_row in outlier_series.iterrows():
+        strana = outlier_row['STRANA']
+        tnved = outlier_row['TNVED']
+        napr = outlier_row['NAPR']
+        
+        # Находим соответствующие строки в основном DataFrame
+        mask = (
+            (df_result['STRANA'] == strana) &
+            (df_result['TNVED'] == tnved) &
+            (df_result['NAPR'] == napr) &
+            (df_result['KOL'].notna())
+        )
+        
+        if not mask.any():
+            continue
+        
+        # Получаем группу с исходными индексами
+        group_indices = df_result.index[mask]
+        group = df_result.loc[group_indices]
+        
+        # Метод 1: выбросы в KOL
+        kol_values = group['KOL'].dropna()
+        outlier_mask_1 = pd.Series(False, index=group_indices)
+        if not kol_values.empty:
+            mean_kol = kol_values.mean()
+            std_kol = kol_values.std()
+            if std_kol > 0:
+                z_kol = (group['KOL'] - mean_kol) / std_kol
+                outlier_mask_1 = (z_kol.abs() > nsd) & (group['KOL'] > tv)
+        
+        # Метод 2: выбросы в KOL/STOIM
+        outlier_mask_2 = pd.Series(False, index=group_indices)
+        if 'STOIM' in group.columns:
+            valid_mask = group['STOIM'].notna() & (group['STOIM'] != 0) & group['KOL'].notna()
+            if valid_mask.any():
+                valid_indices = group_indices[valid_mask]
+                ratio = group.loc[valid_indices, 'KOL'] / group.loc[valid_indices, 'STOIM']
+                mean_ratio = ratio.mean()
+                std_ratio = ratio.std()
+                if std_ratio > 0:
+                    z_ratio = (ratio - mean_ratio) / std_ratio
+                    outlier_mask_2.loc[valid_indices] = (z_ratio.abs() > nsd) & (group.loc[valid_indices, 'KOL'] > tv)
+        
+        # Метод 3: выбросы в KOL/NETTO
+        outlier_mask_3 = pd.Series(False, index=group_indices)
+        if 'NETTO' in group.columns:
+            valid_mask = group['NETTO'].notna() & (group['NETTO'] != 0) & group['KOL'].notna()
+            if valid_mask.any():
+                valid_indices = group_indices[valid_mask]
+                ratio = group.loc[valid_indices, 'KOL'] / group.loc[valid_indices, 'NETTO']
+                mean_ratio = ratio.mean()
+                std_ratio = ratio.std()
+                if std_ratio > 0:
+                    z_ratio = (ratio - mean_ratio) / std_ratio
+                    outlier_mask_3.loc[valid_indices] = (z_ratio.abs() > nsd) & (group.loc[valid_indices, 'KOL'] > tv)
+        
+        # Заменяем значения, где хотя бы один метод обнаружил выброс
+        final_outlier_mask = outlier_mask_1 | outlier_mask_2 | outlier_mask_3
+        
+        if final_outlier_mask.any():
+            outlier_indices = group_indices[final_outlier_mask]
+            df_result.loc[outlier_indices, 'KOL'] = np.nan
+            replaced_count += final_outlier_mask.sum()
+    
+    return df_result
+
+
+def create_outlier_report(
+    df: pd.DataFrame,
+    outlier_series: pd.DataFrame,
+    replaced_count: int = 0,
+    keep_outliers: bool = False,
+    nsd: float = 6.0,
+    tv: float = 1e6
+) -> pd.DataFrame:
+    """
+    Создает детальный отчет о выбросах с информацией о конкретных значениях.
+    
+    Args:
+        df: Исходный DataFrame (до замены выбросов, если была выполнена)
+        outlier_series: DataFrame с результатами detect_outliers_by_time_series
+        replaced_count: Количество замененных выбросов
+        keep_outliers: Были ли выбросы оставлены как есть
+        nsd: Количество стандартных отклонений
+        tv: Пороговое значение
+        
+    Returns:
+        DataFrame с детальным отчетом о выбросах
+    """
+    if outlier_series.empty:
+        return pd.DataFrame()
+    
+    report_rows = []
+    
+    # Для каждого временного ряда с выбросами
+    for _, outlier_row in outlier_series.iterrows():
+        strana = outlier_row['STRANA']
+        tnved = outlier_row['TNVED']
+        napr = outlier_row['NAPR']
+        
+        # Находим соответствующие строки
+        mask = (
+            (df['STRANA'] == strana) &
+            (df['TNVED'] == tnved) &
+            (df['NAPR'] == napr) &
+            (df['KOL'].notna())
+        )
+        
+        if not mask.any():
+            continue
+        
+        group = df.loc[mask].copy()
+        
+        # Вычисляем статистику для определения выбросов
+        kol_values = group['KOL'].dropna()
+        if kol_values.empty:
+            continue
+        
+        mean_kol = kol_values.mean()
+        std_kol = kol_values.std()
+        
+        # Метод 1: выбросы в KOL
+        z_kol = None
+        if std_kol > 0:
+            z_kol = (group['KOL'] - mean_kol) / std_kol
+            outlier_mask_1 = (z_kol.abs() > nsd) & (group['KOL'] > tv)
+        else:
+            outlier_mask_1 = pd.Series(False, index=group.index)
+        
+        # Метод 2: выбросы в KOL/STOIM
+        outlier_mask_2 = pd.Series(False, index=group.index)
+        if 'STOIM' in group.columns:
+            valid_mask = group['STOIM'].notna() & (group['STOIM'] != 0) & group['KOL'].notna()
+            if valid_mask.any():
+                ratio = group.loc[valid_mask, 'KOL'] / group.loc[valid_mask, 'STOIM']
+                mean_ratio = ratio.mean()
+                std_ratio = ratio.std()
+                if std_ratio > 0:
+                    z_ratio = (ratio - mean_ratio) / std_ratio
+                    outlier_mask_2.loc[valid_mask] = (z_ratio.abs() > nsd) & (group.loc[valid_mask, 'KOL'] > tv)
+        
+        # Метод 3: выбросы в KOL/NETTO
+        outlier_mask_3 = pd.Series(False, index=group.index)
+        if 'NETTO' in group.columns:
+            valid_mask = group['NETTO'].notna() & (group['NETTO'] != 0) & group['KOL'].notna()
+            if valid_mask.any():
+                ratio = group.loc[valid_mask, 'KOL'] / group.loc[valid_mask, 'NETTO']
+                mean_ratio = ratio.mean()
+                std_ratio = ratio.std()
+                if std_ratio > 0:
+                    z_ratio = (ratio - mean_ratio) / std_ratio
+                    outlier_mask_3.loc[valid_mask] = (z_ratio.abs() > nsd) & (group.loc[valid_mask, 'KOL'] > tv)
+        
+        # Находим все выбросы
+        final_outlier_mask = outlier_mask_1 | outlier_mask_2 | outlier_mask_3
+        
+        if final_outlier_mask.any():
+            outliers_data = group.loc[final_outlier_mask]
+            
+            for idx, row in outliers_data.iterrows():
+                # Определяем, какими методами обнаружен выброс
+                methods = []
+                if outlier_mask_1.loc[idx]:
+                    methods.append('KOL')
+                if outlier_mask_2.loc[idx]:
+                    methods.append('KOL/STOIM')
+                if outlier_mask_3.loc[idx]:
+                    methods.append('KOL/NETTO')
+                
+                report_rows.append({
+                    'STRANA': strana,
+                    'TNVED': tnved,
+                    'NAPR': napr,
+                    'PERIOD': row.get('PERIOD', ''),
+                    'KOL': row.get('KOL', ''),
+                    'STOIM': row.get('STOIM', ''),
+                    'NETTO': row.get('NETTO', ''),
+                    'KOL_Mean': mean_kol,
+                    'KOL_Std': std_kol,
+                    'Z_Score_KOL': z_kol.loc[idx] if z_kol is not None and idx in z_kol.index else None,
+                    'Detection_Methods': ', '.join(methods),
+                    'Outliers_Method1': outlier_row['outliers_1'],
+                    'Outliers_Method2': outlier_row['outliers_2'],
+                    'Outliers_Method3': outlier_row['outliers_3'],
+                    'Total_Outliers_in_Series': outlier_row['outliers_1'] + outlier_row['outliers_2'] + outlier_row['outliers_3']
+                })
+    
+    if not report_rows:
+        return pd.DataFrame()
+    
+    return pd.DataFrame(report_rows)
+
+
+def save_outlier_report(
+    report_df: pd.DataFrame,
+    outlier_summary: pd.DataFrame,
+    replaced_count: int,
+    keep_outliers: bool,
+    output_dir: Path,
+    nsd: float = 6.0,
+    tv: float = 1e6
+):
+    """
+    Сохраняет отчет о выбросах в CSV и JSON форматах.
+    
+    Args:
+        report_df: Детальный отчет о выбросах
+        outlier_summary: Сводка по временным рядам с выбросами
+        replaced_count: Количество замененных выбросов
+        keep_outliers: Были ли выбросы оставлены как есть
+        output_dir: Директория для сохранения отчета
+        nsd: Количество стандартных отклонений
+        tv: Пороговое значение
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Сохраняем детальный отчет
+    if not report_df.empty:
+        csv_path = output_dir / f'outliers_detailed_{timestamp}.csv'
+        report_df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+        logger.info(f"Saved detailed outlier report to {csv_path}")
+    
+    # Сохраняем сводку по временным рядам
+    if not outlier_summary.empty:
+        summary_path = output_dir / f'outliers_summary_{timestamp}.csv'
+        outlier_summary.to_csv(summary_path, index=False, encoding='utf-8-sig')
+        logger.info(f"Saved outlier summary to {summary_path}")
+        
+        # Также сохраняем JSON с метаданными
+        json_path = output_dir / f'outliers_report_{timestamp}.json'
+        report_metadata = {
+            'timestamp': timestamp,
+            'detection_parameters': {
+                'nsd': nsd,
+                'tv': tv,
+                'require_all_methods': True
+            },
+            'summary': {
+                'total_time_series_with_outliers': len(outlier_summary),
+                'total_outliers_method1': int(outlier_summary['outliers_1'].sum()),
+                'total_outliers_method2': int(outlier_summary['outliers_2'].sum()),
+                'total_outliers_method3': int(outlier_summary['outliers_3'].sum()),
+                'total_outliers_all_methods': int(
+                    outlier_summary['outliers_1'].sum() + 
+                    outlier_summary['outliers_2'].sum() + 
+                    outlier_summary['outliers_3'].sum()
+                )
+            },
+            'replacement': {
+                'replaced_with_nan': replaced_count,
+                'keep_outliers': keep_outliers
+            },
+            'detailed_records_count': len(report_df) if not report_df.empty else 0
+        }
+        
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(report_metadata, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved outlier report metadata to {json_path}")
+
 
 def validate_schema(df: pd.DataFrame, filename: str) -> bool:
     """
@@ -707,6 +1185,16 @@ def main():
         default=[],
         help="List of ISO2 country codes to exclude from the merge (e.g., IN CN)."
     )
+    parser.add_argument(
+        '--keep-outliers',
+        action='store_true',
+        help="Keep outliers as-is instead of replacing them with NaN (default: replace outliers with NaN)."
+    )
+    parser.add_argument(
+        '--skip-outlier-detection',
+        action='store_true',
+        help="Skip outlier detection and replacement entirely (default: detect and replace outliers)."
+    )
     args = parser.parse_args()
 
     # Define paths using the script's location for robustness
@@ -894,6 +1382,101 @@ def main():
     # Note: Country names and TNVED names are now stored in separate reference tables
     # and can be joined via the unified_trade_data_enriched view or directly in queries
     logger.info("Reference tables (country names, TNVED names) will be created as separate tables in the database.")
+
+    # Detect outliers in merged data by time series (as in outlier_detection.Rmd)
+    # Пропускаем, если указан флаг --skip-outlier-detection
+    if args.skip_outlier_detection:
+        logger.info("Skipping outlier detection and replacement (--skip-outlier-detection flag set)")
+    else:
+        # Используем параметры из outlier_detection.Rmd: nsd=6, tv=10^6
+        logger.info("Detecting outliers in KOL column by time series (STRANA, TNVED, NAPR)...")
+        logger.info("Using parameters from outlier_detection.Rmd: nsd=6.0, tv=1e6")
+        
+        # Сохраняем копию данных до замены выбросов для отчета
+        merged_df_before_outlier_replacement = merged_df.copy()
+        
+        outlier_ts_results = detect_outliers_by_time_series(
+            merged_df,
+            nsd=6.0,  # 6 стандартных отклонений (как в outlier_detection.Rmd)
+            tv=1e6,   # Порог 10^6 (как в outlier_detection.Rmd)
+            require_all_methods=True  # Только ряды, где все 3 метода нашли выбросы
+        )
+        
+        logger.info("=== OUTLIER DETECTION BY TIME SERIES ===")
+        if not outlier_ts_results.empty:
+            logger.info(f"Found {len(outlier_ts_results)} time series with outliers (all 3 methods)")
+            logger.info(f"Total outliers detected:")
+            logger.info(f"  - Method 1 (KOL): {outlier_ts_results['outliers_1'].sum():,}")
+            logger.info(f"  - Method 2 (KOL/STOIM): {outlier_ts_results['outliers_2'].sum():,}")
+            logger.info(f"  - Method 3 (KOL/NETTO): {outlier_ts_results['outliers_3'].sum():,}")
+            
+            # Показываем топ-10 рядов с наибольшим количеством выбросов
+            outlier_ts_results['total_outliers'] = (
+                outlier_ts_results['outliers_1'] + 
+                outlier_ts_results['outliers_2'] + 
+                outlier_ts_results['outliers_3']
+            )
+            top_outliers = outlier_ts_results.nlargest(10, 'total_outliers')
+            logger.info("Top 10 time series with most outliers:")
+            for _, row in top_outliers.iterrows():
+                logger.info(
+                    f"  {row['STRANA']} / {row['TNVED']} / {row['NAPR']}: "
+                    f"{row['outliers_1']} + {row['outliers_2']} + {row['outliers_3']} = {row['total_outliers']} total"
+                )
+        else:
+            logger.info("No time series found with outliers detected by all 3 methods")
+        
+        # Заменяем выбросы на NaN (если не указан флаг --keep-outliers)
+        replaced_count = 0
+        if not args.keep_outliers and not outlier_ts_results.empty:
+            logger.info("=== REPLACING OUTLIERS WITH NaN ===")
+            initial_kol_count = merged_df['KOL'].notna().sum()
+            merged_df = replace_outliers_with_nan(
+                merged_df,
+                outlier_ts_results,
+                nsd=6.0,
+                tv=1e6
+            )
+            final_kol_count = merged_df['KOL'].notna().sum()
+            replaced_count = initial_kol_count - final_kol_count
+            logger.info(f"Replaced {replaced_count:,} outlier values in KOL with NaN")
+        elif args.keep_outliers:
+            logger.info("Keeping outliers as-is (--keep-outliers flag set)")
+        
+        # Создаем и сохраняем отчет о выбросах
+        if not outlier_ts_results.empty:
+            logger.info("=== CREATING OUTLIER REPORT ===")
+            # Создаем детальный отчет на основе данных до замены
+            outlier_report = create_outlier_report(
+                merged_df_before_outlier_replacement,
+                outlier_ts_results,
+                replaced_count=replaced_count,
+                keep_outliers=args.keep_outliers,
+                nsd=6.0,
+                tv=1e6
+            )
+            
+            # Сохраняем отчет в папку reports/
+            reports_dir = project_root / 'reports'
+            save_outlier_report(
+                outlier_report,
+                outlier_ts_results,
+                replaced_count=replaced_count,
+                keep_outliers=args.keep_outliers,
+                output_dir=reports_dir,
+                nsd=6.0,
+                tv=1e6
+            )
+        
+        # Также делаем общую проверку без группировки для статистики
+        logger.info("=== OVERALL OUTLIER STATISTICS ===")
+        overall_outliers = detect_outliers_in_dataframe(
+            merged_df,
+            nsd=6.0,
+            tv_kol=1e6
+        )
+        for key, count in overall_outliers.items():
+            logger.info(f"  {key}: {count:,} outliers")
 
     # Display summary statistics
     logger.info("=== MERGE SUMMARY ===")
