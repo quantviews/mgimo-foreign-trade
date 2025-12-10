@@ -19,8 +19,6 @@ import logging
 import argparse
 import json
 from typing import Dict, List
-import numpy as np
-from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -32,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Define the expected schema from data_model.md
 EXPECTED_SCHEMA = {
     'NAPR': 'object',          # VARCHAR - торговый поток (ИМ/ЭК)
-    'PERIOD': 'datetime64[ns]', # DATE - отчетный период
+    'PERIOD': 'datetime64[ns]', # DATE - отчетный период (normalized to 00:00:00, DuckDB will save as DATE)
     'STRANA': 'object',         # VARCHAR - страна-отчет (ISO код)
     'TNVED': 'object',          # VARCHAR - код ТН ВЭД (8-10 знаков)
     'EDIZM': 'object',          # VARCHAR - единица измерения
@@ -44,482 +42,6 @@ EXPECTED_SCHEMA = {
     'TNVED6': 'object',         # VARCHAR - первые 6 знаков TNVED
     'TNVED2': 'object'          # VARCHAR - первые 2 знака TNVED
 }
-
-#--------------------------------
-# Функции для выделения выбросов:
-#--------------------------------
-
-def show_outliers(x: pd.Series, nsd: float, tv: float) -> int:
-    """
-    Подсчитывает количество выбросов в ряде данных.
-    
-    Выбросом считается значение, где:
-    - |z-score| > nsd (число стандартных отклонений)
-    - значение > tv (пороговое значение)
-    
-    Args:
-        x: Ряд данных для анализа
-        nsd: Количество стандартных отклонений для определения выброса
-        tv: Пороговое значение (выброс должен быть больше этого значения)
-        
-    Returns:
-        Количество выбросов
-    """
-    if x.empty or x.isna().all():
-        return 0
-    
-    mean_val = x.mean(skipna=True)
-    std_val = x.std(skipna=True)
-    
-    if std_val == 0 or pd.isna(std_val):
-        return 0
-    
-    z = (x - mean_val) / std_val
-    outliers = ((z.abs() > nsd) & (x > tv)).sum()
-    
-    return int(outliers)
-
-
-def outlier_frac(x: pd.Series, y: pd.Series, nsd: float, tv: float) -> int:
-    """
-    Подсчитывает количество выбросов в отношении x/y.
-    
-    Выбросом считается значение, где:
-    - |z-score отношения x/y| > nsd
-    - x > tv (пороговое значение)
-    
-    Args:
-        x: Числитель (первый ряд данных)
-        y: Знаменатель (второй ряд данных)
-        nsd: Количество стандартных отклонений для определения выброса
-        tv: Пороговое значение для x
-        
-    Returns:
-        Количество выбросов
-    """
-    if x.empty or y.empty or x.isna().all() or y.isna().all():
-        return 0
-    
-    # Вычисляем отношение x/y, избегая деления на ноль
-    ratio = x / y.replace(0, np.nan)
-    
-    if ratio.isna().all():
-        return 0
-    
-    mean_ratio = ratio.mean(skipna=True)
-    std_ratio = ratio.std(skipna=True)
-    
-    if std_ratio == 0 or pd.isna(std_ratio):
-        return 0
-    
-    z_sc = (ratio - mean_ratio) / std_ratio
-    outliers = ((z_sc.abs() > nsd) & (x > tv)).sum()
-    
-    return int(outliers)
-
-
-def detect_outliers_in_dataframe(
-    df: pd.DataFrame,
-    nsd: float = 3.0,
-    tv_kol: float = 0.0
-) -> Dict[str, int]:
-    """
-    Обнаруживает выбросы в колонке KOL (количество в дополнительной единице).
-    
-    Args:
-        df: DataFrame для анализа
-        nsd: Количество стандартных отклонений для определения выброса (по умолчанию 3.0)
-        tv_kol: Пороговое значение для KOL (по умолчанию 0.0)
-        
-    Returns:
-        Словарь с количеством выбросов в KOL
-    """
-    results = {}
-    
-    # Выбросы в KOL
-    if 'KOL' in df.columns:
-        results['kol_outliers'] = show_outliers(df['KOL'], nsd, tv_kol)
-    else:
-        results['kol_outliers'] = 0
-    
-    return results
-
-
-def detect_outliers_by_time_series(
-    df: pd.DataFrame,
-    nsd: float = 6.0,
-    tv: float = 1e6,
-    require_all_methods: bool = True
-) -> pd.DataFrame:
-    """
-    Обнаруживает выбросы в KOL, группируя данные по временным рядам (STRANA, TNVED, NAPR).
-    
-    Использует три метода обнаружения выбросов:
-    1. show_outliers(KOL) - выбросы в абсолютных значениях KOL
-    2. outlier_frac(KOL, STOIM) - выбросы в отношении KOL/STOIM
-    3. outlier_frac(KOL, NETTO) - выбросы в отношении KOL/NETTO
-    
-    Args:
-        df: DataFrame для анализа (должен содержать STRANA, TNVED, NAPR, KOL, STOIM, NETTO, PERIOD)
-        nsd: Количество стандартных отклонений для определения выброса (по умолчанию 6.0, как в outlier_detection.Rmd)
-        tv: Пороговое значение для KOL (по умолчанию 10^6, как в outlier_detection.Rmd)
-        require_all_methods: Если True, возвращает только ряды, где все три метода нашли выбросы
-        
-    Returns:
-        DataFrame с колонками: STRANA, TNVED, NAPR, outliers_1, outliers_2, outliers_3
-        где outliers_1 - выбросы в KOL, outliers_2 - в KOL/STOIM, outliers_3 - в KOL/NETTO
-    """
-    required_cols = ['STRANA', 'TNVED', 'NAPR', 'KOL', 'PERIOD']
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        logger.warning(f"Cannot detect outliers by time series: missing columns {missing_cols}")
-        return pd.DataFrame()
-    
-    # Сортируем по периоду для правильной группировки временных рядов
-    df_sorted = df.sort_values('PERIOD').copy()
-    
-    # Группируем по временным рядам
-    results = []
-    
-    for (strana, tnved, napr), group in df_sorted.groupby(['STRANA', 'TNVED', 'NAPR']):
-        if group.empty:
-            continue
-        
-        # Метод 1: выбросы в KOL
-        kol_series = group['KOL'].dropna()
-        outliers_1 = show_outliers(kol_series, nsd, tv) if not kol_series.empty else 0
-        
-        # Метод 2: выбросы в KOL/STOIM
-        outliers_2 = 0
-        if 'STOIM' in group.columns:
-            valid_mask = group['STOIM'].notna() & group['KOL'].notna() & (group['STOIM'] != 0)
-            if valid_mask.sum() > 0:
-                outliers_2 = outlier_frac(
-                    group.loc[valid_mask, 'KOL'],
-                    group.loc[valid_mask, 'STOIM'],
-                    nsd,
-                    tv
-                )
-        
-        # Метод 3: выбросы в KOL/NETTO
-        outliers_3 = 0
-        if 'NETTO' in group.columns:
-            valid_mask = group['NETTO'].notna() & group['KOL'].notna() & (group['NETTO'] != 0)
-            if valid_mask.sum() > 0:
-                outliers_3 = outlier_frac(
-                    group.loc[valid_mask, 'KOL'],
-                    group.loc[valid_mask, 'NETTO'],
-                    nsd,
-                    tv
-                )
-        
-        # Если require_all_methods=True, пропускаем ряды где не все методы нашли выбросы
-        if require_all_methods:
-            if not (outliers_1 >= 1 and outliers_2 >= 1 and outliers_3 >= 1):
-                continue
-        
-        results.append({
-            'STRANA': strana,
-            'TNVED': tnved,
-            'NAPR': napr,
-            'outliers_1': outliers_1,  # KOL
-            'outliers_2': outliers_2,    # KOL/STOIM
-            'outliers_3': outliers_3     # KOL/NETTO
-        })
-    
-    if not results:
-        return pd.DataFrame(columns=['STRANA', 'TNVED', 'NAPR', 'outliers_1', 'outliers_2', 'outliers_3'])
-    
-    return pd.DataFrame(results)
-
-
-def replace_outliers_with_nan(
-    df: pd.DataFrame,
-    outlier_series: pd.DataFrame,
-    nsd: float = 6.0,
-    tv: float = 1e6
-) -> pd.DataFrame:
-    """
-    Заменяет выбросы в KOL на NaN для временных рядов, где все три метода обнаружили выбросы.
-    
-    Args:
-        df: DataFrame с данными
-        outlier_series: DataFrame с результатами detect_outliers_by_time_series
-        nsd: Количество стандартных отклонений (должно совпадать с параметром обнаружения)
-        tv: Пороговое значение (должно совпадать с параметром обнаружения)
-        
-    Returns:
-        DataFrame с замененными выбросами
-    """
-    if outlier_series.empty:
-        logger.info("No outlier series to process, skipping replacement")
-        return df
-    
-    df_result = df.copy()
-    replaced_count = 0
-    
-    # Для каждого временного ряда с выбросами
-    for _, outlier_row in outlier_series.iterrows():
-        strana = outlier_row['STRANA']
-        tnved = outlier_row['TNVED']
-        napr = outlier_row['NAPR']
-        
-        # Находим соответствующие строки в основном DataFrame
-        mask = (
-            (df_result['STRANA'] == strana) &
-            (df_result['TNVED'] == tnved) &
-            (df_result['NAPR'] == napr) &
-            (df_result['KOL'].notna())
-        )
-        
-        if not mask.any():
-            continue
-        
-        # Получаем группу с исходными индексами
-        group_indices = df_result.index[mask]
-        group = df_result.loc[group_indices]
-        
-        # Метод 1: выбросы в KOL
-        kol_values = group['KOL'].dropna()
-        outlier_mask_1 = pd.Series(False, index=group_indices)
-        if not kol_values.empty:
-            mean_kol = kol_values.mean()
-            std_kol = kol_values.std()
-            if std_kol > 0:
-                z_kol = (group['KOL'] - mean_kol) / std_kol
-                outlier_mask_1 = (z_kol.abs() > nsd) & (group['KOL'] > tv)
-        
-        # Метод 2: выбросы в KOL/STOIM
-        outlier_mask_2 = pd.Series(False, index=group_indices)
-        if 'STOIM' in group.columns:
-            valid_mask = group['STOIM'].notna() & (group['STOIM'] != 0) & group['KOL'].notna()
-            if valid_mask.any():
-                valid_indices = group_indices[valid_mask]
-                ratio = group.loc[valid_indices, 'KOL'] / group.loc[valid_indices, 'STOIM']
-                mean_ratio = ratio.mean()
-                std_ratio = ratio.std()
-                if std_ratio > 0:
-                    z_ratio = (ratio - mean_ratio) / std_ratio
-                    outlier_mask_2.loc[valid_indices] = (z_ratio.abs() > nsd) & (group.loc[valid_indices, 'KOL'] > tv)
-        
-        # Метод 3: выбросы в KOL/NETTO
-        outlier_mask_3 = pd.Series(False, index=group_indices)
-        if 'NETTO' in group.columns:
-            valid_mask = group['NETTO'].notna() & (group['NETTO'] != 0) & group['KOL'].notna()
-            if valid_mask.any():
-                valid_indices = group_indices[valid_mask]
-                ratio = group.loc[valid_indices, 'KOL'] / group.loc[valid_indices, 'NETTO']
-                mean_ratio = ratio.mean()
-                std_ratio = ratio.std()
-                if std_ratio > 0:
-                    z_ratio = (ratio - mean_ratio) / std_ratio
-                    outlier_mask_3.loc[valid_indices] = (z_ratio.abs() > nsd) & (group.loc[valid_indices, 'KOL'] > tv)
-        
-        # Заменяем значения, где хотя бы один метод обнаружил выброс
-        final_outlier_mask = outlier_mask_1 | outlier_mask_2 | outlier_mask_3
-        
-        if final_outlier_mask.any():
-            outlier_indices = group_indices[final_outlier_mask]
-            df_result.loc[outlier_indices, 'KOL'] = np.nan
-            replaced_count += final_outlier_mask.sum()
-    
-    return df_result
-
-
-def create_outlier_report(
-    df: pd.DataFrame,
-    outlier_series: pd.DataFrame,
-    replaced_count: int = 0,
-    keep_outliers: bool = False,
-    nsd: float = 6.0,
-    tv: float = 1e6
-) -> pd.DataFrame:
-    """
-    Создает детальный отчет о выбросах с информацией о конкретных значениях.
-    
-    Args:
-        df: Исходный DataFrame (до замены выбросов, если была выполнена)
-        outlier_series: DataFrame с результатами detect_outliers_by_time_series
-        replaced_count: Количество замененных выбросов
-        keep_outliers: Были ли выбросы оставлены как есть
-        nsd: Количество стандартных отклонений
-        tv: Пороговое значение
-        
-    Returns:
-        DataFrame с детальным отчетом о выбросах
-    """
-    if outlier_series.empty:
-        return pd.DataFrame()
-    
-    report_rows = []
-    
-    # Для каждого временного ряда с выбросами
-    for _, outlier_row in outlier_series.iterrows():
-        strana = outlier_row['STRANA']
-        tnved = outlier_row['TNVED']
-        napr = outlier_row['NAPR']
-        
-        # Находим соответствующие строки
-        mask = (
-            (df['STRANA'] == strana) &
-            (df['TNVED'] == tnved) &
-            (df['NAPR'] == napr) &
-            (df['KOL'].notna())
-        )
-        
-        if not mask.any():
-            continue
-        
-        group = df.loc[mask].copy()
-        
-        # Вычисляем статистику для определения выбросов
-        kol_values = group['KOL'].dropna()
-        if kol_values.empty:
-            continue
-        
-        mean_kol = kol_values.mean()
-        std_kol = kol_values.std()
-        
-        # Метод 1: выбросы в KOL
-        z_kol = None
-        if std_kol > 0:
-            z_kol = (group['KOL'] - mean_kol) / std_kol
-            outlier_mask_1 = (z_kol.abs() > nsd) & (group['KOL'] > tv)
-        else:
-            outlier_mask_1 = pd.Series(False, index=group.index)
-        
-        # Метод 2: выбросы в KOL/STOIM
-        outlier_mask_2 = pd.Series(False, index=group.index)
-        if 'STOIM' in group.columns:
-            valid_mask = group['STOIM'].notna() & (group['STOIM'] != 0) & group['KOL'].notna()
-            if valid_mask.any():
-                ratio = group.loc[valid_mask, 'KOL'] / group.loc[valid_mask, 'STOIM']
-                mean_ratio = ratio.mean()
-                std_ratio = ratio.std()
-                if std_ratio > 0:
-                    z_ratio = (ratio - mean_ratio) / std_ratio
-                    outlier_mask_2.loc[valid_mask] = (z_ratio.abs() > nsd) & (group.loc[valid_mask, 'KOL'] > tv)
-        
-        # Метод 3: выбросы в KOL/NETTO
-        outlier_mask_3 = pd.Series(False, index=group.index)
-        if 'NETTO' in group.columns:
-            valid_mask = group['NETTO'].notna() & (group['NETTO'] != 0) & group['KOL'].notna()
-            if valid_mask.any():
-                ratio = group.loc[valid_mask, 'KOL'] / group.loc[valid_mask, 'NETTO']
-                mean_ratio = ratio.mean()
-                std_ratio = ratio.std()
-                if std_ratio > 0:
-                    z_ratio = (ratio - mean_ratio) / std_ratio
-                    outlier_mask_3.loc[valid_mask] = (z_ratio.abs() > nsd) & (group.loc[valid_mask, 'KOL'] > tv)
-        
-        # Находим все выбросы
-        final_outlier_mask = outlier_mask_1 | outlier_mask_2 | outlier_mask_3
-        
-        if final_outlier_mask.any():
-            outliers_data = group.loc[final_outlier_mask]
-            
-            for idx, row in outliers_data.iterrows():
-                # Определяем, какими методами обнаружен выброс
-                methods = []
-                if outlier_mask_1.loc[idx]:
-                    methods.append('KOL')
-                if outlier_mask_2.loc[idx]:
-                    methods.append('KOL/STOIM')
-                if outlier_mask_3.loc[idx]:
-                    methods.append('KOL/NETTO')
-                
-                report_rows.append({
-                    'STRANA': strana,
-                    'TNVED': tnved,
-                    'NAPR': napr,
-                    'PERIOD': row.get('PERIOD', ''),
-                    'KOL': row.get('KOL', ''),
-                    'STOIM': row.get('STOIM', ''),
-                    'NETTO': row.get('NETTO', ''),
-                    'KOL_Mean': mean_kol,
-                    'KOL_Std': std_kol,
-                    'Z_Score_KOL': z_kol.loc[idx] if z_kol is not None and idx in z_kol.index else None,
-                    'Detection_Methods': ', '.join(methods),
-                    'Outliers_Method1': outlier_row['outliers_1'],
-                    'Outliers_Method2': outlier_row['outliers_2'],
-                    'Outliers_Method3': outlier_row['outliers_3'],
-                    'Total_Outliers_in_Series': outlier_row['outliers_1'] + outlier_row['outliers_2'] + outlier_row['outliers_3']
-                })
-    
-    if not report_rows:
-        return pd.DataFrame()
-    
-    return pd.DataFrame(report_rows)
-
-
-def save_outlier_report(
-    report_df: pd.DataFrame,
-    outlier_summary: pd.DataFrame,
-    replaced_count: int,
-    keep_outliers: bool,
-    output_dir: Path,
-    nsd: float = 6.0,
-    tv: float = 1e6
-):
-    """
-    Сохраняет отчет о выбросах в CSV и JSON форматах.
-    
-    Args:
-        report_df: Детальный отчет о выбросах
-        outlier_summary: Сводка по временным рядам с выбросами
-        replaced_count: Количество замененных выбросов
-        keep_outliers: Были ли выбросы оставлены как есть
-        output_dir: Директория для сохранения отчета
-        nsd: Количество стандартных отклонений
-        tv: Пороговое значение
-    """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    
-    # Сохраняем детальный отчет
-    if not report_df.empty:
-        csv_path = output_dir / f'outliers_detailed_{timestamp}.csv'
-        report_df.to_csv(csv_path, index=False, encoding='utf-8-sig')
-        logger.info(f"Saved detailed outlier report to {csv_path}")
-    
-    # Сохраняем сводку по временным рядам
-    if not outlier_summary.empty:
-        summary_path = output_dir / f'outliers_summary_{timestamp}.csv'
-        outlier_summary.to_csv(summary_path, index=False, encoding='utf-8-sig')
-        logger.info(f"Saved outlier summary to {summary_path}")
-        
-        # Также сохраняем JSON с метаданными
-        json_path = output_dir / f'outliers_report_{timestamp}.json'
-        report_metadata = {
-            'timestamp': timestamp,
-            'detection_parameters': {
-                'nsd': nsd,
-                'tv': tv,
-                'require_all_methods': True
-            },
-            'summary': {
-                'total_time_series_with_outliers': len(outlier_summary),
-                'total_outliers_method1': int(outlier_summary['outliers_1'].sum()),
-                'total_outliers_method2': int(outlier_summary['outliers_2'].sum()),
-                'total_outliers_method3': int(outlier_summary['outliers_3'].sum()),
-                'total_outliers_all_methods': int(
-                    outlier_summary['outliers_1'].sum() + 
-                    outlier_summary['outliers_2'].sum() + 
-                    outlier_summary['outliers_3'].sum()
-                )
-            },
-            'replacement': {
-                'replaced_with_nan': replaced_count,
-                'keep_outliers': keep_outliers
-            },
-            'detailed_records_count': len(report_df) if not report_df.empty else 0
-        }
-        
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(report_metadata, f, ensure_ascii=False, indent=2)
-        logger.info(f"Saved outlier report metadata to {json_path}")
-
 
 def validate_schema(df: pd.DataFrame, filename: str) -> bool:
     """
@@ -552,13 +74,22 @@ def validate_schema(df: pd.DataFrame, filename: str) -> bool:
         if col in df.columns:
             actual_type = df[col].dtype
             
-            # Convert period to datetime if it's not already
-            if col == 'PERIOD' and actual_type != 'datetime64[ns]':
+            # Convert period to date if it's not already
+            if col == 'PERIOD':
                 try:
-                    df[col] = pd.to_datetime(df[col])
+                    # Convert to datetime and normalize to remove time component
+                    # We'll use datetime64[ns] but normalized (time set to 00:00:00)
+                    # DuckDB will recognize it as DATE when saving
+                    if 'datetime' not in str(actual_type):
+                        df[col] = pd.to_datetime(df[col]).dt.normalize()
+                    elif actual_type != 'datetime64[ns]':
+                        df[col] = pd.to_datetime(df[col]).dt.normalize()
+                    else:
+                        # Already datetime, just normalize to remove time
+                        df[col] = df[col].dt.normalize()
                     actual_type = df[col].dtype
                 except Exception as e:
-                    logger.error(f"Failed to convert PERIOD to datetime in {filename}: {e}")
+                    logger.error(f"Failed to convert PERIOD to date in {filename}: {e}")
                     return False
             
             if actual_type != expected_type:
@@ -600,8 +131,11 @@ def load_and_validate_file(file_path: Path, start_year: int = None) -> pd.DataFr
             if 'PERIOD' not in df.columns:
                 logger.warning(f"Cannot filter by year: {file_path.name} has no PERIOD column.")
             else:
-                if df['PERIOD'].dtype != 'datetime64[ns]':
-                    df['PERIOD'] = pd.to_datetime(df['PERIOD'], errors='coerce')
+                # Convert to datetime and normalize to remove time component
+                if 'datetime' not in str(df['PERIOD'].dtype):
+                    df['PERIOD'] = pd.to_datetime(df['PERIOD'], errors='coerce').dt.normalize()
+                else:
+                    df['PERIOD'] = df['PERIOD'].dt.normalize()
                 
                 initial_rows = len(df)
                 df = df[df['PERIOD'].dt.year >= start_year].copy()
@@ -684,17 +218,49 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
     try:
         conn = duckdb.connect(str(output_path))
         
+        # Ensure PERIOD is normalized (time set to 00:00:00) before saving
+        # We'll cast it to DATE in DuckDB to remove time component completely
+        if 'PERIOD' in df.columns:
+            # Convert to datetime and normalize to remove time (set to 00:00:00)
+            df['PERIOD'] = pd.to_datetime(df['PERIOD'], errors='coerce').dt.normalize()
+        
         # Create the table and insert the first chunk
+        # Explicitly cast PERIOD to DATE in DuckDB to ensure no time component
         first_chunk = df.iloc[:chunk_size]
         conn.register('first_chunk_df', first_chunk)
-        conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM first_chunk_df")
+        if 'PERIOD' in first_chunk.columns:
+            conn.execute(f"""
+                CREATE TABLE {table_name} AS 
+                SELECT 
+                    * EXCLUDE (PERIOD),
+                    CAST(PERIOD AS DATE) AS PERIOD
+                FROM first_chunk_df
+            """)
+        else:
+            conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM first_chunk_df")
         conn.unregister('first_chunk_df')
         logger.info(f"  ... created table and inserted first {len(first_chunk):,} rows")
+        logger.info(f"  ... PERIOD column saved as DATE type (no time component)")
 
         # Insert the rest of the data in chunks using the efficient append method
         for i in range(chunk_size, len(df), chunk_size):
-            chunk = df.iloc[i:i + chunk_size]
-            conn.append(table_name, chunk)
+            chunk = df.iloc[i:i + chunk_size].copy()  # Explicit copy to avoid SettingWithCopyWarning
+            # Ensure PERIOD is normalized before appending
+            if 'PERIOD' in chunk.columns:
+                chunk['PERIOD'] = pd.to_datetime(chunk['PERIOD'], errors='coerce').dt.normalize()
+            # Use INSERT with explicit DATE cast for PERIOD to ensure no time component
+            if 'PERIOD' in chunk.columns:
+                conn.register('chunk_df', chunk)
+                conn.execute(f"""
+                    INSERT INTO {table_name}
+                    SELECT 
+                        * EXCLUDE (PERIOD),
+                        CAST(PERIOD AS DATE) AS PERIOD
+                    FROM chunk_df
+                """)
+                conn.unregister('chunk_df')
+            else:
+                conn.append(table_name, chunk)
             logger.info(f"  ... inserted {i + len(chunk):,} / {len(df):,} rows")
 
         # Get row count for verification
@@ -736,41 +302,74 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
             except ValueError:
                 logger.warning(f"Could not parse TNVED level from '{level_name}', skipping...")
                 continue
-            for code, name in mapping.items():
+            for code, code_data in mapping.items():
+                # code_data is now a dict with 'name' and 'translated' keys
+                name = code_data.get('name', '')
+                translated = code_data.get('translated', False)
+                
+                if not name:
+                    continue
+                
                 # Normalize code to match format in unified_trade_data
-                # Codes in unified_trade_data are padded to 10 digits, then sliced
-                # So we need to pad codes to the appropriate length based on level
+                # Codes in unified_trade_data are normalized: leading zeros removed, then padded to 10 digits on the right
+                # Then sliced to appropriate length for each level
+                # So we need to normalize codes the same way
                 code_str = str(code).strip()
+                
+                # For codes from official mappings, they should already be in correct format
+                # For codes from translations, they need to be normalized
+                # Normalize: remove leading zeros, pad to 10 digits on the right
+                code_normalized = code_str.lstrip('0')
+                if not code_normalized:
+                    code_normalized = '0'
+                if len(code_normalized) >= 10:
+                    code_normalized = code_normalized[:10]
+                else:
+                    code_normalized = code_normalized + '0' * (10 - len(code_normalized))
+                
+                # Extract the appropriate length for this level
                 if level_int == 2:
-                    normalized_code = code_str.zfill(2)  # "01" -> "01"
+                    normalized_code = code_normalized[:2]
                 elif level_int == 4:
-                    normalized_code = code_str.zfill(4)  # "0101" -> "0101"
+                    normalized_code = code_normalized[:4]
                 elif level_int == 6:
-                    normalized_code = code_str.zfill(6)  # "010121" -> "010121"
+                    normalized_code = code_normalized[:6]
                 elif level_int == 8:
-                    normalized_code = code_str.zfill(8)  # "01012100" -> "01012100"
+                    normalized_code = code_normalized[:8]
                 elif level_int == 10:
-                    normalized_code = code_str.zfill(10)  # "0101210000" -> "0101210000"
+                    normalized_code = code_normalized[:10]
                 else:
                     normalized_code = code_str
                 
                 tnved_refs.append({
                     'TNVED_CODE': normalized_code,
                     'TNVED_LEVEL': level_int,
-                    'TNVED_NAME': name
+                    'TNVED_NAME': name,
+                    'TRANSLATED': translated
                 })
         
         if tnved_refs:
             tnved_df = pd.DataFrame(tnved_refs)
+            # Remove duplicates, keeping official mappings (translated=False) over translations (translated=True)
+            # Sort so that translated=False comes first, then drop duplicates
+            tnved_df = tnved_df.sort_values('TRANSLATED').drop_duplicates(
+                subset=['TNVED_CODE', 'TNVED_LEVEL'],
+                keep='first'
+            )
+            
             conn.register('tnved_ref_df', tnved_df)
             conn.execute("""
                 CREATE TABLE tnved_reference AS 
-                SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME
+                SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME, TRANSLATED
                 FROM tnved_ref_df
                 ORDER BY TNVED_LEVEL, TNVED_CODE
             """)
             conn.unregister('tnved_ref_df')
-            logger.info(f"  ... created tnved_reference table with {len(tnved_df)} rows")
+            
+            official_count = (tnved_df['TRANSLATED'] == False).sum()
+            translated_count = (tnved_df['TRANSLATED'] == True).sum()
+            logger.info(f"  ... created tnved_reference table with {len(tnved_df)} rows "
+                       f"({official_count} official, {translated_count} translated)")
             
             # Create index for faster joins
             conn.execute("CREATE INDEX idx_tnved_ref_code_level ON tnved_reference(TNVED_CODE, TNVED_LEVEL)")
@@ -805,8 +404,9 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
             t6.TNVED_NAME AS TNVED6_NAME,
             t8.TNVED_NAME AS TNVED8_NAME,
             COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
+            COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
             ROW_NUMBER() OVER (
-                PARTITION BY t.STRANA
+                PARTITION BY t.STRANA, t.TNVED, t.NAPR
                 ORDER BY t.PERIOD DESC
             ) AS period_rank
         FROM unified_trade_data t
@@ -903,7 +503,9 @@ def load_common_edizm_mapping(project_root: Path) -> Dict[str, Dict[str, str]]:
             'KG': canonical_records.get('КИЛОГРАММ'),
             'U': canonical_records.get('ШТУКА'),
             'L': canonical_records.get('ЛИТР'),
+            'M': canonical_records.get('МЕТР'),  # Latin M (meter)
             'M²': canonical_records.get('КВАДРАТНЫЙ МЕТР'),
+            'M2': canonical_records.get('КВАДРАТНЫЙ МЕТР'),  # M2 without superscript
             'M3': canonical_records.get('КУБИЧЕСКИЙ МЕТР'),
             '2U': canonical_records.get('ПАРА'),
             'CARAT': canonical_records.get('МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ'),
@@ -913,6 +515,18 @@ def load_common_edizm_mapping(project_root: Path) -> Dict[str, Dict[str, str]]:
             '1000 L': canonical_records.get('1000 ЛИТРОВ'),
             '1000 KG': canonical_records.get('ТОННА, МЕТРИЧЕСКАЯ ТОННА (1000 КГ)'),
             'L ALC 100%': canonical_records.get('ЛИТР ЧИСТОГО (100%) СПИРТА'),
+            # Additional Comtrade codes
+            'BBL': canonical_records.get('БАРРЕЛЬ'),  # Barrel (code 11, if exists)
+            'CT/L': canonical_records.get('ТОННА ГРУЗОПОДЪЕМНОСТИ'),  # Carrying capacity in tonnes (code 36, if exists)
+            '12U': canonical_records.get('ШТУКА'),  # 12 units (approximate to piece)
+            'KG/NET EDA': canonical_records.get('КИЛОГРАММ'),  # Variant with / instead of space
+            'KG MET.AM.': canonical_records.get('КИЛОГРАММ МЕТАЛЛИЧЕСКОГО АММИАКА'),  # Kilogram of metallic ammonium (if exists)
+            'GI F/S': canonical_records.get('ГРАММ ДЕЛЯЩИХСЯ ИЗОТОПОВ'),  # Gram of fissile isotopes (code 38, if exists)
+            'U (JEU/PACK)': canonical_records.get('УПАКОВКА') or canonical_records.get('ШТУКА'),  # Number of packages (code 10, if exists)
+            'U JEU/PACK': canonical_records.get('УПАКОВКА') or canonical_records.get('ШТУКА'),  # Number of packages (without parentheses)
+            'KG U': canonical_records.get('КИЛОГРАММ УРАНА'),  # Kilogram of uranium (code 35)
+            'GT': canonical_records.get('ВАЛОВАЯ РЕГИСТРОВАЯ ВМЕСТИМОСТЬ'),  # Gross tonnage (code 40, if exists)
+            'GRT': canonical_records.get('ВАЛОВАЯ РЕГИСТРОВАЯ ВМЕСТИМОСТЬ'),  # Gross register ton (code 39, if exists)
 
             # Other observed values from logs
             'KG NET EDA': canonical_records.get('КИЛОГРАММ'),
@@ -925,12 +539,53 @@ def load_common_edizm_mapping(project_root: Path) -> Dict[str, Dict[str, str]]:
             'КГ H2O2': canonical_records.get('КИЛОГРАММ ПЕРОКСИДА ВОДОРОДА'),
             'КГ 90 %-ГО СУХОГО ВЕЩЕСТВА': canonical_records.get('КИЛОГРАММ 90 %-ГО СУХОГО ВЕЩЕСТВА'),
             'КГ U': canonical_records.get('КИЛОГРАММ УРАНА'),
+            
+            # Additional variants and common misspellings
+            'M³': canonical_records.get('КУБИЧЕСКИЙ МЕТР'),  # Superscript 3
+            'M3': canonical_records.get('КУБИЧЕСКИЙ МЕТР'),  # Already exists, but ensure it's there
+            'М³': canonical_records.get('КУБИЧЕСКИЙ МЕТР'),  # Cyrillic with superscript
+            'KG H2O2': canonical_records.get('КИЛОГРАММ ПЕРОКСИДА ВОДОРОДА'),  # Latin version
+            'KG N': canonical_records.get('КИЛОГРАММ АЗОТА'),  # Latin version
+            'КГ 90% С/В': canonical_records.get('КИЛОГРАММ 90 %-ГО СУХОГО ВЕЩЕСТВА'),  # Variant with /В
+            'КГ 90% СВ': canonical_records.get('КИЛОГРАММ 90 %-ГО СУХОГО ВЕЩЕСТВА'),  # Variant without /
+            '1000 ШТ': canonical_records.get('ТЫСЯЧА ШТУК'),  # Russian version
+            '100 ШТ': canonical_records.get('ШТУКА'),  # 100 pieces = pieces (approximate)
+            'КАР': canonical_records.get('МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ'),  # Abbreviation
+            'ЭЛЕМ': canonical_records.get('ШТУКА'),  # Element/piece (approximate)
+            
+            # Radioactivity units
+            'BQ': canonical_records.get('БЕККЕРЕЛЬ'),  # Becquerel (if exists in edizm.csv)
+            'BECQUEREL': canonical_records.get('БЕККЕРЕЛЬ'),  # Full name (if exists) - fixed: БЕККЕРЕЛЬ with double К
+            'MILLION BQ': canonical_records.get('МИЛЛИОН БЕККЕРЕЛЕЙ'),  # Million Becquerels (if exists)
+            
+            # Additional Comtrade abbreviations and variants
+            'KG NAOH': canonical_records.get('КИЛОГРАММ ГИДРОКСИДА НАТРИЯ'),  # Sodium hydroxide
+            'KG KOH': canonical_records.get('КИЛОГРАММ ГИДРОКСИДА КАЛИЯ'),  # Potassium hydroxide
+            'KG K2O': canonical_records.get('КИЛОГРАММ ОКСИДА КАЛИЯ'),  # Potassium oxide
+            'KG P2O5': canonical_records.get('КИЛОГРАММ ПЯТИОКИСИ ФОСФОРА'),  # Phosphorus pentoxide
+            'KG 90% SDT': canonical_records.get('КИЛОГРАММ 90 %-ГО СУХОГО ВЕЩЕСТВА'),  # 90% dry substance (SDT variant)
+            'KG 90% SD': canonical_records.get('КИЛОГРАММ 90 %-ГО СУХОГО ВЕЩЕСТВА'),  # 90% dry substance (SD variant)
+            '1000 M3': canonical_records.get('1000 КУБИЧЕСКИХ МЕТРОВ'),  # 1000 cubic meters (if exists)
+            'CE/EL': canonical_records.get('ЭЛЕМЕНТ') or canonical_records.get('ШТУКА'),  # Number of cells/elements
+            'CE EL': canonical_records.get('ЭЛЕМЕНТ') or canonical_records.get('ШТУКА'),  # Number of cells/elements (space variant)
+            'TJ': canonical_records.get('ТЕРАДЖОУЛЬ'),  # Terajoule (if exists)
+            'TERAJOULE': canonical_records.get('ТЕРАДЖОУЛЬ'),  # Terajoule full name (if exists)
         }
         
         final_mapping.update(aliases)
         
         # Filter out any None values that may have resulted from missing keys
         final_mapping = {k: v for k, v in final_mapping.items() if v is not None and k is not None}
+
+        # Diagnostic: Check if БЕККЕРЕЛЬ was loaded
+        if 'БЕККЕРЕЛЬ' in canonical_records:
+            logger.info(f"  - 'БЕККЕРЕЛЬ' found in canonical_records")
+            if 'BQ' in final_mapping:
+                logger.info(f"  - 'BQ' alias successfully added to final_mapping")
+            else:
+                logger.warning(f"  - 'BQ' alias NOT found in final_mapping (canonical_records.get returned None)")
+        else:
+            logger.warning(f"  - 'БЕККЕРЕЛЬ' NOT found in canonical_records")
 
         logger.info(f"Loaded common EDIZM mapping with {len(final_mapping)} case-insensitive keys.")
         return final_mapping
@@ -957,30 +612,112 @@ def load_strana_mapping(project_root: Path) -> Dict[str, str]:
         logger.error(f"Failed to load country name mapping: {e}")
         return {}
 
-def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, str]]:
-    """Loads TNVED code to name mappings from tnved.csv."""
+def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]]]:
+    """
+    Loads TNVED code to name mappings from tnved.csv and missing_codes_translations.json.
+    
+    Returns a dictionary with structure:
+    {
+        'tnved2': {code: {'name': str, 'translated': bool}},
+        'tnved4': {code: {'name': str, 'translated': bool}},
+        ...
+    }
+    """
     mapping_file = project_root / "metadata" / "tnved.csv"
-    if not mapping_file.exists():
-        logger.error(f"TNVED mapping file not found at {mapping_file}")
-        return {}
+    translations_file = project_root / "metadata" / "translations" / "missing_codes_translations.json"
+    
+    # Initialize mappings structure
+    mappings = {
+        'tnved2': {},
+        'tnved4': {},
+        'tnved6': {},
+        'tnved8': {},
+        'tnved10': {}
+    }
+    
+    # Load official mappings from tnved.csv
+    if mapping_file.exists():
+        try:
+            df = pd.read_csv(mapping_file, dtype={'KOD': str, 'NAME': str, 'level': int})
+            df.columns = df.columns.str.upper()
 
-    try:
-        df = pd.read_csv(mapping_file, dtype={'KOD': str, 'NAME': str, 'level': int})
-        df.columns = df.columns.str.upper()
-
-        mappings = {
-            'tnved2': df[df['LEVEL'] == 2].set_index('KOD')['NAME'].to_dict(),
-            'tnved4': df[df['LEVEL'] == 4].set_index('KOD')['NAME'].to_dict(),
-            'tnved6': df[df['LEVEL'] == 6].set_index('KOD')['NAME'].to_dict(),
-            'tnved8': df[df['LEVEL'] == 8].set_index('KOD')['NAME'].to_dict(),
-            'tnved10': df[df['LEVEL'] == 10].set_index('KOD')['NAME'].to_dict()
-        }
-        
-        logger.info("Successfully loaded TNVED mappings for all levels.")
-        return mappings
-    except Exception as e:
-        logger.error(f"Failed to load TNVED mapping: {e}")
-        return {}
+            for level in [2, 4, 6, 8, 10]:
+                level_key = f'tnved{level}'
+                level_data = df[df['LEVEL'] == level]
+                for _, row in level_data.iterrows():
+                    code = str(row['KOD']).strip()
+                    name = str(row['NAME']).strip().upper()
+                    mappings[level_key][code] = {
+                        'name': name,
+                        'translated': False
+                    }
+            
+            logger.info("Successfully loaded official TNVED mappings for all levels.")
+        except Exception as e:
+            logger.error(f"Failed to load TNVED mapping from {mapping_file}: {e}")
+    else:
+        logger.warning(f"TNVED mapping file not found at {mapping_file}")
+    
+    # Load translations from missing_codes_translations_test.json
+    if translations_file.exists():
+        try:
+            with open(translations_file, 'r', encoding='utf-8') as f:
+                translations = json.load(f)
+            
+            translations_count = 0
+            for code_10, data in translations.items():
+                code_10_str = str(code_10).strip()
+                russian_name = data.get('russian_name', '').strip().upper()
+                
+                if not russian_name:
+                    continue
+                
+                # Normalize code the same way as in generate_derived_columns:
+                # Codes in JSON are already 10-digit strings like "0101290000"
+                # We need to normalize them the same way as in generate_derived_columns:
+                # 1. Remove leading zeros
+                code_10_normalized = code_10_str.lstrip('0')
+                # 2. Handle all-zeros case
+                if not code_10_normalized:
+                    code_10_normalized = '0'
+                # 3. Pad to 10 digits on the RIGHT
+                if len(code_10_normalized) >= 10:
+                    code_10_normalized = code_10_normalized[:10]
+                else:
+                    code_10_normalized = code_10_normalized + '0' * (10 - len(code_10_normalized))
+                
+                # Add translation for level 10 (only if not already in official mappings)
+                if code_10_normalized not in mappings['tnved10']:
+                    mappings['tnved10'][code_10_normalized] = {
+                        'name': russian_name,
+                        'translated': True
+                    }
+                    translations_count += 1
+                
+                # Also add translations for parent levels (2, 4, 6, 8) if they don't exist
+                # Extract parent codes from normalized 10-digit code
+                for level in [2, 4, 6, 8]:
+                    level_key = f'tnved{level}'
+                    # Extract first N digits from normalized code
+                    code_level = code_10_normalized[:level]
+                    
+                    # Only add if this level code doesn't exist in official mappings
+                    if code_level not in mappings[level_key]:
+                        # Use the russian_name from the 10-digit code as fallback
+                        # Note: This is not ideal, but we don't have separate translations for parent levels
+                        mappings[level_key][code_level] = {
+                            'name': russian_name,  # Using the 10-digit name as fallback
+                            'translated': True
+                        }
+            
+            if translations_count > 0:
+                logger.info(f"Loaded {translations_count} translated TNVED codes from {translations_file}")
+        except Exception as e:
+            logger.error(f"Failed to load TNVED translations from {translations_file}: {e}")
+    else:
+        logger.warning(f"TNVED translations file not found at {translations_file}")
+    
+    return mappings
 
 def load_and_transform_comtrade(
     comtrade_db_path: Path,
@@ -1040,6 +777,17 @@ def load_and_transform_comtrade(
             logger.warning(f"Could not describe comtrade_data table: {e}")
         
         # Build query with safe formatting (M49 codes are always integers, so safe to format)
+        # Try to include qtyCode if it exists in the table
+        try:
+            # Check if qtyCode column exists
+            test_query = "SELECT qtyCode FROM comtrade_data LIMIT 1"
+            conn.execute(test_query)
+            has_qty_code = True
+            logger.info("Found qtyCode column in comtrade_data table")
+        except:
+            has_qty_code = False
+            logger.info("qtyCode column not found in comtrade_data table, using qtyUnitCode/altQtyUnitCode")
+        
         query_parts = ["SELECT"]
         query_parts.append("    period AS PERIOD,")
         query_parts.append("    reporterCode AS STRANA_CODE,")
@@ -1047,6 +795,8 @@ def load_and_transform_comtrade(
         query_parts.append("    CASE flowCode WHEN 'M' THEN 'ЭК' WHEN 'X' THEN 'ИМ' WHEN 'ЭК' THEN 'ЭК' WHEN 'ИМ' THEN 'ИМ' END AS NAPR,")
         query_parts.append("    qtyUnitCode,")
         query_parts.append("    altQtyUnitCode,")
+        if has_qty_code:
+            query_parts.append("    qtyCode,")
         query_parts.append("    primaryValue AS STOIM,")
         query_parts.append("    netWgt AS NETTO,")
         query_parts.append("    qty,")
@@ -1091,27 +841,137 @@ def load_and_transform_comtrade(
     # Post-processing transformations
     logger.info("Transforming Comtrade data...")
 
-    # Choose the non-weight quantity as the primary supplementary quantity (KOL).
-    # The Comtrade code for Kilogram is 8.
-    # If the primary quantity unit (`qtyUnitCode`) is KG, we prefer the alternate quantity.
-    # Otherwise, we stick with the primary quantity.
-    # This logic assumes altQty and altQtyUnitCode columns exist in comtrade_data.
+    # Choose the supplementary quantity (KOL) and its unit code (EDIZM_CODE).
+    # IMPORTANT: 
+    # - qtyUnitCode is the PRIMARY unit CODE (usually weight in kg, code 8)
+    # - qty is the PRIMARY quantity VALUES (weight values)
+    # - altQtyUnitCode is the ALTERNATIVE/SUPPLEMENTARY unit CODE (what we need for EDIZM_CODE)
+    # - altQty is the ALTERNATIVE/SUPPLEMENTARY quantity VALUES (what we need for KOL)
+    # - qtyCode may exist as an additional source of unit CODE information
+    #
+    # Logic priority:
+    # 1. Use altQtyUnitCode (CODE) and altQty (VALUES) if available - this is the supplementary unit we want
+    # 2. If altQtyUnitCode is missing, check qtyCode (if it exists and is not kg/code 8) - use qtyCode for CODE and qty for VALUES
+    # 3. Fallback to qtyUnitCode (CODE) and qty (VALUES) only if no alternative is available (but this is weight, not ideal)
+    
+    # Initialize EDIZM_CODE and KOL columns
+    comtrade_df['EDIZM_CODE'] = None
+    comtrade_df['KOL'] = None
+    
+    # Check if qtyCode column exists (may contain unit CODE information)
+    has_qty_code = 'qtyCode' in comtrade_df.columns
+    
     if 'altQtyUnitCode' in comtrade_df.columns and 'altQty' in comtrade_df.columns:
-        use_alt_quantity = comtrade_df['qtyUnitCode'] == 8
-        comtrade_df['EDIZM_CODE'] = comtrade_df['altQtyUnitCode'].where(use_alt_quantity, comtrade_df['qtyUnitCode'])
-        comtrade_df['KOL'] = comtrade_df['altQty'].where(use_alt_quantity, comtrade_df['qty'])
+        # Priority 1: Use altQtyUnitCode (CODE) and altQty (VALUES) - this is the supplementary unit
+        # altQtyUnitCode is the CODE of the supplementary unit
+        # altQty is the VALUES in that supplementary unit
+        # They can be independent - if we have the code, use it even if values are missing
+        has_alt_code = comtrade_df['altQtyUnitCode'].notna()
+        has_alt_values = comtrade_df['altQty'].notna()
+        
+        # Use altQtyUnitCode for EDIZM_CODE (unit code) if available
+        comtrade_df.loc[has_alt_code, 'EDIZM_CODE'] = comtrade_df.loc[has_alt_code, 'altQtyUnitCode']
+        # Use altQty for KOL (values) if available
+        comtrade_df.loc[has_alt_values, 'KOL'] = comtrade_df.loc[has_alt_values, 'altQty']
+        
+        # Priority 2: If altQtyUnitCode is missing, check qtyCode (if available and not kg)
+        # Use qtyCode for EDIZM_CODE (unit code) and qty for KOL (values)
+        missing_alt_code = ~has_alt_code
+        if has_qty_code:
+            # Use qtyCode (CODE) if it exists, is not NULL, and is not 8 (kg)
+            # Only use if EDIZM_CODE is still missing (altQtyUnitCode was not available)
+            # Use qty (VALUES) for KOL if KOL is still missing
+            qty_code_available = (
+                missing_alt_code & 
+                comtrade_df['qtyCode'].notna() & 
+                (comtrade_df['qtyCode'] != 8)
+            )
+            comtrade_df.loc[qty_code_available, 'EDIZM_CODE'] = comtrade_df.loc[qty_code_available, 'qtyCode']
+            
+            # Use qty for KOL if KOL is still missing
+            missing_kol = comtrade_df['KOL'].isna() & comtrade_df['qty'].notna()
+            comtrade_df.loc[missing_kol, 'KOL'] = comtrade_df.loc[missing_kol, 'qty']
+            missing_alt_code = missing_alt_code & ~qty_code_available
+        
+        # Priority 3: Fallback to qtyUnitCode (CODE) and qty (VALUES) - but this is weight, not ideal
+        # Only use if EDIZM_CODE is still missing
+        missing_edizm_code = comtrade_df['EDIZM_CODE'].isna()
+        fallback_mask = missing_edizm_code & comtrade_df['qtyUnitCode'].notna()
+        comtrade_df.loc[fallback_mask, 'EDIZM_CODE'] = comtrade_df.loc[fallback_mask, 'qtyUnitCode']
+        
+        # Use qty for KOL if KOL is still missing
+        missing_kol = comtrade_df['KOL'].isna() & comtrade_df['qty'].notna()
+        comtrade_df.loc[missing_kol, 'KOL'] = comtrade_df.loc[missing_kol, 'qty']
+        
+        # Log statistics
+        logger.info(f"Unit mapping statistics:")
+        logger.info(f"  - Using altQtyUnitCode (CODE): {has_alt_code.sum()}")
+        logger.info(f"  - Using altQty (VALUES): {has_alt_values.sum()}")
+        if has_qty_code:
+            qty_code_used = missing_alt_code & comtrade_df['qtyCode'].notna() & (comtrade_df['qtyCode'] != 8)
+            logger.info(f"  - Using qtyCode (CODE) where altQtyUnitCode missing: {qty_code_used.sum()}")
+        logger.info(f"  - Using qtyUnitCode (CODE) as fallback: {fallback_mask.sum()}")
+        logger.info(f"  - Using qty (VALUES) where altQty missing: {missing_kol.sum()}")
+        logger.info(f"  - Missing EDIZM_CODE: {comtrade_df['EDIZM_CODE'].isna().sum()}")
+        logger.info(f"  - Missing KOL: {comtrade_df['KOL'].isna().sum()}")
+        
+        # Diagnostic: Check for code 37 (Becquerels)
+        code_37_mask = comtrade_df['altQtyUnitCode'] == 37
+        if code_37_mask.any():
+            logger.info(f"  - Found {code_37_mask.sum()} rows with altQtyUnitCode = 37 (Becquerels)")
+            logger.info(f"  - Of these, {comtrade_df.loc[code_37_mask, 'EDIZM_CODE'].notna().sum()} have EDIZM_CODE set")
     else:
-        logger.warning("altQtyUnitCode or altQty not found in Comtrade data. Using primary quantity fields.")
-        comtrade_df['EDIZM_CODE'] = comtrade_df['qtyUnitCode']
-        comtrade_df['KOL'] = comtrade_df['qty']
+        logger.warning("altQtyUnitCode or altQty not found in Comtrade data.")
+        # If altQtyUnitCode is not available, try qtyCode first
+        if has_qty_code:
+            # Use qtyCode (CODE) if it exists and is not 8 (kg)
+            # Use qty (VALUES) for KOL
+            qty_code_available = (
+                comtrade_df['qtyCode'].notna() & 
+                (comtrade_df['qtyCode'] != 8) &
+                comtrade_df['qty'].notna()
+            )
+            comtrade_df.loc[qty_code_available, 'EDIZM_CODE'] = comtrade_df.loc[qty_code_available, 'qtyCode']
+            comtrade_df.loc[qty_code_available, 'KOL'] = comtrade_df.loc[qty_code_available, 'qty']
+            # For remaining rows, use qtyUnitCode (CODE) and qty (VALUES) as fallback
+            remaining_mask = ~qty_code_available & comtrade_df['qty'].notna()
+            comtrade_df.loc[remaining_mask, 'EDIZM_CODE'] = comtrade_df.loc[remaining_mask, 'qtyUnitCode']
+            comtrade_df.loc[remaining_mask, 'KOL'] = comtrade_df.loc[remaining_mask, 'qty']
+            logger.info(f"  - Using qtyCode (CODE) + qty (VALUES): {qty_code_available.sum()}")
+            logger.info(f"  - Using qtyUnitCode (CODE) + qty (VALUES) as fallback: {remaining_mask.sum()}")
+        else:
+            # Last resort: use qtyUnitCode (CODE) and qty (VALUES) - but this is weight
+            comtrade_df['EDIZM_CODE'] = comtrade_df['qtyUnitCode']
+            comtrade_df['KOL'] = comtrade_df['qty']
+            logger.warning("  - Using qtyUnitCode (CODE) + qty (VALUES) as last resort (this is weight, not ideal)")
 
     comtrade_df['STRANA'] = comtrade_df['STRANA_CODE'].map(partner_mapping)
     
     # Ensure STRANA is uppercase for consistency
     comtrade_df['STRANA'] = comtrade_df['STRANA'].str.upper()
     
-    comtrade_df['EDIZM'] = comtrade_df['EDIZM_CODE'].map(edizm_mapping)
+    # Convert EDIZM_CODE to int for proper mapping (edizm_mapping uses int keys)
+    # Handle NaN values - convert to int only for non-null values
+    # First convert to float, then to Int64 to handle NaN properly
+    comtrade_df['EDIZM_CODE_int'] = pd.to_numeric(comtrade_df['EDIZM_CODE'], errors='coerce').astype('Int64')
+    
+    # Map EDIZM_CODE (int) to EDIZM (string abbreviation like "Bq")
+    comtrade_df['EDIZM'] = comtrade_df['EDIZM_CODE_int'].map(edizm_mapping)
     comtrade_df.fillna({'EDIZM': 'N/A'}, inplace=True)
+    
+    # Diagnostic: Check if code 37 was mapped to "Bq"
+    code_37_mask = comtrade_df['EDIZM_CODE_int'] == 37
+    if code_37_mask.any():
+        code_37_count = code_37_mask.sum()
+        code_37_edizm = comtrade_df.loc[code_37_mask, 'EDIZM'].unique()
+        logger.info(f"  - Found {code_37_count} rows with EDIZM_CODE = 37 (Becquerels)")
+        logger.info(f"  - EDIZM_CODE 37 mapped to EDIZM values: {code_37_edizm}")
+        if 'Bq' in code_37_edizm or 'BQ' in code_37_edizm:
+            bq_count = (comtrade_df.loc[code_37_mask, 'EDIZM'].isin(['Bq', 'BQ', 'bq'])).sum()
+            logger.info(f"  - Of these, {bq_count} rows have EDIZM = 'Bq'")
+    
+    # Drop temporary column
+    comtrade_df.drop(columns=['EDIZM_CODE_int'], inplace=True)
     
     null_strana_count = comtrade_df['STRANA'].isnull().sum()
     if null_strana_count > 0:
@@ -1152,7 +1012,11 @@ def load_and_transform_comtrade(
         if col in comtrade_df.columns and str(comtrade_df[col].dtype) != expected_type:
             try:
                 if 'datetime' in expected_type:
-                    comtrade_df[col] = pd.to_datetime(comtrade_df[col])
+                    if col == 'PERIOD':
+                        # Convert to datetime and normalize to remove time component
+                        comtrade_df[col] = pd.to_datetime(comtrade_df[col], errors='coerce').dt.normalize()
+                    else:
+                        comtrade_df[col] = pd.to_datetime(comtrade_df[col])
                 else:
                     comtrade_df[col] = comtrade_df[col].astype(expected_type)
             except (ValueError, TypeError) as e:
@@ -1184,16 +1048,6 @@ def main():
         nargs='+',
         default=[],
         help="List of ISO2 country codes to exclude from the merge (e.g., IN CN)."
-    )
-    parser.add_argument(
-        '--keep-outliers',
-        action='store_true',
-        help="Keep outliers as-is instead of replacing them with NaN (default: replace outliers with NaN)."
-    )
-    parser.add_argument(
-        '--skip-outlier-detection',
-        action='store_true',
-        help="Skip outlier detection and replacement entirely (default: detect and replace outliers)."
     )
     args = parser.parse_args()
 
@@ -1309,6 +1163,24 @@ def main():
         # Normalize original EDIZM values before mapping (astype(str) is crucial)
         merged_df['EDIZM_upper'] = merged_df['EDIZM'].astype(str).str.upper().str.strip()
         
+        # Additional normalization: replace common variants
+        # Replace superscript ³ with regular 3
+        merged_df['EDIZM_upper'] = merged_df['EDIZM_upper'].str.replace('³', '3', regex=False)
+        # Replace superscript ² with regular 2
+        merged_df['EDIZM_upper'] = merged_df['EDIZM_upper'].str.replace('²', '2', regex=False)
+        # Normalize "/" to space for some variants (e.g., "KG/NET EDA" -> "KG NET EDA")
+        # But keep "/" for cases like "CE/EL" which have specific mappings
+        merged_df['EDIZM_upper'] = merged_df['EDIZM_upper'].str.replace(r'KG/NET', 'KG NET', regex=False)
+        # Normalize parentheses: remove spaces around parentheses (e.g., "U (JEU/PACK)" -> "U (JEU/PACK)" but normalize spacing)
+        merged_df['EDIZM_upper'] = merged_df['EDIZM_upper'].str.replace(r'\s*\(\s*', ' (', regex=True)
+        merged_df['EDIZM_upper'] = merged_df['EDIZM_upper'].str.replace(r'\s*\)\s*', ')', regex=True)
+        # Normalize multiple spaces to single space
+        merged_df['EDIZM_upper'] = merged_df['EDIZM_upper'].str.replace(r'\s+', ' ', regex=True)
+        # Remove trailing/leading spaces again after normalization
+        merged_df['EDIZM_upper'] = merged_df['EDIZM_upper'].str.strip()
+        # Handle special cases: '?' and 'N/A' should remain as is (don't map them)
+        # They will be left as unmapped, which is fine
+        
         # Map to common representation
         mapped_values = merged_df['EDIZM_upper'].map(common_edizm_map)
         
@@ -1322,10 +1194,44 @@ def main():
             logger.warning(f"{unmapped_mask.sum()} EDIZM values could not be mapped to a common standard.")
             unmapped_sample = merged_df[unmapped_mask]['EDIZM_upper'].unique()
             logger.warning(f"Unmapped EDIZM sample: {unmapped_sample[:10]}")
+        
+        # Diagnostic: Check if "Bq" was mapped
+        bq_mask = merged_df['EDIZM_upper'] == 'BQ'
+        if bq_mask.any():
+            bq_count = bq_mask.sum()
+            bq_mapped = merged_df.loc[bq_mask, 'EDIZM'].notna().sum()
+            logger.info(f"  - Found {bq_count} rows with EDIZM_upper = 'BQ'")
+            logger.info(f"  - Of these, {bq_mapped} were successfully mapped to canonical name")
+            if bq_mapped < bq_count:
+                bq_unmapped = merged_df.loc[bq_mask & merged_df['EDIZM'].isna(), 'EDIZM_upper'].unique()
+                logger.warning(f"  - Unmapped 'BQ' values (sample): {bq_unmapped[:5]}")
+                # Check if 'БЕККЕРЕЛЬ' exists in mapping and if 'BQ' is in mapping
+                logger.info(f"  - Checking if 'БЕККЕРЕЛЬ' exists in mapping: {'БЕККЕРЕЛЬ' in common_edizm_map}")
+                logger.info(f"  - Checking if 'BQ' exists in mapping: {'BQ' in common_edizm_map}")
+                if 'BQ' in common_edizm_map:
+                    bq_mapping_value = common_edizm_map['BQ']
+                    logger.info(f"  - 'BQ' maps to: {bq_mapping_value}")
+            else:
+                # All BQ values were mapped - show what they mapped to
+                bq_mapped_values = merged_df.loc[bq_mask, 'EDIZM'].unique()
+                logger.info(f"  - All 'BQ' values mapped to: {bq_mapped_values}")
             
         merged_df.drop(columns=['EDIZM_upper'], inplace=True)
     else:
         logger.error("Could not standardize EDIZM values due to mapping load failure.")
+
+    # Nullify KOL where EDIZM is БЕККЕРЕЛЬ (values are too large and cause outliers)
+    logger.info("Checking for БЕККЕРЕЛЬ units to nullify KOL values...")
+    if 'EDIZM' in merged_df.columns:
+        bekkerele_mask = merged_df['EDIZM'] == 'БЕККЕРЕЛЬ'
+        num_bekkerele_rows = bekkerele_mask.sum()
+        
+        if num_bekkerele_rows > 0:
+            logger.info(f"Found {num_bekkerele_rows:,} rows where EDIZM is БЕККЕРЕЛЬ. "
+                       f"Setting KOL to NULL for these rows (values are too large).")
+            merged_df.loc[bekkerele_mask, 'KOL'] = None
+    else:
+        logger.warning("Cannot perform БЕККЕРЕЛЬ check: EDIZM column not found.")
 
     # Nullify KOL where EDIZM is KG to avoid duplication with NETTO
     logger.info("Checking for supplementary units in KG to avoid duplication with NETTO...")
@@ -1383,100 +1289,20 @@ def main():
     # and can be joined via the unified_trade_data_enriched view or directly in queries
     logger.info("Reference tables (country names, TNVED names) will be created as separate tables in the database.")
 
-    # Detect outliers in merged data by time series (as in outlier_detection.Rmd)
-    # Пропускаем, если указан флаг --skip-outlier-detection
-    if args.skip_outlier_detection:
-        logger.info("Skipping outlier detection and replacement (--skip-outlier-detection flag set)")
-    else:
-        # Используем параметры из outlier_detection.Rmd: nsd=6, tv=10^6
-        logger.info("Detecting outliers in KOL column by time series (STRANA, TNVED, NAPR)...")
-        logger.info("Using parameters from outlier_detection.Rmd: nsd=6.0, tv=1e6")
-        
-        # Сохраняем копию данных до замены выбросов для отчета
-        merged_df_before_outlier_replacement = merged_df.copy()
-        
-        outlier_ts_results = detect_outliers_by_time_series(
-            merged_df,
-            nsd=6.0,  # 6 стандартных отклонений (как в outlier_detection.Rmd)
-            tv=1e6,   # Порог 10^6 (как в outlier_detection.Rmd)
-            require_all_methods=True  # Только ряды, где все 3 метода нашли выбросы
-        )
-        
-        logger.info("=== OUTLIER DETECTION BY TIME SERIES ===")
-        if not outlier_ts_results.empty:
-            logger.info(f"Found {len(outlier_ts_results)} time series with outliers (all 3 methods)")
-            logger.info(f"Total outliers detected:")
-            logger.info(f"  - Method 1 (KOL): {outlier_ts_results['outliers_1'].sum():,}")
-            logger.info(f"  - Method 2 (KOL/STOIM): {outlier_ts_results['outliers_2'].sum():,}")
-            logger.info(f"  - Method 3 (KOL/NETTO): {outlier_ts_results['outliers_3'].sum():,}")
-            
-            # Показываем топ-10 рядов с наибольшим количеством выбросов
-            outlier_ts_results['total_outliers'] = (
-                outlier_ts_results['outliers_1'] + 
-                outlier_ts_results['outliers_2'] + 
-                outlier_ts_results['outliers_3']
-            )
-            top_outliers = outlier_ts_results.nlargest(10, 'total_outliers')
-            logger.info("Top 10 time series with most outliers:")
-            for _, row in top_outliers.iterrows():
-                logger.info(
-                    f"  {row['STRANA']} / {row['TNVED']} / {row['NAPR']}: "
-                    f"{row['outliers_1']} + {row['outliers_2']} + {row['outliers_3']} = {row['total_outliers']} total"
-                )
-        else:
-            logger.info("No time series found with outliers detected by all 3 methods")
-        
-        # Заменяем выбросы на NaN (если не указан флаг --keep-outliers)
-        replaced_count = 0
-        if not args.keep_outliers and not outlier_ts_results.empty:
-            logger.info("=== REPLACING OUTLIERS WITH NaN ===")
-            initial_kol_count = merged_df['KOL'].notna().sum()
-            merged_df = replace_outliers_with_nan(
-                merged_df,
-                outlier_ts_results,
-                nsd=6.0,
-                tv=1e6
-            )
-            final_kol_count = merged_df['KOL'].notna().sum()
-            replaced_count = initial_kol_count - final_kol_count
-            logger.info(f"Replaced {replaced_count:,} outlier values in KOL with NaN")
-        elif args.keep_outliers:
-            logger.info("Keeping outliers as-is (--keep-outliers flag set)")
-        
-        # Создаем и сохраняем отчет о выбросах
-        if not outlier_ts_results.empty:
-            logger.info("=== CREATING OUTLIER REPORT ===")
-            # Создаем детальный отчет на основе данных до замены
-            outlier_report = create_outlier_report(
-                merged_df_before_outlier_replacement,
-                outlier_ts_results,
-                replaced_count=replaced_count,
-                keep_outliers=args.keep_outliers,
-                nsd=6.0,
-                tv=1e6
-            )
-            
-            # Сохраняем отчет в папку reports/
-            reports_dir = project_root / 'reports'
-            save_outlier_report(
-                outlier_report,
-                outlier_ts_results,
-                replaced_count=replaced_count,
-                keep_outliers=args.keep_outliers,
-                output_dir=reports_dir,
-                nsd=6.0,
-                tv=1e6
-            )
-        
-        # Также делаем общую проверку без группировки для статистики
-        logger.info("=== OVERALL OUTLIER STATISTICS ===")
-        overall_outliers = detect_outliers_in_dataframe(
-            merged_df,
-            nsd=6.0,
-            tv_kol=1e6
-        )
-        for key, count in overall_outliers.items():
-            logger.info(f"  {key}: {count:,} outliers")
+    # Save to DuckDB
+    save_to_duckdb(merged_df, output_db_path)
+    
+    # Save reference tables and create convenience view
+    conn = duckdb.connect(str(output_db_path))
+    try:
+        save_reference_tables(conn, project_root)
+        conn.close()
+    except Exception as e:
+        conn.close()
+        logger.error(f"Failed to create reference tables: {e}")
+        raise
+    
+    logger.info("Data merge completed. To process outliers, run: python src/outlier_detection.py")
 
     # Display summary statistics
     logger.info("=== MERGE SUMMARY ===")
@@ -1501,19 +1327,6 @@ def main():
         logger.info(f"  Country: {strana}")
         for _, row in group.head(5).iterrows(): # Log top 5 EDIZM for each country
             logger.info(f"    - {row['EDIZM']}: {row['count']:,} rows")
-
-    # Save to DuckDB
-    save_to_duckdb(merged_df, output_db_path)
-    
-    # Save reference tables and create convenience view
-    conn = duckdb.connect(str(output_db_path))
-    try:
-        save_reference_tables(conn, project_root)
-        conn.close()
-    except Exception as e:
-        conn.close()
-        logger.error(f"Failed to create reference tables: {e}")
-        raise
 
 if __name__ == "__main__":
     main()
