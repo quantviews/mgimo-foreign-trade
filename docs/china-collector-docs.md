@@ -59,6 +59,6 @@
 Для сбора данных по **импорту Китая** из России за **Август 2025 года**:
 
 ```bash
-python src/collectors/china-collector.py 2025 8 ИМ --partner 344
+python src/collectors/china-collector.py 2025 10 ИМ --partner 344
 ```
 После выполнения этой команды откроется браузер. Вам нужно будет вручную выбрать на сайте `Year: 2025`, `Month: August`, `I/E: Import`, `Partner: Russia`, решить CAPTCHA и скачать файл. Затем вернуться в терминал и нажать `Enter`. В результате будет создан файл в `data_raw/china/EXPORT/`, так как импорт для Китая является экспортом для России.

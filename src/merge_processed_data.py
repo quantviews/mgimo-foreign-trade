@@ -142,10 +142,14 @@ def load_and_validate_file(file_path: Path, start_year: int = None) -> pd.DataFr
                 if len(df) < initial_rows:
                     logger.info(f"Filtered {file_path.name} by start_year >= {start_year}. Kept {len(df)} of {initial_rows} rows.")
 
-        # Validate schema
-        if not validate_schema(df, file_path.name):
-            logger.error(f"Schema validation failed for {file_path.name}")
-            return None
+        # Skip schema validation for fizob files (they have a different schema)
+        if not file_path.name.startswith('fizob_'):
+            # Validate schema
+            if not validate_schema(df, file_path.name):
+                logger.error(f"Schema validation failed for {file_path.name}")
+                return None
+        else:
+            logger.info(f"Skipping schema validation for {file_path.name} (fizob file with different schema)")
         
         logger.info(f"Successfully loaded {file_path.name}: {len(df)} rows")
         return df
@@ -173,20 +177,14 @@ def generate_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
         # Convert TNVED to string
         df_processed['TNVED'] = df_processed['TNVED'].astype(str).str.strip()
         
-        # Remove leading zeros first, then pad to 10 digits on the RIGHT
-        # This ensures codes like "0000870421" become "8704210000" (not "0000870421")
-        # Step 1: Remove leading zeros
-        df_processed['TNVED'] = df_processed['TNVED'].str.lstrip('0')
-        # Step 2: Handle all-zeros case
-        df_processed.loc[df_processed['TNVED'] == '', 'TNVED'] = '0'
-        # Step 3: Pad to 10 digits on the RIGHT (not left!)
+        # Pad TNVED to 10 digits on the RIGHT if needed (never remove leading zeros)
         def pad_right(code):
             if len(code) >= 10:
                 return code[:10]
             return code + '0' * (10 - len(code))
         df_processed['TNVED'] = df_processed['TNVED'].apply(pad_right)
         
-        # Generate derived columns directly from TNVED
+        # Generate derived columns from TNVED (preserving leading zeros)
         df_processed['TNVED2'] = df_processed['TNVED'].str[:2]
         df_processed['TNVED4'] = df_processed['TNVED'].str[:4]
         df_processed['TNVED6'] = df_processed['TNVED'].str[:6]
@@ -310,34 +308,29 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
                 if not name:
                     continue
                 
-                # Normalize code to match format in unified_trade_data
-                # Codes in unified_trade_data are normalized: leading zeros removed, then padded to 10 digits on the right
-                # Then sliced to appropriate length for each level
-                # So we need to normalize codes the same way
+                # Prepare code to match format in unified_trade_data
+                # IMPORTANT: For ALL levels (2, 4, 6, 8, 10) - codes should match original structure (with leading zeros)
+                # No normalization (removal of leading zeros) should be applied
                 code_str = str(code).strip()
                 
-                # For codes from official mappings, they should already be in correct format
-                # For codes from translations, they need to be normalized
-                # Normalize: remove leading zeros, pad to 10 digits on the right
-                code_normalized = code_str.lstrip('0')
-                if not code_normalized:
-                    code_normalized = '0'
-                if len(code_normalized) >= 10:
-                    code_normalized = code_normalized[:10]
+                # For all levels: use original code structure (with leading zeros)
+                # First ensure code is at least 10 digits by padding with zeros on the RIGHT if needed
+                if len(code_str) >= 10:
+                    code_padded = code_str[:10]
                 else:
-                    code_normalized = code_normalized + '0' * (10 - len(code_normalized))
+                    code_padded = code_str + '0' * (10 - len(code_str))
                 
-                # Extract the appropriate length for this level
+                # Extract the appropriate length for this level (from original structure, preserving leading zeros)
                 if level_int == 2:
-                    normalized_code = code_normalized[:2]
+                    normalized_code = code_padded[:2]
                 elif level_int == 4:
-                    normalized_code = code_normalized[:4]
+                    normalized_code = code_padded[:4]
                 elif level_int == 6:
-                    normalized_code = code_normalized[:6]
+                    normalized_code = code_padded[:6]
                 elif level_int == 8:
-                    normalized_code = code_normalized[:8]
+                    normalized_code = code_padded[:8]
                 elif level_int == 10:
-                    normalized_code = code_normalized[:10]
+                    normalized_code = code_padded[:10]
                 else:
                     normalized_code = code_str
                 
@@ -405,7 +398,7 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
             t8.TNVED_NAME AS TNVED8_NAME,
             COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
             COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
-            ROW_NUMBER() OVER (
+            DENSE_RANK() OVER (
                 PARTITION BY t.STRANA, t.TNVED, t.NAPR
                 ORDER BY t.PERIOD DESC
             ) AS period_rank
@@ -672,34 +665,27 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
                 if not russian_name:
                     continue
                 
-                # Normalize code the same way as in generate_derived_columns:
-                # Codes in JSON are already 10-digit strings like "0101290000"
-                # We need to normalize them the same way as in generate_derived_columns:
-                # 1. Remove leading zeros
-                code_10_normalized = code_10_str.lstrip('0')
-                # 2. Handle all-zeros case
-                if not code_10_normalized:
-                    code_10_normalized = '0'
-                # 3. Pad to 10 digits on the RIGHT
-                if len(code_10_normalized) >= 10:
-                    code_10_normalized = code_10_normalized[:10]
+                # Pad code to 10 digits on the RIGHT if needed (never remove leading zeros)
+                code_10_padded = code_10_str.strip()
+                if len(code_10_padded) >= 10:
+                    code_10_padded = code_10_padded[:10]
                 else:
-                    code_10_normalized = code_10_normalized + '0' * (10 - len(code_10_normalized))
+                    code_10_padded = code_10_padded + '0' * (10 - len(code_10_padded))
                 
                 # Add translation for level 10 (only if not already in official mappings)
-                if code_10_normalized not in mappings['tnved10']:
-                    mappings['tnved10'][code_10_normalized] = {
+                if code_10_padded not in mappings['tnved10']:
+                    mappings['tnved10'][code_10_padded] = {
                         'name': russian_name,
                         'translated': True
                     }
                     translations_count += 1
                 
                 # Also add translations for parent levels (2, 4, 6, 8) if they don't exist
-                # Extract parent codes from normalized 10-digit code
+                # Extract parent codes from padded 10-digit code (preserving leading zeros)
                 for level in [2, 4, 6, 8]:
                     level_key = f'tnved{level}'
-                    # Extract first N digits from normalized code
-                    code_level = code_10_normalized[:level]
+                    # Extract first N digits from padded code
+                    code_level = code_10_padded[:level]
                     
                     # Only add if this level code doesn't exist in official mappings
                     if code_level not in mappings[level_key]:
@@ -993,15 +979,16 @@ def load_and_transform_comtrade(
     comtrade_df['EDIZM_ISO'] = None
 
     # Generate derived TNVED columns
-    # Remove leading zeros first, then pad to 10 digits on the RIGHT
+    # Pad TNVED to 10 digits on the RIGHT if needed (never remove leading zeros)
     comtrade_df['TNVED'] = comtrade_df['TNVED'].astype(str).str.strip()
-    comtrade_df['TNVED'] = comtrade_df['TNVED'].str.lstrip('0')
-    comtrade_df.loc[comtrade_df['TNVED'] == '', 'TNVED'] = '0'
+    
     def pad_right(code):
         if len(code) >= 10:
             return code[:10]
         return code + '0' * (10 - len(code))
     comtrade_df['TNVED'] = comtrade_df['TNVED'].apply(pad_right)
+    
+    # Generate derived columns from TNVED (preserving leading zeros)
     comtrade_df['TNVED2'] = comtrade_df['TNVED'].str.slice(0, 2)
     comtrade_df['TNVED4'] = comtrade_df['TNVED'].str.slice(0, 4)
     comtrade_df['TNVED6'] = comtrade_df['TNVED'].str.slice(0, 6)
