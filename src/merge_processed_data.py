@@ -1056,10 +1056,17 @@ def main():
     
     excluded_countries_upper = [c.upper() for c in args.exclude_countries]
 
-    # Load and validate national datasets
+    # Separate fizob files from regular data files
+    fizob_files = [f for f in parquet_files if f.name.startswith('fizob')]
+    regular_files = [f for f in parquet_files if not f.name.startswith('fizob')]
+    
+    logger.info(f"Found {len(fizob_files)} fizob files: {[f.name for f in fizob_files]}")
+    logger.info(f"Found {len(regular_files)} regular data files: {[f.name for f in regular_files]}")
+
+    # Load and validate national datasets (excluding fizob files)
     national_datasets = {}
-    if parquet_files:
-        for file_path in parquet_files:
+    if regular_files:
+        for file_path in regular_files:
             country_code = file_path.stem.replace('_full', '').upper()
             if country_code in excluded_countries_upper:
                 logger.info(f"Skipping {file_path.name} as per --exclude-countries argument.")
@@ -1073,7 +1080,22 @@ def main():
                     df_processed['STRANA'] = df_processed['STRANA'].str.upper()
                 national_datasets[country_code.lower()] = df_processed
     else:
-        logger.warning("No national parquet files found in data_processed directory.")
+        logger.warning("No regular national parquet files found in data_processed directory.")
+    
+    # Load fizob files separately
+    fizob_datasets = {}
+    if fizob_files:
+        logger.info("Loading fizob files for separate tables...")
+        for file_path in fizob_files:
+            table_name = file_path.stem  # e.g., 'fizob2', 'fizob4', 'fizob6'
+            df = load_and_validate_file(file_path, start_year=args.start_year)
+            if df is not None:
+                df_processed = generate_derived_columns(df)
+                # Ensure STRANA is uppercase for consistency
+                if 'STRANA' in df_processed.columns:
+                    df_processed['STRANA'] = df_processed['STRANA'].str.upper()
+                fizob_datasets[table_name] = df_processed
+                logger.info(f"Loaded {table_name}: {len(df_processed)} rows")
 
     all_dataframes = []
     national_countries_iso = []
@@ -1279,10 +1301,139 @@ def main():
     # Save to DuckDB
     save_to_duckdb(merged_df, output_db_path)
     
+    # Save fizob files to separate tables
+    if fizob_datasets:
+        logger.info("Saving fizob files to separate tables...")
+        conn = duckdb.connect(str(output_db_path))
+        try:
+            for table_name, df_fizob in fizob_datasets.items():
+                logger.info(f"Saving {table_name} to separate table...")
+                # Ensure PERIOD is normalized before saving
+                if 'PERIOD' in df_fizob.columns:
+                    df_fizob['PERIOD'] = pd.to_datetime(df_fizob['PERIOD'], errors='coerce').dt.normalize()
+                
+                # Save in chunks
+                chunk_size = 100000
+                first_chunk = df_fizob.iloc[:chunk_size]
+                conn.register('fizob_chunk_df', first_chunk)
+                
+                if 'PERIOD' in first_chunk.columns:
+                    conn.execute(f"""
+                        CREATE TABLE {table_name} AS 
+                        SELECT 
+                            * EXCLUDE (PERIOD),
+                            CAST(PERIOD AS DATE) AS PERIOD
+                        FROM fizob_chunk_df
+                    """)
+                else:
+                    conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM fizob_chunk_df")
+                conn.unregister('fizob_chunk_df')
+                logger.info(f"  ... created table {table_name} and inserted first {len(first_chunk):,} rows")
+                
+                # Insert the rest in chunks
+                for i in range(chunk_size, len(df_fizob), chunk_size):
+                    chunk = df_fizob.iloc[i:i + chunk_size].copy()
+                    if 'PERIOD' in chunk.columns:
+                        chunk['PERIOD'] = pd.to_datetime(chunk['PERIOD'], errors='coerce').dt.normalize()
+                    
+                    if 'PERIOD' in chunk.columns:
+                        conn.register('fizob_chunk_df', chunk)
+                        conn.execute(f"""
+                            INSERT INTO {table_name}
+                            SELECT 
+                                * EXCLUDE (PERIOD),
+                                CAST(PERIOD AS DATE) AS PERIOD
+                            FROM fizob_chunk_df
+                        """)
+                        conn.unregister('fizob_chunk_df')
+                    else:
+                        conn.append(table_name, chunk)
+                    logger.info(f"  ... inserted {i + len(chunk):,} / {len(df_fizob):,} rows into {table_name}")
+                
+                # Verify row count
+                result = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+                row_count = result[0]
+                logger.info(f"  ... saved {row_count:,} rows to table {table_name}")
+            
+            conn.close()
+        except Exception as e:
+            conn.close()
+            logger.error(f"Failed to save fizob tables: {e}")
+            raise
+    
     # Save reference tables and create convenience view
     conn = duckdb.connect(str(output_db_path))
     try:
         save_reference_tables(conn, project_root)
+        
+        # Create fizob_index materialized table if fizob tables exist
+        if fizob_datasets:
+            logger.info("Creating fizob_index materialized table...")
+            try:
+                # Check which fizob tables exist and build UNION query dynamically
+                existing_fizob_tables = []
+                for table_name in ['fizob2', 'fizob4', 'fizob6']:
+                    try:
+                        # Check if table exists
+                        result = conn.execute(f"SELECT COUNT(*) FROM {table_name} LIMIT 1").fetchone()
+                        existing_fizob_tables.append(table_name)
+                        logger.info(f"  Found table: {table_name}")
+                    except:
+                        logger.info(f"  Table {table_name} does not exist, skipping")
+                
+                if existing_fizob_tables:
+                    # Build UNION query for each existing table
+                    union_parts = []
+                    
+                    if 'fizob2' in existing_fizob_tables:
+                        union_parts.append("""
+                            SELECT STRANA, NAPR, PERIOD, 2 AS tn_level, TNVED2 AS tn_code,
+                                   fizob2 AS fizob, fizob2_bp AS fizob_bp,
+                                   CASE WHEN fizob2_bp = 0 THEN NULL ELSE fizob2 / fizob2_bp END AS idx
+                            FROM fizob2
+                        """)
+                    
+                    if 'fizob4' in existing_fizob_tables:
+                        union_parts.append("""
+                            SELECT STRANA, NAPR, PERIOD, 4 AS tn_level, TNVED4 AS tn_code,
+                                   fizob4 AS fizob, fizob4_bp AS fizob_bp,
+                                   CASE WHEN fizob4_bp = 0 THEN NULL ELSE fizob4 / fizob4_bp END AS idx
+                            FROM fizob4
+                        """)
+                    
+                    if 'fizob6' in existing_fizob_tables:
+                        union_parts.append("""
+                            SELECT STRANA, NAPR, PERIOD, 6 AS tn_level, TNVED6 AS tn_code,
+                                   fizob6 AS fizob, fizob6_bp AS fizob_bp,
+                                   CASE WHEN fizob6_bp = 0 THEN NULL ELSE fizob6 / fizob6_bp END AS idx
+                            FROM fizob6
+                        """)
+                    
+                    if union_parts:
+                        union_query = " UNION ALL ".join(union_parts)
+                        create_query = f"""
+                            CREATE OR REPLACE TABLE fizob_index AS
+                            SELECT * FROM (
+                                {union_query}
+                            )
+                        """
+                        conn.execute(create_query)
+                        
+                        # Verify creation
+                        result = conn.execute("SELECT COUNT(*) FROM fizob_index").fetchone()
+                        row_count = result[0]
+                        logger.info(f"  ... created fizob_index table with {row_count:,} rows")
+                        
+                        # Create indexes for faster queries
+                        conn.execute("CREATE INDEX IF NOT EXISTS idx_fizob_index_strana_period ON fizob_index(STRANA, PERIOD)")
+                        conn.execute("CREATE INDEX IF NOT EXISTS idx_fizob_index_tn_level_code ON fizob_index(tn_level, tn_code)")
+                        logger.info("  ... created indexes on fizob_index table")
+                else:
+                    logger.warning("No fizob tables found to create fizob_index")
+            except Exception as e:
+                logger.error(f"Failed to create fizob_index table: {e}")
+                # Don't raise - this is optional functionality
+        
         conn.close()
     except Exception as e:
         conn.close()
