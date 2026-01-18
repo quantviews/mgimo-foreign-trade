@@ -52,11 +52,6 @@ def parse_arguments():
         action="store_true",
         help="download only codes for a specific year",
     )
-    parser.add_argument(
-        "--skip-codes",
-        action="store_true",
-        help="skip code download/check, use existing codes file only",
-    )
 
     # Парсинг аргументов
     args = parser.parse_args()
@@ -109,13 +104,12 @@ async def download_codes(playwright, year: str) -> dict:
     return hs_codes
 
 
-async def load_codes(playwright, year: str, skip_download: bool = False) -> dict:
+async def load_codes(playwright, year: str) -> dict:
     """
     Если файл с кодами отсутствует, функция загружает коды с помощью функции download_codes(), сохраняет результат
     в json-файл и возвращает словарь с кодами. Если файл существует, то выполняется его проверка, выгружаются коды
     и возвращается словарь с кодами.
     :param year:
-    :param skip_download: Если True, не загружает коды, только читает существующий файл
     :return hs_codes:
     """
     hs_codes = None
@@ -123,19 +117,7 @@ async def load_codes(playwright, year: str, skip_download: bool = False) -> dict
     codes_file_path = hs_codes_dir / f"turkey_codes{year}.json"
 
     try:
-        if skip_download:
-            # Режим пропуска загрузки - только чтение существующего файла
-            if not codes_file_path.exists():
-                raise FileNotFoundError(
-                    f"Codes file not found: {codes_file_path}. "
-                    f"Run without --skip-codes to download codes first."
-                )
-            with open(codes_file_path, "r", encoding="utf-8") as f:
-                hs_codes = json.load(f)
-            print(f"Using existing HS8 codes from {codes_file_path.name}")
-        elif not codes_file_path.exists():
-            if playwright is None:
-                raise RuntimeError("Playwright is required to download codes, but was not provided")
+        if not codes_file_path.exists():
             hs_codes_dir.mkdir(parents=True, exist_ok=True)
             print(f"Downloading codes for {year}...")
             hs_codes = await download_codes(playwright, year)
@@ -150,11 +132,6 @@ async def load_codes(playwright, year: str, skip_download: bool = False) -> dict
                 print(f"Will use previously downloaded HS8 codes for {year}.")
 
             except (json.JSONDecodeError, IOError):
-                if playwright is None:
-                    raise RuntimeError(
-                        f"Codes file {codes_file_path} is corrupted and playwright is not available. "
-                        f"Run without --skip-codes to re-download."
-                    )
                 print(
                     f"Couldn't process the file with codes for {year}. Downloading again..."
                 )
@@ -226,46 +203,72 @@ async def collect_data(playwright, year: str, hs_codes: dict):
     keys = list(hs_codes.keys())
     batches = [keys[i : i + BATCH_SIZE] for i in range(0, len(keys), BATCH_SIZE)]
 
+    start_t = time.time()
+    start_dt = datetime.fromtimestamp(start_t)
+
+    html_tables_dir = Path.cwd() / "raw_html_tables" / year
+
+    # Проверяем какой последний батч HS8 кодов был выгружен в этом месяце в виде html файла.
+    # Подразумевается, что попытка выгрузки была осуществлена и файлы выгружаются последовательно. То есть, если файлы
+    # с младшими кодами по какой-то причине были удалены, мы не будем их снова выгружать.
+
+    html_filename_pattern = re.compile(r"\d{8}-\d{8}-20\d{2}\.html")
+
+    files_with_html = [
+        p
+        for p in html_tables_dir.iterdir()
+        if p.is_file() and html_filename_pattern.match(p.name)
+    ]
+
+    files_with_html = sorted(
+        [
+            p
+            for p in files_with_html
+            if datetime.fromtimestamp(p.stat().st_mtime).year == start_dt.year
+            and datetime.fromtimestamp(p.stat().st_mtime).month == start_dt.month
+        ]
+    )
+
+    if len(files_with_html) == 0:
+        latest_file = "0"
+    else:
+        latest_file = files_with_html[-1].name.split("-")[1]
+        print(
+            f"Latest downloaded HS8 code for the current month- {latest_file}\nContinue downloading...\n"
+        )
+
     for batch in batches:
         start_t = time.time()
+        if latest_file < batch[-1]:
 
-        # Заполнение поля с пакетами кодов
-        await page.fill(f"#{cn_input_id}", ",".join(batch))
+            # Заполнение поля с пакетами кодов
+            await page.fill(f"#{cn_input_id}", ",".join(batch))
 
-        # Ожидание открытия новой вкладки с отчетом
-        async with context.expect_page() as new_page_info:
-            await page.wait_for_selector(
-                'button:has-text("Make Report")', state="visible"
-            )
-            await page.get_by_role("button", name="Make Report").click(delay=300)
+            # Ожидание открытия новой вкладки с отчетом
+            async with context.expect_page() as new_page_info:
+                await page.wait_for_selector(
+                    'button:has-text("Make Report")', state="visible"
+                )
+                await page.get_by_role("button", name="Make Report").click(delay=300)
 
-        new_page = await new_page_info.value
+            new_page = await new_page_info.value
 
-        # Ожидание полной загрузки содержимого
-        # Увеличиваем таймаут и добавляем обработку ошибок
-        try:
-            await new_page.wait_for_load_state("networkidle", timeout=60000)  # 60 секунд вместо 30
-        except Exception as e:
-            print(f"Warning: Timeout waiting for networkidle, trying alternative approach: {e}")
-            # Альтернативный подход: ждем загрузки DOM и небольшой задержки
-            await new_page.wait_for_load_state("domcontentloaded", timeout=30000)
-            await asyncio.sleep(3)  # Дополнительная задержка для завершения загрузки
-        
-        output = await new_page.content()
+            # Ожидание полной загрузки содержимого
+            await new_page.wait_for_load_state("networkidle")
+            output = await new_page.content()
 
-        # Сохранение HTML файла с отчетом
-        html_tables_dir = Path.cwd() / "raw_html_tables" / year
-        html_tables_dir.mkdir(parents=True, exist_ok=True)
-        filename = html_tables_dir / f"{batch[0]}-{batch[-1]}-{year}.html"
-        filename.write_text(output, encoding="utf-8")
-        print(f"{filename.name} is ready")
+            # Сохранение HTML файла с отчетом
+            html_tables_dir.mkdir(parents=True, exist_ok=True)
+            filename = html_tables_dir / f"{batch[0]}-{batch[-1]}-{year}.html"
+            filename.write_text(output, encoding="utf-8")
+            print(f"{filename.name} is ready")
 
-        stop_t = time.time()
-        elapsed = stop_t - start_t
-        print(f"Elapsed time: {int(elapsed // 60):02}:{int(elapsed % 60):02}\n")
+            stop_t = time.time()
+            elapsed = stop_t - start_t
+            print(f"Elapsed time: {int(elapsed // 60):02}:{int(elapsed % 60):02}\n")
 
-        # Закрываем вкладку с отчетом
-        await new_page.close()
+            # Закрываем вкладку с отчетом
+            await new_page.close()
 
     # Завершение работы браузера
     await context.close()
@@ -277,21 +280,14 @@ async def main():
 
     if args.codes:
         async with async_playwright() as playwright:
-            await load_codes(playwright, args.year, skip_download=False)
+            await load_codes(playwright, args.year)
 
     else:
+
         async with async_playwright() as playwright:
-            # Если skip_codes=True, не передаем playwright в load_codes (не нужен для чтения файла)
-            if args.skip_codes:
-                # В режиме skip_codes не нужен playwright для загрузки кодов
-                # Но все равно нужен для collect_data, так что создаем контекст
-                hs_codes = await load_codes(None, args.year, skip_download=True)
-                print("\nDownloading data (using existing codes)...\n")
-                await collect_data(playwright, args.year, hs_codes)
-            else:
-                hs_codes = await load_codes(playwright, args.year, skip_download=False)
-                print("\nDownloading data...\n")
-                await collect_data(playwright, args.year, hs_codes)
+            hs_codes = await load_codes(playwright, args.year)
+            print("\nDownloading data...\n")
+            await collect_data(playwright, args.year, hs_codes)
 
         print("Raw data download completed.")
 
