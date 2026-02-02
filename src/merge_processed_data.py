@@ -1371,42 +1371,37 @@ def main():
             logger.info("Creating fizob_index materialized table...")
             try:
                 # Check which fizob tables exist and build UNION query dynamically
+                # Try both naming conventions: fizob_2/fizob_4/fizob_6 and fizob2/fizob4/fizob6
                 existing_fizob_tables = []
-                for table_name in ['fizob2', 'fizob4', 'fizob6']:
+                table_mappings = [
+                    ('fizob_2', 2, 'TNVED2', 'fizob2', 'fizob2_bp'),
+                    ('fizob2', 2, 'TNVED2', 'fizob2', 'fizob2_bp'),
+                    ('fizob_4', 4, 'TNVED4', 'fizob4', 'fizob4_bp'),
+                    ('fizob4', 4, 'TNVED4', 'fizob4', 'fizob4_bp'),
+                    ('fizob_6', 6, 'TNVED6', 'fizob6', 'fizob6_bp'),
+                    ('fizob6', 6, 'TNVED6', 'fizob6', 'fizob6_bp'),
+                ]
+                
+                for table_name, level, tnved_col, fizob_col, fizob_bp_col in table_mappings:
                     try:
                         # Check if table exists
                         result = conn.execute(f"SELECT COUNT(*) FROM {table_name} LIMIT 1").fetchone()
-                        existing_fizob_tables.append(table_name)
-                        logger.info(f"  Found table: {table_name}")
+                        # Only add if this level is not already added (to avoid duplicates for same level)
+                        if level not in [t[1] for t in existing_fizob_tables]:
+                            existing_fizob_tables.append((table_name, level, tnved_col, fizob_col, fizob_bp_col))
+                            logger.info(f"  Found table: {table_name}")
                     except:
-                        logger.info(f"  Table {table_name} does not exist, skipping")
+                        pass
                 
                 if existing_fizob_tables:
                     # Build UNION query for each existing table
                     union_parts = []
                     
-                    if 'fizob2' in existing_fizob_tables:
-                        union_parts.append("""
-                            SELECT STRANA, NAPR, PERIOD, 2 AS tn_level, TNVED2 AS tn_code,
-                                   fizob2 AS fizob, fizob2_bp AS fizob_bp,
-                                   CASE WHEN fizob2_bp = 0 THEN NULL ELSE fizob2 / fizob2_bp END AS idx
-                            FROM fizob2
-                        """)
-                    
-                    if 'fizob4' in existing_fizob_tables:
-                        union_parts.append("""
-                            SELECT STRANA, NAPR, PERIOD, 4 AS tn_level, TNVED4 AS tn_code,
-                                   fizob4 AS fizob, fizob4_bp AS fizob_bp,
-                                   CASE WHEN fizob4_bp = 0 THEN NULL ELSE fizob4 / fizob4_bp END AS idx
-                            FROM fizob4
-                        """)
-                    
-                    if 'fizob6' in existing_fizob_tables:
-                        union_parts.append("""
-                            SELECT STRANA, NAPR, PERIOD, 6 AS tn_level, TNVED6 AS tn_code,
-                                   fizob6 AS fizob, fizob6_bp AS fizob_bp,
-                                   CASE WHEN fizob6_bp = 0 THEN NULL ELSE fizob6 / fizob6_bp END AS idx
-                            FROM fizob6
+                    for table_name, level, tnved_col, fizob_col, fizob_bp_col in existing_fizob_tables:
+                        union_parts.append(f"""
+                            SELECT STRANA, NAPR, PERIOD, {level} AS tn_level, {tnved_col} AS tn_code,
+                                   {fizob_col} AS fizob, {fizob_bp_col} AS fizob_bp
+                            FROM {table_name}
                         """)
                     
                     if union_parts:
@@ -1424,10 +1419,28 @@ def main():
                         row_count = result[0]
                         logger.info(f"  ... created fizob_index table with {row_count:,} rows")
                         
-                        # Create indexes for faster queries
-                        conn.execute("CREATE INDEX IF NOT EXISTS idx_fizob_index_strana_period ON fizob_index(STRANA, PERIOD)")
-                        conn.execute("CREATE INDEX IF NOT EXISTS idx_fizob_index_tn_level_code ON fizob_index(tn_level, tn_code)")
-                        logger.info("  ... created indexes on fizob_index table")
+                        # Create view with computed idx column for convenience
+                        conn.execute("""
+                            CREATE OR REPLACE VIEW fizob_index_v AS
+                            SELECT *,
+                                   CASE WHEN fizob_bp = 0 THEN NULL ELSE fizob / fizob_bp END AS idx
+                            FROM fizob_index
+                        """)
+                        logger.info("  ... created view fizob_index_v with computed idx column")
+                        
+                        # Drop intermediate fizob tables as they are no longer needed
+                        logger.info("  Dropping intermediate fizob tables...")
+                        for table_name in ['fizob_2', 'fizob2', 'fizob_4', 'fizob4', 'fizob_6', 'fizob6']:
+                            try:
+                                conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+                                logger.info(f"    ... dropped table {table_name}")
+                            except Exception as e:
+                                logger.debug(f"    Could not drop table {table_name}: {e}")
+                        
+                        # Vacuum to free up space
+                        logger.info("  Running VACUUM to free up space...")
+                        conn.execute("VACUUM")
+                        logger.info("  ... VACUUM completed")
                 else:
                     logger.warning("No fizob tables found to create fizob_index")
             except Exception as e:
