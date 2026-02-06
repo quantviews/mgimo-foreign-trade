@@ -5,7 +5,7 @@
 
 import argparse, asyncio, re, json, time
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, Error
 from pathlib import Path
 from datetime import datetime
 
@@ -14,14 +14,15 @@ def parse_arguments():
     """
     Обработчик аргументов для запуска модуля из командной строки.
 
-    usage: new_collector.py [-h] [-c] year
-    -c, --codes - загружает только коды за определенный год
+    usage: collector.py [-h] [-c YEAR] [-y YEAR]
+    -c YEAR, --codes YEAR - загружает только коды за определенный год
+    -y YEAR, --year YEAR - год (от 2005 до текущего)
 
-    :return: возвращает список аргументов для запуска модуля
+    Если аргументы не указаны, выводится справка и скрипт завершается.
     """
     current_year = datetime.now().year
     parser = argparse.ArgumentParser(
-        description="Module downloads data from Turkey Institute of Statistics"
+        description=f"Module downloads data from Turkey Institute of Statistics in year range [2005-{current_year}]"
     )
 
     def valid_year(value):
@@ -34,33 +35,42 @@ def parse_arguments():
             raise argparse.ArgumentTypeError(
                 f"Year should be a number in range 2005-{current_year}"
             )
-        return value
-
-    # Позиционные аргументы (обязательные)
+        return year
 
     parser.add_argument(
-        "year",
+        "-y",
+        "--year",
+        dest="year",
         type=valid_year,
         metavar=f"[2005-{current_year}]",
-        help=f"year (from 2005 to {current_year})",
+        help=f"download data for a specific year",
     )
 
-    # Опциональные (флаги, опции)
     parser.add_argument(
         "-c",
         "--codes",
-        action="store_true",
-        help="download only codes for a specific year",
+        dest="codes",
+        type=valid_year,
+        metavar=f"[2005-{current_year}]",
+        help=f"download codes for a specific year without downloading data",
     )
 
-    # Парсинг аргументов
     args = parser.parse_args()
+
+    # Проверка: если нет ни одного аргумента, показываем help и выходим
+    if (not hasattr(args, "year") or args.year is None) and (
+        not hasattr(args, "codes") or args.codes is None
+    ):
+        parser.print_help()
+        parser.exit(1)
+
     return args
 
 
-async def download_codes(playwright, year: str) -> dict:
+async def download_and_save_codes(playwright, year: str) -> dict:
     """
-    Функция подключается к сайту института статистики Турции и выгружает все возможные коды HS8 за определенный год
+    Функция подключается к сайту института статистики Турции выгружает все возможные коды HS8 за определенный год
+    и сохраняет в виде json файла в папке "HS_CODES_DIR" (если папка отсутствует она будет создана)
     :param playwright:
     :param year:
     :return: dict
@@ -70,6 +80,8 @@ async def download_codes(playwright, year: str) -> dict:
     await page.goto(DATA_URL)
     html_content = await page.content()
     doc = BeautifulSoup(html_content, "html.parser")
+
+    print(f"Downloading codes for {year} ...")
 
     for i in [1, 11, 26, 28, 30]:
         id = doc.find_all(class_="z-radio-cnt")[i].get("for")
@@ -97,74 +109,44 @@ async def download_codes(playwright, year: str) -> dict:
             if re.fullmatch(pattern, s):
                 key, value = s.split(" - ", 1)
                 hs_codes[key] = value
-        print(f"HS2 {two_digits}; {len(hs_codes)} codes loaded")
+        print(f"Downloading HS2 {two_digits}; Total: {len(hs_codes)}")
+
+    # сохраняем результат в json-file
+    HS_CODES_DIR.mkdir(parents=True, exist_ok=True)
+    with open(CODES_FILE_PATH, "w", encoding="utf-8") as file:
+        json.dump(hs_codes, file, indent=4)
+
+    print(f"Codes were saved in {CODES_FILE_PATH.name}")
 
     await browser.close()
-
-    return hs_codes
 
 
 async def load_codes(playwright, year: str) -> dict:
     """
-    Если файл с кодами отсутствует, функция загружает коды с помощью функции download_codes(), сохраняет результат
+    Если файл с кодами отсутствует, функция загружает коды с помощью функции download_and_save_codes(), сохраняет результат
     в json-файл и возвращает словарь с кодами. Если файл существует, то выполняется его проверка, выгружаются коды
     и возвращается словарь с кодами.
     :param year:
     :return hs_codes:
     """
     hs_codes = None
-    hs_codes_dir = Path.cwd() / "hs_codes_json"
-    codes_file_path = hs_codes_dir / f"turkey_codes{year}.json"
 
     try:
-        if not codes_file_path.exists():
-            hs_codes_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Downloading codes for {year}...")
-            hs_codes = await download_codes(playwright, year)
-            with open(codes_file_path, "w", encoding="utf-8") as file:
-                json.dump(hs_codes, file, indent=4)
-            print(f"Codes were saved in {codes_file_path.name}")
-
+        if not CODES_FILE_PATH.exists():
+            await download_and_save_codes(playwright, year)
         else:
-            try:
-                with open(codes_file_path, "r", encoding="utf-8") as f:
-                    hs_codes = json.load(f)
-                print(f"Will use previously downloaded HS8 codes for {year}.")
-
-            except (json.JSONDecodeError, IOError):
-                print(
-                    f"Couldn't process the file with codes for {year}. Downloading again..."
-                )
-                hs_codes = await download_codes(playwright, year)
-                with open(codes_file_path, "w", encoding="utf-8") as file:
-                    json.dump(hs_codes, file, indent=4)
-                print(f"Codes were saved in {codes_file_path.name}")
+            print("HS8 codes were already downloaded and will be used for downloading data.")
+        with CODES_FILE_PATH.open("r", encoding="utf-8") as f:
+            hs_codes = json.load(f)
 
     except Exception as e:
         print(f"Error handling file: {e}")
 
     # Проверка, что hs_codes обязательно имеет значение перед возвратом
     if hs_codes is None:
-        raise RuntimeError(f"Failed to load or download codes for {year}")
+        raise RuntimeError("Failed to load codes.")
 
     return hs_codes
-
-
-async def setup_page(page, year: str):
-    """
-    Функция производит первоначальную навигацию и настройки фильтров на странице перед началом выгрузки данных
-    :param page:
-    :return:
-    """
-    await page.goto(DATA_URL)
-    await page.get_by_text("Monthly").click()
-    await page.get_by_text(year).click()
-    await page.get_by_text("<< All months >>").click()
-    await page.get_by_text("I know country code").click()
-    await page.get_by_text("I know HS8(CN) code").click()
-    await page.get_by_text("Export").click()
-    await page.get_by_text("Import").click()
-    await page.get_by_text("$(Dollar)").click()
 
 
 async def collect_data(playwright, year: str, hs_codes: dict):
@@ -183,7 +165,15 @@ async def collect_data(playwright, year: str, hs_codes: dict):
     await page.goto(DATA_URL)
 
     # Настроим страницу и получим id нужных полей
-    await setup_page(page, year)
+    await page.goto(DATA_URL)
+    await page.get_by_text("Monthly").click()
+    await page.get_by_text(year).click()
+    await page.get_by_text("<< All months >>").click()
+    await page.get_by_text("I know country code").click()
+    await page.get_by_text("I know HS8(CN) code").click()
+    await page.get_by_text("Export").click()
+    await page.get_by_text("Import").click()
+    await page.get_by_text("$(Dollar)").click()
 
     html_content = await page.content()
     doc = BeautifulSoup(html_content, "html.parser")
@@ -206,17 +196,17 @@ async def collect_data(playwright, year: str, hs_codes: dict):
     start_t = time.time()
     start_dt = datetime.fromtimestamp(start_t)
 
-    html_tables_dir = Path.cwd() / "raw_html_tables" / year
-
     # Проверяем какой последний батч HS8 кодов был выгружен в этом месяце в виде html файла.
     # Подразумевается, что попытка выгрузки была осуществлена и файлы выгружаются последовательно. То есть, если файлы
     # с младшими кодами по какой-то причине были удалены, мы не будем их снова выгружать.
 
     html_filename_pattern = re.compile(r"\d{8}-\d{8}-20\d{2}\.html")
 
+    HTML_TABLES_DIR.mkdir(parents=True, exist_ok=True)
+
     files_with_html = [
         p
-        for p in html_tables_dir.iterdir()
+        for p in HTML_TABLES_DIR.iterdir()
         if p.is_file() and html_filename_pattern.match(p.name)
     ]
 
@@ -234,17 +224,17 @@ async def collect_data(playwright, year: str, hs_codes: dict):
     else:
         latest_file = files_with_html[-1].name.split("-")[1]
         print(
-            f"Latest downloaded HS8 code for the current month- {latest_file}\nContinue downloading...\n"
+            f"Most recently downloaded HS8 code for the required year - {latest_file}\nContinue downloading process ..."
         )
 
     for batch in batches:
-        start_t = time.time()
+
         if latest_file < batch[-1]:
 
             # Заполнение поля с пакетами кодов
             await page.fill(f"#{cn_input_id}", ",".join(batch))
 
-            # Ожидание открытия новой вкладки с отчетом
+            # Ожидание открытия новой вкладки с отчетом и обработка исключения с таймаутом ответа от сайта:
             async with context.expect_page() as new_page_info:
                 await page.wait_for_selector(
                     'button:has-text("Make Report")', state="visible"
@@ -258,14 +248,9 @@ async def collect_data(playwright, year: str, hs_codes: dict):
             output = await new_page.content()
 
             # Сохранение HTML файла с отчетом
-            html_tables_dir.mkdir(parents=True, exist_ok=True)
-            filename = html_tables_dir / f"{batch[0]}-{batch[-1]}-{year}.html"
+            filename = HTML_TABLES_DIR / f"{batch[0]}-{batch[-1]}-{year}.html"
             filename.write_text(output, encoding="utf-8")
             print(f"{filename.name} is ready")
-
-            stop_t = time.time()
-            elapsed = stop_t - start_t
-            print(f"Elapsed time: {int(elapsed // 60):02}:{int(elapsed % 60):02}\n")
 
             # Закрываем вкладку с отчетом
             await new_page.close()
@@ -275,25 +260,35 @@ async def collect_data(playwright, year: str, hs_codes: dict):
     await browser.close()
 
 
-async def main():
-    args = parse_arguments()
+async def main(args):
 
     if args.codes:
         async with async_playwright() as playwright:
-            await load_codes(playwright, args.year)
+            await load_codes(playwright, YEAR)
 
-    else:
-
+    elif args.year:
         async with async_playwright() as playwright:
-            hs_codes = await load_codes(playwright, args.year)
-            print("\nDownloading data...\n")
-            await collect_data(playwright, args.year, hs_codes)
-
-        print("Raw data download completed.")
+            hs_codes = await load_codes(playwright, YEAR)
+            print("Downloading data ...")
+            try:
+                await collect_data(playwright, YEAR, hs_codes)
+                print("Raw data download completed.")
+            except Error as e:
+                print(f"Error: {e}\nTry to run the script again a bit later.")
 
 
 if __name__ == "__main__":
     DATA_URL = "https://biruni.tuik.gov.tr/disticaretapp/disticaret_ing.zul?param1=4&param2=24&sitcrev=0&isicrev=0&sayac=5902"
     COUNTRY_ID = "75"  ## 75 - Россия
     BATCH_SIZE = 25  # максимальное количество кодов в одном отчете - 25
-    asyncio.run(main())
+    HS_CODES_DIR = Path.cwd() / "hs_codes_json"
+
+    args = parse_arguments()
+    if args.codes is not None:
+        YEAR = str(args.codes)
+    elif args.year is not None:
+        YEAR = str(args.year)
+
+    CODES_FILE_PATH = HS_CODES_DIR / f"turkey_codes_{YEAR}.json"
+    HTML_TABLES_DIR = Path.cwd() / "raw_html_tables" / YEAR
+    asyncio.run(main(args))
