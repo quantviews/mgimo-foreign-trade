@@ -1,0 +1,10 @@
+/* Размер шрифта кода на слайдах */
+.reveal pre code {
+  font-size: 24px !important;
+  line-height: 1.35;
+}
+
+/* Немного увеличим отступы, чтобы код "дышал" */
+.reveal pre {
+  padding: 12px !important;
+}

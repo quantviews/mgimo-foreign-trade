@@ -1,7 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
+    <loc>https://quantviews.github.io/mgimo-foreign-trade/lessons/lesson_04_superset.html</loc>
+    <lastmod>2026-02-13T08:54:10.020Z</lastmod>
+  </url>
+  <url>
+    <loc>https://quantviews.github.io/mgimo-foreign-trade/lessons/lesson_02_old_new_stats.html</loc>
+    <lastmod>2026-02-13T08:54:10.020Z</lastmod>
+  </url>
+  <url>
     <loc>https://quantviews.github.io/mgimo-foreign-trade/other/intro-presentation.html</loc>
-    <lastmod>2025-10-22T14:40:10.878Z</lastmod>
+    <lastmod>2026-02-13T08:54:10.031Z</lastmod>
+  </url>
+  <url>
+    <loc>https://quantviews.github.io/mgimo-foreign-trade/lessons/lesson_01_intro.html</loc>
+    <lastmod>2026-02-13T08:54:10.020Z</lastmod>
+  </url>
+  <url>
+    <loc>https://quantviews.github.io/mgimo-foreign-trade/lessons/lesson_03_duckdb.html</loc>
+    <lastmod>2026-02-13T08:54:10.020Z</lastmod>
   </url>
 </urlset>

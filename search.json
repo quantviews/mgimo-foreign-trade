@@ -1,5 +1,187 @@
 [
   {
+    "objectID": "lessons/lesson_04_superset.html#план-занятия-80-мин",
+    "href": "lessons/lesson_04_superset.html#план-занятия-80-мин",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "План занятия (80 мин)",
+    "text": "План занятия (80 мин)\n\nВведение в Superset (20 мин)\nСтруктура дашборда (25 мин)\nПрактика: Superset (20 мин) — доступ к инстансу будет предоставлен\nПрактика: Python + визуализация (10 мин)\nИтоги курса (5 мин)"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#что-такое-apache-superset",
+    "href": "lessons/lesson_04_superset.html#что-такое-apache-superset",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Что такое Apache Superset?",
+    "text": "Что такое Apache Superset?\nSuperset — open-source платформа для визуализации данных и бизнес-аналитики.\n\n\n\nВозможность\nОписание\n\n\n\n\nПодключение к БД\nPostgreSQL, DuckDB, MySQL и др.\n\n\nДашборды\nИнтерактивные панели с чартами\n\n\nТипы визуализаций\nГрафики, таблицы, карты, KPI\n\n\nSQL Lab\nВыполнение SQL-запросов\n\n\nФильтры\nДинамическая фильтрация данных"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#архитектура-в-проекте",
+    "href": "lessons/lesson_04_superset.html#архитектура-в-проекте",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Архитектура в проекте",
+    "text": "Архитектура в проекте\nSuperset Instance\n       │\n       ├── Database: DuckDB (unified_trade_data.duckdb)\n       │\n       ├── Datasets: unified_trade_data_enriched, unified_trade_data\n       │\n       ├── Charts: Time Series, Bar, Table, Pie...\n       │\n       └── Dashboard: «Национальная торговая статистика»\nПримечание: Вам будет предоставлен доступ к отдельному инстансу Superset с подключённой базой данных."
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#основные-элементы-дашборда",
+    "href": "lessons/lesson_04_superset.html#основные-элементы-дашборда",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Основные элементы дашборда",
+    "text": "Основные элементы дашборда\n\nОбщая статистика — сумма по импорту/экспорту\nДинамика по месяцам — временные ряды\nТоп стран-партнёров — столбчатые диаграммы\nТоварная структура — по TNVED2, TNVED4\nФильтры — период, страна, товарная группа"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#типы-визуализаций",
+    "href": "lessons/lesson_04_superset.html#типы-визуализаций",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Типы визуализаций",
+    "text": "Типы визуализаций\n\n\n\nТип\nНазначение\n\n\n\n\nTime Series\nДинамика импорта/экспорта по месяцам\n\n\nBar Chart\nТоп стран, топ товарных групп\n\n\nTable\nДетализированные данные, экспорт\n\n\nPie Chart\nДоля стран/товаров в общем объёме\n\n\nBig Number\nКлючевые KPI"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#sql-lab-в-superset",
+    "href": "lessons/lesson_04_superset.html#sql-lab-в-superset",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "SQL Lab в Superset",
+    "text": "SQL Lab в Superset\nSQL Lab — встроенный редактор для выполнения SQL-запросов.\nSELECT \n    PERIOD,\n    STRANA,\n    SUM(STOIM) as total\nFROM unified_trade_data\nWHERE PERIOD &gt;= '2023-01-01'\nGROUP BY PERIOD, STRANA\nORDER BY PERIOD DESC, total DESC\nLIMIT 100;\nВозможности: Выполнить запрос → создать Chart из результата → добавить на Dashboard."
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#создание-чарта-пошагово",
+    "href": "lessons/lesson_04_superset.html#создание-чарта-пошагово",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Создание чарта: пошагово",
+    "text": "Создание чарта: пошагово\n\nData → выбрать Dataset (unified_trade_data_enriched)\nChart type → Bar Chart / Time Series / Table\nMetrics → SUM(STOIM), COUNT(*) и т.д.\nDimensions → STRANA, TNVED2, PERIOD\nFilters → PERIOD, NAPR, STRANA\nSave → сохранить чарт"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#практика-1-навигация-по-дашборду",
+    "href": "lessons/lesson_04_superset.html#практика-1-навигация-по-дашборду",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Практика 1: Навигация по дашборду",
+    "text": "Практика 1: Навигация по дашборду\nЗадание (в Superset):\n\nОткрыть дашборд «Национальная торговая статистика»\nПрименить фильтр по периоду: 2023–2024\nВыбрать страну: Китай (CN)\nНайти данные по импорту за последний доступный месяц\nЭкспортировать таблицу в CSV (если доступно)"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#практика-2-sql-lab-простой-запрос",
+    "href": "lessons/lesson_04_superset.html#практика-2-sql-lab-простой-запрос",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Практика 2: SQL Lab — простой запрос",
+    "text": "Практика 2: SQL Lab — простой запрос\nЗадание (в Superset SQL Lab):\nВыполнить запрос и проверить результат:\nSELECT \n    STRANA,\n    SUM(STOIM) as total_import\nFROM unified_trade_data\nWHERE PERIOD &gt;= '2023-01-01' AND NAPR = 'ИМ'\nGROUP BY STRANA\nORDER BY total_import DESC\nLIMIT 10;\nСоздать из результата простой Bar Chart (если интерфейс позволяет)."
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#практика-3-python-визуализация-для-отчёта",
+    "href": "lessons/lesson_04_superset.html#практика-3-python-визуализация-для-отчёта",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Практика 3: Python — визуализация для отчёта",
+    "text": "Практика 3: Python — визуализация для отчёта\nЕсли Superset недоступен во время занятия, используйте Python:\nimport duckdb\nimport matplotlib.pyplot as plt\n\nconn = duckdb.connect(\"db/unified_trade_data.duckdb\")\ndf = conn.execute(\"\"\"\n    SELECT PERIOD, SUM(STOIM) as total\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2022-01-01' AND NAPR = 'ИМ'\n    GROUP BY PERIOD\n    ORDER BY PERIOD\n\"\"\").df()\n\nplt.figure(figsize=(10, 5))\nplt.plot(df['PERIOD'], df['total'])\nplt.title('Динамика импорта (тыс. USD)')\nplt.xticks(rotation=45)\nplt.tight_layout()\nplt.savefig('import_dynamics.png')\nplt.show()"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#практика-4-сводная-таблица-в-python",
+    "href": "lessons/lesson_04_superset.html#практика-4-сводная-таблица-в-python",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Практика 4: Сводная таблица в Python",
+    "text": "Практика 4: Сводная таблица в Python\nimport pandas as pd\n\n# Импорт по странам и TNVED2 за 2023\npivot = conn.execute(\"\"\"\n    SELECT STRANA, TNVED2, SUM(STOIM) as total\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2023-01-01' AND PERIOD &lt; '2024-01-01'\n      AND NAPR = 'ИМ' AND TNVED2 IN ('27', '84', '85', '87')\n    GROUP BY STRANA, TNVED2\n\"\"\").df()\n\n# Pivot для удобства\npivot_wide = pivot.pivot(index='TNVED2', columns='STRANA', values='total')\nprint(pivot_wide)"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#подключение-duckdb-к-superset",
+    "href": "lessons/lesson_04_superset.html#подключение-duckdb-к-superset",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Подключение DuckDB к Superset",
+    "text": "Подключение DuckDB к Superset\nConnection string (для администратора):\nduckdb:///path/to/db/unified_trade_data.duckdb\nИли через SQLAlchemy:\nduckdb:///db/unified_trade_data.duckdb\nРекомендуемый Dataset: unified_trade_data_enriched — уже содержит названия стран и товаров."
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#итоги-занятия-4-и-курса",
+    "href": "lessons/lesson_04_superset.html#итоги-занятия-4-и-курса",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Итоги занятия 4 и курса",
+    "text": "Итоги занятия 4 и курса\nЗанятие 4: - Superset — платформа для визуализации - SQL Lab, создание чартов, дашборды - Доступ к инстансу будет предоставлен отдельно\nВесь курс: 1. Таможенная статистика, ТН ВЭД, зеркальная статистика 2. Старая vs новая статистика (до/после 2022) 3. DuckDB, SQL, аналитические запросы 4. Superset, визуализация, дашборды"
+  },
+  {
+    "objectID": "lessons/lesson_04_superset.html#практическое-применение",
+    "href": "lessons/lesson_04_superset.html#практическое-применение",
+    "title": "Занятие 4. Superset дашборд и визуализация",
+    "section": "Практическое применение",
+    "text": "Практическое применение\n\nАналитики: Оценка рынков, мониторинг потоков, отчёты\nБизнес: Поиск ниш, анализ конкурентов, планирование\nИсследователи: Эмпирические работы, датасеты для моделей\n\nДальнейшее изучение: docs/, sql/, data_analytics/"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#план-занятия-80-мин",
+    "href": "lessons/lesson_02_old_new_stats.html#план-занятия-80-мин",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "План занятия (80 мин)",
+    "text": "План занятия (80 мин)\n\nТеория (20 мин): Исторический контекст, различия источников\nПрактика: старая статистика (25 мин): Данные до 2022\nПрактика: новая статистика (30 мин): Данные после 2022, сравнение\nИтоги (5 мин)"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#исторический-контекст",
+    "href": "lessons/lesson_02_old_new_stats.html#исторический-контекст",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Исторический контекст",
+    "text": "Исторический контекст\n\n\nДо января 2022\n\nОфициальная статистика ФТС\nПрямые данные российской таможни\nВысокая детализация (10 знаков ТН ВЭД)\nПубликация через официальные каналы\nДанные по всем странам-партнёрам\n\n\nПосле января 2022\n\nОфициальная статистика недоступна\nЗеркальная статистика стран-партнёров\nUN Comtrade как доп. источник\nОграниченное покрытие (Китай, Индия, Турция + Comtrade)\nЗадержка публикации в Comtrade (6–12 мес.)"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#источники-данных-в-проекте",
+    "href": "lessons/lesson_02_old_new_stats.html#источники-данных-в-проекте",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Источники данных в проекте",
+    "text": "Источники данных в проекте\n\n\n\n\n\n\n\n\n\nИсточник\nТип\nПериод\nДетализация\n\n\n\n\nNational (CN, IN, TR)\nЗеркальная\n2005–2025\n8–10 знаков, физические объёмы\n\n\nComtrade\nЗеркальная\nПо годам\nHS6, только страны без national\n\n\nФТС (архив)\nПрямая\nДо 2022\nВ архитектуре, не в текущей БД\n\n\n\nКолонка SOURCE: national или comtrade — откуда пришла запись."
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#un-comtrade",
+    "href": "lessons/lesson_02_old_new_stats.html#un-comtrade",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "UN Comtrade",
+    "text": "UN Comtrade\n\nЧто: База ООН по международной торговле\nКак работает: Страны отчитываются о своей торговле; ООН агрегирует\nЗеркальность: Экспорт Китая в РФ = импорт РФ из Китая (с точки зрения РФ)\nОграничения: Задержка до 6–12 мес., уровень HS6, не все страны отчитываются вовремя"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#практика-1-подключение-и-данные-до-2022",
+    "href": "lessons/lesson_02_old_new_stats.html#практика-1-подключение-и-данные-до-2022",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Практика 1: Подключение и данные до 2022",
+    "text": "Практика 1: Подключение и данные до 2022\nimport duckdb\nfrom pathlib import Path\n\ndb_path = Path(\"db/unified_trade_data.duckdb\")\nconn = duckdb.connect(str(db_path))\n\n# Данные до января 2022\ndf_old = conn.execute(\"\"\"\n    SELECT * FROM unified_trade_data \n    WHERE PERIOD &lt; '2022-01-01'\n    LIMIT 5000\n\"\"\").df()\n\nprint(f\"Строк: {len(df_old)}\")\nprint(f\"Период: {df_old['PERIOD'].min()} — {df_old['PERIOD'].max()}\")\nprint(f\"Страны: {df_old['STRANA'].unique()}\")\nif 'SOURCE' in df_old.columns:\n    print(df_old['SOURCE'].value_counts())"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#практика-2-топ-10-стран-по-импорту-в-2021",
+    "href": "lessons/lesson_02_old_new_stats.html#практика-2-топ-10-стран-по-импорту-в-2021",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Практика 2: Топ-10 стран по импорту в 2021",
+    "text": "Практика 2: Топ-10 стран по импорту в 2021\ntop_import_2021 = conn.execute(\"\"\"\n    SELECT STRANA, SUM(STOIM) as total_import\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2021-01-01' AND PERIOD &lt; '2022-01-01'\n      AND NAPR = 'ИМ'\n    GROUP BY STRANA\n    ORDER BY total_import DESC\n    LIMIT 10\n\"\"\").df()\n\nprint(\"Топ-10 стран по импорту в 2021 (тыс. USD):\")\nprint(top_import_2021)"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#практика-3-динамика-экспорта-по-месяцам-2021",
+    "href": "lessons/lesson_02_old_new_stats.html#практика-3-динамика-экспорта-по-месяцам-2021",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Практика 3: Динамика экспорта по месяцам 2021",
+    "text": "Практика 3: Динамика экспорта по месяцам 2021\nexport_dynamics = conn.execute(\"\"\"\n    SELECT PERIOD, SUM(STOIM) as total_export\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2021-01-01' AND PERIOD &lt; '2022-01-01'\n      AND NAPR = 'ЭК'\n    GROUP BY PERIOD\n    ORDER BY PERIOD\n\"\"\").df()\n\nprint(export_dynamics)\n# Визуализация (опционально):\n# import matplotlib.pyplot as plt\n# export_dynamics.plot(x='PERIOD', y='total_export', kind='line')"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#практика-4-данные-после-января-2022",
+    "href": "lessons/lesson_02_old_new_stats.html#практика-4-данные-после-января-2022",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Практика 4: Данные после января 2022",
+    "text": "Практика 4: Данные после января 2022\ndf_new = conn.execute(\"\"\"\n    SELECT * FROM unified_trade_data \n    WHERE PERIOD &gt;= '2022-01-01'\n    LIMIT 5000\n\"\"\").df()\n\nprint(f\"Строк: {len(df_new)}\")\nprint(f\"Период: {df_new['PERIOD'].min()} — {df_new['PERIOD'].max()}\")\nif 'SOURCE' in df_new.columns:\n    print(\"\\nПо источникам:\")\n    print(df_new['SOURCE'].value_counts())"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#практика-5-сравнение-топ-5-стран-до-и-после-2022",
+    "href": "lessons/lesson_02_old_new_stats.html#практика-5-сравнение-топ-5-стран-до-и-после-2022",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Практика 5: Сравнение топ-5 стран до и после 2022",
+    "text": "Практика 5: Сравнение топ-5 стран до и после 2022\nbefore_2022 = conn.execute(\"\"\"\n    SELECT STRANA, SUM(STOIM) as total\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2021-01-01' AND PERIOD &lt; '2022-01-01'\n      AND NAPR = 'ИМ'\n    GROUP BY STRANA\n    ORDER BY total DESC\n    LIMIT 5\n\"\"\").df()\n\nafter_2022 = conn.execute(\"\"\"\n    SELECT STRANA, SUM(STOIM) as total\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2022-01-01' AND NAPR = 'ИМ'\n    GROUP BY STRANA\n    ORDER BY total DESC\n    LIMIT 5\n\"\"\").df()\n\nprint(\"Топ-5 по импорту 2021:\", before_2022['STRANA'].tolist())\nprint(\"Топ-5 по импорту 2022+:\", after_2022['STRANA'].tolist())"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#практика-6-визуализация-динамики",
+    "href": "lessons/lesson_02_old_new_stats.html#практика-6-визуализация-динамики",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Практика 6: Визуализация динамики",
+    "text": "Практика 6: Визуализация динамики\nimport matplotlib.pyplot as plt\n\n# Месячная динамика импорта и экспорта 2021–2024\ndynamics = conn.execute(\"\"\"\n    SELECT \n        PERIOD,\n        SUM(CASE WHEN NAPR = 'ИМ' THEN STOIM ELSE 0 END) as import_val,\n        SUM(CASE WHEN NAPR = 'ЭК' THEN STOIM ELSE 0 END) as export_val\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2021-01-01'\n    GROUP BY PERIOD\n    ORDER BY PERIOD\n\"\"\").df()\n\nfig, ax = plt.subplots(figsize=(12, 5))\nax.plot(dynamics['PERIOD'], dynamics['import_val'], label='Импорт')\nax.plot(dynamics['PERIOD'], dynamics['export_val'], label='Экспорт')\nax.legend()\nax.set_title('Динамика импорта и экспорта (тыс. USD)')\nplt.xticks(rotation=45)\nplt.tight_layout()\nplt.show()"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#практика-7-сравнение-по-товарным-группам",
+    "href": "lessons/lesson_02_old_new_stats.html#практика-7-сравнение-по-товарным-группам",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Практика 7: Сравнение по товарным группам",
+    "text": "Практика 7: Сравнение по товарным группам\nЗадание: Сравнить структуру импорта по TNVED2 в 2021 и 2023.\nimport_2021 = conn.execute(\"\"\"\n    SELECT TNVED2, SUM(STOIM) as total\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2021-01-01' AND PERIOD &lt; '2022-01-01'\n      AND NAPR = 'ИМ' AND TNVED2 IS NOT NULL\n    GROUP BY TNVED2\n    ORDER BY total DESC\n    LIMIT 10\n\"\"\").df()\n\nimport_2023 = conn.execute(\"\"\"\n    SELECT TNVED2, SUM(STOIM) as total\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2023-01-01' AND PERIOD &lt; '2024-01-01'\n      AND NAPR = 'ИМ' AND TNVED2 IS NOT NULL\n    GROUP BY TNVED2\n    ORDER BY total DESC\n    LIMIT 10\n\"\"\").df()\n\nprint(\"Топ-10 TNVED2 по импорту 2021:\\n\", import_2021)\nprint(\"\\nТоп-10 TNVED2 по импорту 2023:\\n\", import_2023)"
+  },
+  {
+    "objectID": "lessons/lesson_02_old_new_stats.html#итоги-занятия-2",
+    "href": "lessons/lesson_02_old_new_stats.html#итоги-занятия-2",
+    "title": "Занятие 2. Старая и новая статистика",
+    "section": "Итоги занятия 2",
+    "text": "Итоги занятия 2\n\nДо 2022: Официальная статистика ФТС, полное покрытие\nПосле 2022: Зеркальная статистика (national + Comtrade)\nSOURCE: Различает national и comtrade\nПрактика: Фильтрация по PERIOD, сравнение периодов, визуализация\n\nДомашнее задание: Провести сравнительный анализ по выбранной стране или товарной группе (TNVED2) за 2021 vs 2023."
+  },
+  {
     "objectID": "other/intro-presentation.html#почему-статистика-внешней-торговли-важна",
     "href": "other/intro-presentation.html#почему-статистика-внешней-торговли-важна",
     "title": "Национальная статистика внешней торговли",
@@ -40,5 +222,299 @@
     "title": "Национальная статистика внешней торговли",
     "section": "Почему отличается прямая и зеркальная статистика во внешней торговле?",
     "text": "Почему отличается прямая и зеркальная статистика во внешней торговле?\n1. Разница в методах оценки стоимости (CIF vs. FOB)\n\nЭкспорт (FOB - Free On Board / Франко-борт): Стоимость товара фиксируется на границе страны-экспортера. Она включает цену товара и расходы по его доставке до порта или другого пункта отгрузки\nИмпорт (CIF - Cost, Insurance and Freight / Стоимость, страхование и фрахт): Стоимость товара фиксируется на границе страны-импортера. К цене FOB добавляются расходы на страхование и транспортировку товара до границы импортера\nРазница - условная стоимость доставки от границы экспортера и до границы импоретра\n\n2. Различия в определении страны-партнера\n\nСтрана происхождения (Country of Origin): Где товар был произведен или выращен\nСтрана отправления (Country of Consignment): Откуда товар был непосредственно отправлен в страну назначения.\n\nПРИМЕР: сырая нефть, произведеннаяв в Россиии (страна происхождения), экспортируется в Китай через трейдера, зарегестированного в Сингапуре (страна отправления). Российская таможня учтет экспорт в Сингапур, а китайская статистика может не отразить эту операцию как импорт из Россию, если товар шел транзитом.\n3. Прочие причины расхождений\n\nВременной лаг при транспортировке. Особенно если используется морской экспорт на дальние расстояния.\nРазная классификация товаров. Таможенные службы разных стран могут по-разному классифицировать один и тот же товар по разным кодам\nТранзитные и реэкспортные операции\nКурсовые разницы. Пересчет стоимости товаров из национальных валют в доллары США для международной статистики может происходить по разным курсам и в разное время"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#план-занятия-80-мин",
+    "href": "lessons/lesson_01_intro.html#план-занятия-80-мин",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "План занятия (80 мин)",
+    "text": "План занятия (80 мин)\n\nТеория (25 мин): Таможенная статистика, ТН ВЭД, зеркальная статистика\nСтруктура проекта (20 мин): Обзор проекта «Актуальная статистика внешней торговли»\nПрактика (30 мин): Первое знакомство с данными в Python\nИтоги (5 мин)"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#что-такое-таможенная-статистика",
+    "href": "lessons/lesson_01_intro.html#что-такое-таможенная-статистика",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Что такое таможенная статистика?",
+    "text": "Что такое таможенная статистика?\nОпределение: Систематизированные данные о внешней торговле страны, формируемые на основе таможенных деклараций.\nКто собирает:\n\nФТС России — до января 2022 публиковала детальную статистику\nНациональные таможенные службы — Китай, Индия, Турция и др.\nUN Comtrade — агрегированная международная база ООН\n\nОсновные показатели:\n\n\n\nПоказатель\nОписание\nЕдиница\n\n\n\n\nSTOIM\nСтатистическая стоимость\nтыс. USD\n\n\nNETTO\nВес нетто\nкг\n\n\nKOL\nКоличество в доп. единице\nшт, л, м³ и т.д."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#направления-торговли-napr",
+    "href": "lessons/lesson_01_intro.html#направления-торговли-napr",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Направления торговли (NAPR)",
+    "text": "Направления торговли (NAPR)\n\n\nИМ (Импорт) — товары, ввозимые в РФ\n\nС точки зрения РФ: что мы покупаем за рубежом\nПример: китайский экспорт в РФ = российский импорт из Китая\n\n\nЭК (Экспорт) — товары, вывозимые из РФ\n\nС точки зрения РФ: что мы продаём за рубеж\nПример: российский экспорт в Турцию = турецкий импорт из РФ\n\n\nВажно: При работе с зеркальной статистикой направление «отзеркаливается» — экспорт партнёра становится нашим импортом."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#классификатор-стран-strana",
+    "href": "lessons/lesson_01_intro.html#классификатор-стран-strana",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Классификатор стран (STRANA)",
+    "text": "Классификатор стран (STRANA)\nСправочник: metadata/STRANA.csv — соответствие кодов стран и их названий.\n\n\n\nКолонка\nОписание\n\n\n\n\nKOD\nДвухбуквенный код ISO 3166-1 alpha-2 (CN, RU, US…)\n\n\nNAME\nОфициальное наименование страны на русском\n\n\n\nОбъём: 254 записи (страны и территории). В данных ФТС используется код страны-партнёра по сделке."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#примеры-кодов-стран-из-strana.csv",
+    "href": "lessons/lesson_01_intro.html#примеры-кодов-стран-из-strana.csv",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Примеры кодов стран (из STRANA.csv)",
+    "text": "Примеры кодов стран (из STRANA.csv)\n\n\n\nКод\nСтрана\n\n\n\n\nCN\nКИТАЙ\n\n\nRU\nРОССИЯ\n\n\nUS\nСОЕДИДИНЕННЫЕ ШТАТЫ\n\n\nDE\nГЕРМАНИЯ\n\n\nBY\nБЕЛАРУСЬ\n\n\nKZ\nКАЗАХСТАН\n\n\nTR\nТУРЦИЯ\n\n\nIN\nИНДИЯ\n\n\nKR\nКОРЕЯ, РЕСПУБЛИКА\n\n\nJP\nЯПОНИЯ\n\n\nUA\nУКРАИНА\n\n\nGB\nСОЕДИНЕННОЕ КОРОЛЕВСТВО\n\n\n\nСпециальные коды: EU — страны ЕС, NNN — неизвестная страна, AB/OS — Абхазия/Южная Осетия.\nИспользование: В торговых данных колонка STRANA содержит только код. Для получения названия — JOIN со справочником:\nstrana = pd.read_csv(\"metadata/STRANA.csv\", sep=\"\\t\")\n# Объединение с данными: df.merge(strana, left_on=\"STRANA\", right_on=\"KOD\")"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#что-такое-тн-вэд-и-зачем-он-нужен",
+    "href": "lessons/lesson_01_intro.html#что-такое-тн-вэд-и-зачем-он-нужен",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Что такое ТН ВЭД и зачем он нужен?",
+    "text": "Что такое ТН ВЭД и зачем он нужен?\nОпределение: ТН ВЭД — классификатор товаров, используемый таможенными органами (ФТС России) для таможенных операций, применения пошлин и ведения статистики.\n\nФундамент: В основе — Гармонизированная система (HS) Всемирной таможенной организации\nОбъём в проекте: В metadata/tnved.csv — 31 532 записи по 5 уровням вложенности\nПринцип: «От общего к частному» — с увеличением длины кода описание товара становится детальнее"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#иерархическая-структура-кода-10-знаков",
+    "href": "lessons/lesson_01_intro.html#иерархическая-структура-кода-10-знаков",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Иерархическая структура кода (10 знаков)",
+    "text": "Иерархическая структура кода (10 знаков)\n5 уровней классификации в metadata/tnved.csv:\n\n\n\n\n\n\n\n\n\nЗнаков\nУровень\nПример\nРоль\n\n\n\n\n2\nГруппа\n01\nМатериал/отрасль (97 групп)\n\n\n4\nТоварная позиция\n0101\nУзкая категория (1 231 позиция)\n\n\n6\nСубпозиция\n010121\nУровень HS, мировой стандарт (5 758)\n\n\n8\nПодсубпозиция\n01012100\nУровень ЕАЭС (10 291)\n\n\n10\nПолный код\n0101210000\nКонкретный объект декларирования (14 155)"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#распределение-элементов-по-уровням-январь-2022",
+    "href": "lessons/lesson_01_intro.html#распределение-элементов-по-уровням-январь-2022",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Распределение элементов по уровням (январь 2022)",
+    "text": "Распределение элементов по уровням (январь 2022)\n\n\n\nУровень\nКол-во элементов\nРоль в классификации\n\n\n\n\n2 (Группа)\n97\nКрупные разделы экономики\n\n\n4 (Позиция)\n1 231\nВидовые категории товаров\n\n\n6 (Субпозиция)\n5 758\nМировой стандарт (HS)\n\n\n8 (Подсубпозиция)\n10 291\nРегиональная специфика (ЕАЭС)\n\n\n10 (Товар)\n14 155\nКонкретный объект декларирования\n\n\n\nКоличество записей растёт к 10-му уровню — чем детальнее код, тем больше вариантов."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#пример-1-группа-01-живые-животные-из-tnved.csv",
+    "href": "lessons/lesson_01_intro.html#пример-1-группа-01-живые-животные-из-tnved.csv",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Пример 1: группа 01 (живые животные) — из tnved.csv",
+    "text": "Пример 1: группа 01 (живые животные) — из tnved.csv\n01      — ЖИВЫЕ ЖИВОТНЫЕ\n0101    — ЛОШАДИ, ОСЛЫ, МУЛЫ И ЛОШАКИ ЖИВЫЕ\n010121  — ЛОШАДИ ЖИВЫЕ: ЧИСТОПОРОДНЫЕ ПЛЕМЕННЫЕ ЖИВОТНЫЕ\n01012100 — (то же на уровне 8 знаков)\n0101210000 — (полная детализация, 10 знаков)\n010129  — ЛОШАДИ ПРОЧИЕ\n010130  — ОСЛЫ, ЖИВЫЕ\n0102    — КРУПНЫЙ РОГАТЫЙ СКОТ ЖИВОЙ\n0103    — СВИНЬИ ЖИВЫЕ"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#пример-2-группа-27-топливо-крупнейшая-по-обороту",
+    "href": "lessons/lesson_01_intro.html#пример-2-группа-27-топливо-крупнейшая-по-обороту",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Пример 2: группа 27 (топливо) — крупнейшая по обороту",
+    "text": "Пример 2: группа 27 (топливо) — крупнейшая по обороту\n27      — ТОПЛИВО МИНЕРАЛЬНОЕ, НЕФТЬ И ПРОДУКТЫ ИХ ПЕРЕГОНКИ; БИТУМИНОЗНЫЕ ВЕЩЕСТВА; ВОСКИ МИНЕРАЛЬНЫЕ\n2701    — УГОЛЬ КАМЕННЫЙ; БРИКЕТЫ, ОКАТЫШИ...\n2709    — НЕФТЬ СЫРАЯ И НЕФТЕПРОДУКТЫ СЫРЫЕ\n2710    — НЕФТЬ И НЕФТЕПРОДУКТЫ (кроме сырых)\n271012  — ЛЕГКИЕ ДИСТИЛЛЯТЫ (бензины)\n27101241 — БЕНЗИНЫ МОТОРНЫЕ (с октановым числом &lt; 95)\n2710124110 — БЕНЗИН АВТОМОБИЛЬНЫЙ (октановое число &lt; 80)\n271019  — ПРОЧИЕ ДИСТИЛЛЯТЫ (дизель, керосин, мазут)"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#пример-3-группы-84-85-87-машины-и-оборудование",
+    "href": "lessons/lesson_01_intro.html#пример-3-группы-84-85-87-машины-и-оборудование",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Пример 3: группы 84, 85, 87 — машины и оборудование",
+    "text": "Пример 3: группы 84, 85, 87 — машины и оборудование\n84      — РЕАКТОРЫ ЯДЕРНЫЕ, КОТЛЫ, ОБОРУДОВАНИЕ И МЕХАНИЧЕСКИЕ УСТРОЙСТВА; ИХ ЧАСТИ\n85      — ЭЛЕКТРИЧЕСКИЕ МАШИНЫ И ОБОРУДОВАНИЕ; ЗВУКОЗАПИСЫВАЮЩАЯ АППАРАТУРА...\n87      — СРЕДСТВА НАЗЕМНОГО ТРАНСПОРТА (кроме ж/д)\nЭти три группы — среди топ-5 по обороту в данных ФТС 2021–2022."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#пример-4-эволюция-кода-смартфоны",
+    "href": "lessons/lesson_01_intro.html#пример-4-эволюция-кода-смартфоны",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Пример 4: Эволюция кода — смартфоны",
+    "text": "Пример 4: Эволюция кода — смартфоны\nПроследим путь классификации одного из самых популярных товаров:\n85           — Электрические машины и оборудование... (Группа)\n8517         — Аппараты телефонные, включая смартфоны... (Позиция)\n851713       — Смартфоны (Субпозиция — введена в 2022 году)\n85171300     — Смартфоны (Подсубпозиция)\n8517130000   — Смартфоны (Полный 10-значный код ТН ВЭД)\nПрефикс «ШТ-» в названии — указание на основную единицу измерения (штуки)."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#технические-особенности-данных-tnved.csv",
+    "href": "lessons/lesson_01_intro.html#технические-особенности-данных-tnved.csv",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Технические особенности данных tnved.csv",
+    "text": "Технические особенности данных tnved.csv\nДля аналитики важно понимать структуру файла:\n\n\n\n\n\n\n\nКолонка\nОписание\n\n\n\n\nKOD\nТекстовое поле — сохранять ведущие нули (01, а не 1)\n\n\nNAME\nОфициальное наименование; может содержать единицы измерения (ШТ-, 1000 Л-), технические пояснения\n\n\nlevel\nИндикатор вложенности (2, 4, 6, 8, 10) — упрощает построение древовидных моделей в Excel, Python, Power BI"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#особенности-кодирования",
+    "href": "lessons/lesson_01_intro.html#особенности-кодирования",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Особенности кодирования",
+    "text": "Особенности кодирования\n\nДополнение нулями справа: 2710 → 2710000000 (до 10 знаков)\nИерархия: каждый уровень — префикс следующего: 27 → 2701 → 271012 → 27101241 → 2710124110"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#зеркальная-статистика",
+    "href": "lessons/lesson_01_intro.html#зеркальная-статистика",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Зеркальная статистика",
+    "text": "Зеркальная статистика\nОпределение: Данные о торговле с РФ, собранные страной-партнёром (а не российской таможней).\nПочему важна: - С января 2022 официальная статистика ФТС недоступна - Зеркальная статистика — единственный легальный источник актуальных данных - Данные партнёров часто публикуются быстрее, чем UN Comtrade\nИсточники в проекте: - Китай (customs.gov.cn) - Индия (commerce.gov.in) - Турция (trademap) - UN Comtrade (для стран без национальных данных)"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#почему-прямая-и-зеркальная-статистика-отличаются",
+    "href": "lessons/lesson_01_intro.html#почему-прямая-и-зеркальная-статистика-отличаются",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Почему прямая и зеркальная статистика отличаются?",
+    "text": "Почему прямая и зеркальная статистика отличаются?\n\nCIF vs FOB: Импорт учитывается по CIF (стоимость + страхование + фрахт), экспорт — по FOB (франко-борт)\nСтрана происхождения vs страна отправления: Транзитные операции\nВременной лаг: Морские перевозки — товар в пути\nРазная классификация: Один товар — разные коды ТН ВЭД в разных странах"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#структура-проекта",
+    "href": "lessons/lesson_01_intro.html#структура-проекта",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Структура проекта",
+    "text": "Структура проекта\nmgimo-foreign_trade/\n├── data_raw/fts_data/  # CSV ФТС по месяцам (янв 2021 — янв 2022)\n├── data_processed/     # Сводные Parquet (fts_2021_2022.parquet и др.)\n├── src/load_fts_csv.py # Объединение CSV ФТС в сводный датасет\n├── src/collectors/     # Сборщики зеркальной статистики\n├── db/                 # unified_trade_data.duckdb (после merge)\n├── metadata/           # Справочники (страны, ТН ВЭД)\n└── superset/           # Конфигурация дашборда"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#модель-данных-схема",
+    "href": "lessons/lesson_01_intro.html#модель-данных-схема",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Модель данных (схема)",
+    "text": "Модель данных (схема)\n\n\n\nКолонка\nТип\nОписание\n\n\n\n\nNAPR\nVARCHAR\nИМ / ЭК\n\n\nPERIOD\nDATE\nОтчётный период (YYYY-MM-DD)\n\n\nSTRANA\nVARCHAR\nISO2 код страны (CN, TR, IN)\n\n\nTNVED\nVARCHAR\nКод ТН ВЭД (8–10 знаков)\n\n\nSTOIM\nDECIMAL\nСтоимость, тыс. USD\n\n\nNETTO\nDECIMAL\nВес нетто, кг\n\n\nKOL\nDECIMAL\nКоличество в доп. единице\n\n\nEDIZM\nVARCHAR\nЕдиница измерения\n\n\nTNVED2, TNVED4, TNVED6\nVARCHAR\nАгрегированные коды"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#дополнительные-единицы-измерения-edizm",
+    "href": "lessons/lesson_01_intro.html#дополнительные-единицы-измерения-edizm",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Дополнительные единицы измерения (EDIZM)",
+    "text": "Дополнительные единицы измерения (EDIZM)\nСправочник: metadata/edizm.csv — стандартизированные единицы для колонки KOL.\n\n\n\nKOD\nNAME\n\n\n\n\n166\nКИЛОГРАММ\n\n\n168\nТОННА (1000 КГ)\n\n\n796\nШТУКА\n\n\n798\nТЫСЯЧА ШТУК\n\n\n112\nЛИТР\n\n\n130\n1000 ЛИТРОВ\n\n\n113\nКУБИЧЕСКИЙ МЕТР\n\n\n006\nМЕТР\n\n\n055\nКВАДРАТНЫЙ МЕТР\n\n\n246\n1000 КИЛОВАТТ-ЧАС\n\n\n323\nБЕККЕРЕЛЬ\n\n\n\nРоль: KOL — количество в единице EDIZM. NETTO — всегда вес в кг. Для товаров «в штуках» KOL даёт натуральный объём, для «в литрах» — объём и т.д."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#натуральные-показатели",
+    "href": "lessons/lesson_01_intro.html#натуральные-показатели",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Натуральные показатели",
+    "text": "Натуральные показатели\nПомимо стоимости (STOIM) таможенная статистика содержит физические объёмы:\n\n\n\n\n\n\n\n\nПоказатель\nЕдиница\nОписание\n\n\n\n\nNETTO\nкг\nВес нетто — есть почти у всех товаров\n\n\nKOL\nзависит от EDIZM\nКоличество в дополнительной единице (штуки, литры, м², кВт·ч…)\n\n\n\nЗачем нужны: Отделение ценовых эффектов от реальных объёмов. Рост стоимости может быть из-за роста цен или роста поставок — только натуральные показатели показывают реальные потоки."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#эффективные-цены-по-категориям",
+    "href": "lessons/lesson_01_intro.html#эффективные-цены-по-категориям",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Эффективные цены по категориям",
+    "text": "Эффективные цены по категориям\nЭффективная цена — стоимость за единицу физического объёма:\n\nДля весовых товаров (NETTO &gt; 0):\nцена за кг = STOIM / NETTO\n(STOIM в тыс. USD → результат в тыс. USD/кг)\nДля штучных/объёмных (KOL &gt; 0, EDIZM = ШТУКА и т.д.):\nцена за единицу = STOIM / KOL\n(при KOL в тыс. шт. — цена за тыс. шт.)\n\nВажно: Сравнивать цены только внутри одной товарной категории (одинаковый TNVED) и одной единицы измерения. Суммарные цены по группе: SUM(STOIM) / SUM(NETTO) или SUM(STOIM) / SUM(KOL)."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#прямые-данные-фтс",
+    "href": "lessons/lesson_01_intro.html#прямые-данные-фтс",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Прямые данные ФТС",
+    "text": "Прямые данные ФТС\nИсточник: data_raw/fts_data/ — CSV-файлы по месяцам (янв 2021 — янв 2022).\nЭто прямая статистика российской таможни до её закрытия. Идеальная точка старта для понимания структуры данных."
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#практика-2-загрузка-и-просмотр-данных-фтс",
+    "href": "lessons/lesson_01_intro.html#практика-2-загрузка-и-просмотр-данных-фтс",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Практика 2: Загрузка и просмотр данных ФТС",
+    "text": "Практика 2: Загрузка и просмотр данных ФТС\nimport pandas as pd\nfrom pathlib import Path\n\n# Путь к сводному файлу (запускать из корня проекта)\nparquet_path = Path(\"data_processed/fts_2021_2022.parquet\")\ndf = pd.read_parquet(parquet_path)\n\nprint(f\"Загружено строк: {len(df):,}\")\nprint(f\"Колонки: {df.columns.tolist()}\")\nprint(df.head(10))"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#практика-3-изучение-структуры",
+    "href": "lessons/lesson_01_intro.html#практика-3-изучение-структуры",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Практика 3: Изучение структуры",
+    "text": "Практика 3: Изучение структуры\n# Базовая информация\ndf.info()\n\n# Описательная статистика\ndf[['STOIM', 'NETTO', 'KOL']].describe()\n\n# Направления и страны\nprint(\"Направления:\", df['NAPR'].unique())\nprint(\"Страны (топ-10):\", df['STRANA'].value_counts().head(10))\nprint(\"Период:\", df['PERIOD'].min(), \"—\", df['PERIOD'].max())"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#практика-4-простые-агрегации-pandas",
+    "href": "lessons/lesson_01_intro.html#практика-4-простые-агрегации-pandas",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Практика 4: Простые агрегации (pandas)",
+    "text": "Практика 4: Простые агрегации (pandas)\nЗадание 1: Сколько записей по каждой стране?\nby_country = df.groupby('STRANA').size().sort_values(ascending=False)\nprint(by_country.head(15))\nЗадание 2: Сумма импорта по странам за весь период\nimport_by_country = df[df['NAPR'] == 'ИМ'].groupby('STRANA')['STOIM'].sum().sort_values(ascending=False)\nprint(import_by_country.head(10))"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#практика-5-топ-товарных-групп-tnved2",
+    "href": "lessons/lesson_01_intro.html#практика-5-топ-товарных-групп-tnved2",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Практика 5: Топ товарных групп (TNVED2)",
+    "text": "Практика 5: Топ товарных групп (TNVED2)\ntop_tnved2 = df.groupby('TNVED2').agg(\n    total_stoim=('STOIM', 'sum'),\n    cnt=('TNVED', 'count')\n).sort_values('total_stoim', ascending=False).head(15)\nprint(top_tnved2)"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#практика-6-единицы-измерения-и-эффективные-цены",
+    "href": "lessons/lesson_01_intro.html#практика-6-единицы-измерения-и-эффективные-цены",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Практика 6: Единицы измерения и эффективные цены",
+    "text": "Практика 6: Единицы измерения и эффективные цены\nЗадание 1: Какие единицы измерения (EDIZM) чаще всего встречаются в данных?\nprint(df['EDIZM'].value_counts().head(15))\nЗадание 2: Рассчитать среднюю эффективную цену (тыс. USD за тонну) по товарным группам TNVED2 для импорта. Использовать только строки, где NETTO &gt; 0.\nimp = df[(df['NAPR'] == 'ИМ') & (df['NETTO'] &gt; 0)]\nprice_by_tnved2 = imp.groupby('TNVED2').agg(\n    total_stoim=('STOIM', 'sum'),\n    total_netto=('NETTO', 'sum')\n)\nprice_by_tnved2['price_per_tonne'] = price_by_tnved2['total_stoim'] / (price_by_tnved2['total_netto'] / 1000)\nprint(price_by_tnved2.sort_values('total_stoim', ascending=False).head(10))\nЗадание 3: Сравнить эффективные цены импорта из Китая и Германии по группе 2710 (нефтепродукты: бензин, дизель, мазут) за 2021 год. Группа более гомогенна, чем машины.\ng2710 = df[(df['NAPR'] == 'ИМ') & (df['TNVED4'] == '2710') & (df['NETTO'] &gt; 0)\n           & (df['PERIOD'].dt.year == 2021) & (df['STRANA'].isin(['CN', 'DE']))]\nby_country = g2710.groupby('STRANA').agg(total_stoim=('STOIM', 'sum'), total_netto=('NETTO', 'sum'))\nby_country['price_per_tonne'] = by_country['total_stoim'] / (by_country['total_netto'] / 1000)\nprint(by_country)"
+  },
+  {
+    "objectID": "lessons/lesson_01_intro.html#итоги-занятия-1",
+    "href": "lessons/lesson_01_intro.html#итоги-занятия-1",
+    "title": "Занятие 1. Введение в таможенную статистику",
+    "section": "Итоги занятия 1",
+    "text": "Итоги занятия 1\n\nТаможенная статистика — данные о внешней торговле на основе таможенных деклараций\nКлассификаторы — STRANA (страны), TNVED (товары), EDIZM (единицы измерения)\nНатуральные показатели — NETTO (кг), KOL (в единицах EDIZM)\nЭффективная цена — STOIM/NETTO или STOIM/KOL для анализа цен по категориям\nПрактика — сводный датасет ФТС, агрегации, расчёт цен\n\nДомашнее задание: Изучить docs/data_model.md, docs/fts_csv_format.md. Топ-5 стран по импорту за 2021 год. Выполнить Практику 6: рассчитать эффективные цены по группе 27 (топливо) для импорта из трёх стран-партнёров.\nДополнительно: Найти в metadata/tnved.csv самый длинный текст описания товара (колонка NAME). В группах 84 или 85 описания часто занимают несколько строк — это иллюстрирует сложность таможенного администрирования.\n# Поиск самого длинного описания\ntnved = pd.read_csv(\"metadata/tnved.csv\")\ntnved[\"len_name\"] = tnved[\"NAME\"].str.len()\nlongest = tnved.loc[tnved[\"len_name\"].idxmax()]\nprint(longest[\"KOD\"], longest[\"NAME\"][:200] + \"...\")"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#план-занятия-80-мин",
+    "href": "lessons/lesson_03_duckdb.html#план-занятия-80-мин",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "План занятия (80 мин)",
+    "text": "План занятия (80 мин)\n\nВведение в DuckDB (15 мин)\nОсновы SQL (25 мин): SELECT, WHERE, GROUP BY, JOIN\nПрактические задачи (35 мин): Товарная структура, динамика, физические объёмы\nЭкспорт и итоги (5 мин)"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#что-такое-duckdb",
+    "href": "lessons/lesson_03_duckdb.html#что-такое-duckdb",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Что такое DuckDB?",
+    "text": "Что такое DuckDB?\nDuckDB — быстрая аналитическая СУБД, встроенная в приложение (embedded).\n\n\n\nОсобенность\nОписание\n\n\n\n\nТип\nIn-process, не требует сервера\n\n\nОптимизация\nДля аналитических запросов (OLAP)\n\n\nФайлы\nРабота с Parquet, CSV напрямую\n\n\nSQL\nСтандартный SQL\n\n\nСкорость\nВысокая на агрегациях и JOIN\n\n\n\nСравнение: SQLite — транзакции, малые объёмы; DuckDB — аналитика, большие данные."
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#структура-бд-проекта",
+    "href": "lessons/lesson_03_duckdb.html#структура-бд-проекта",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Структура БД проекта",
+    "text": "Структура БД проекта\nunified_trade_data.duckdb\n├── unified_trade_data      # Основная таблица\n├── country_reference      # STRANA → название страны\n├── tnved_reference        # TNVED_CODE → название товара\n├── unified_trade_data_enriched  # VIEW с JOIN справочников\n└── fizob_index (опц.)     # Физические объёмы\nРекомендация: Для аналитики с названиями используйте unified_trade_data_enriched."
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#просмотр-структуры",
+    "href": "lessons/lesson_03_duckdb.html#просмотр-структуры",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Просмотр структуры",
+    "text": "Просмотр структуры\nimport duckdb\nconn = duckdb.connect(\"db/unified_trade_data.duckdb\")\n\n# Список таблиц\ntables = conn.execute(\"SHOW TABLES\").fetchall()\nprint(\"Таблицы:\", tables)\n\n# Схема основной таблицы\nschema = conn.execute(\"DESCRIBE unified_trade_data\").df()\nprint(schema)"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#базовый-sql-select-where-group-by",
+    "href": "lessons/lesson_03_duckdb.html#базовый-sql-select-where-group-by",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Базовый SQL: SELECT, WHERE, GROUP BY",
+    "text": "Базовый SQL: SELECT, WHERE, GROUP BY\n-- Импорт по странам за 2023\nSELECT STRANA, SUM(STOIM) as total_import\nFROM unified_trade_data\nWHERE PERIOD &gt;= '2023-01-01' AND PERIOD &lt; '2024-01-01'\n  AND NAPR = 'ИМ'\nGROUP BY STRANA\nORDER BY total_import DESC\nLIMIT 10;\nКлючевые элементы: WHERE (фильтр), GROUP BY (агрегация), ORDER BY (сортировка), LIMIT (ограничение)."
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#агрегатные-функции",
+    "href": "lessons/lesson_03_duckdb.html#агрегатные-функции",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Агрегатные функции",
+    "text": "Агрегатные функции\n\n\n\nФункция\nОписание\n\n\n\n\nSUM()\nСумма\n\n\nCOUNT()\nКоличество\n\n\nAVG()\nСреднее\n\n\nMIN(), MAX()\nМинимум, максимум\n\n\nCOUNT(DISTINCT x)\nУникальные значения\n\n\n\nSELECT \n    STRANA,\n    COUNT(*) as records,\n    SUM(STOIM) as total_value,\n    AVG(NETTO) as avg_weight\nFROM unified_trade_data\nWHERE PERIOD &gt;= '2023-01-01' AND NAPR = 'ИМ'\nGROUP BY STRANA;"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#view-unified_trade_data_enriched",
+    "href": "lessons/lesson_03_duckdb.html#view-unified_trade_data_enriched",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "VIEW unified_trade_data_enriched",
+    "text": "VIEW unified_trade_data_enriched\nСодержит JOIN с справочниками — готовые названия стран и товаров.\nSELECT \n    COUNTRY_NAME,\n    TNVED2_NAME,\n    SUM(STOIM) as total_value\nFROM unified_trade_data_enriched\nWHERE PERIOD &gt;= '2023-01-01' AND NAPR = 'ИМ'\nGROUP BY COUNTRY_NAME, TNVED2_NAME\nORDER BY total_value DESC\nLIMIT 20;\nКолонки: COUNTRY_NAME, TNVED2_NAME, TNVED4_NAME, TNVED6_NAME, TNVED_NAME, period_rank."
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#работа-с-физическими-объёмами",
+    "href": "lessons/lesson_03_duckdb.html#работа-с-физическими-объёмами",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Работа с физическими объёмами",
+    "text": "Работа с физическими объёмами\nSELECT \n    STRANA,\n    SUM(STOIM) as total_value_usd,\n    SUM(NETTO) as total_weight_kg,\n    SUM(STOIM) / NULLIF(SUM(NETTO), 0) as price_per_kg\nFROM unified_trade_data\nWHERE PERIOD &gt;= '2023-01-01' AND PERIOD &lt; '2024-01-01'\n  AND NAPR = 'ИМ' AND NETTO &gt; 0\nGROUP BY STRANA\nHAVING SUM(NETTO) &gt; 1000000\nORDER BY total_value_usd DESC;\nNULLIF(a, 0) — избегает деления на ноль. HAVING — фильтр после GROUP BY."
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#практика-1-топ-товарных-групп-по-импорту",
+    "href": "lessons/lesson_03_duckdb.html#практика-1-топ-товарных-групп-по-импорту",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Практика 1: Топ товарных групп по импорту",
+    "text": "Практика 1: Топ товарных групп по импорту\nconn = duckdb.connect(\"db/unified_trade_data.duckdb\")\n\ntop_groups = conn.execute(\"\"\"\n    SELECT \n        TNVED2_NAME,\n        SUM(STOIM) as total_import,\n        COUNT(DISTINCT STRANA) as num_countries\n    FROM unified_trade_data_enriched\n    WHERE PERIOD &gt;= '2023-01-01' AND NAPR = 'ИМ'\n    GROUP BY TNVED2_NAME\n    ORDER BY total_import DESC\n    LIMIT 10\n\"\"\").df()\n\nprint(top_groups)"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#практика-2-месячная-динамика-импорта-и-экспорта",
+    "href": "lessons/lesson_03_duckdb.html#практика-2-месячная-динамика-импорта-и-экспорта",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Практика 2: Месячная динамика импорта и экспорта",
+    "text": "Практика 2: Месячная динамика импорта и экспорта\ndynamics = conn.execute(\"\"\"\n    SELECT \n        PERIOD,\n        SUM(CASE WHEN NAPR = 'ИМ' THEN STOIM ELSE 0 END) as import_value,\n        SUM(CASE WHEN NAPR = 'ЭК' THEN STOIM ELSE 0 END) as export_value\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2023-01-01'\n    GROUP BY PERIOD\n    ORDER BY PERIOD\n\"\"\").df()\n\nprint(dynamics)"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#практика-3-товары-с-наибольшим-весом",
+    "href": "lessons/lesson_03_duckdb.html#практика-3-товары-с-наибольшим-весом",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Практика 3: Товары с наибольшим весом",
+    "text": "Практика 3: Товары с наибольшим весом\nby_weight = conn.execute(\"\"\"\n    SELECT \n        TNVED4_NAME,\n        SUM(NETTO) as total_weight_kg,\n        SUM(STOIM) as total_value_usd\n    FROM unified_trade_data_enriched\n    WHERE PERIOD &gt;= '2023-01-01' AND NAPR = 'ИМ' AND NETTO &gt; 0\n    GROUP BY TNVED4_NAME\n    HAVING SUM(NETTO) &gt; 10000000\n    ORDER BY total_weight_kg DESC\n    LIMIT 10\n\"\"\").df()\n\nprint(by_weight)"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#практика-4-импорт-по-странам-с-названиями",
+    "href": "lessons/lesson_03_duckdb.html#практика-4-импорт-по-странам-с-названиями",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Практика 4: Импорт по странам с названиями",
+    "text": "Практика 4: Импорт по странам с названиями\nimport_countries = conn.execute(\"\"\"\n    SELECT \n        COUNTRY_NAME,\n        SUM(STOIM) as total_import,\n        SUM(NETTO) as total_weight\n    FROM unified_trade_data_enriched\n    WHERE PERIOD &gt;= '2023-01-01' AND NAPR = 'ИМ'\n    GROUP BY COUNTRY_NAME\n    ORDER BY total_import DESC\n    LIMIT 15\n\"\"\").df()\n\nprint(import_countries)"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#практика-5-экспорт-в-csv",
+    "href": "lessons/lesson_03_duckdb.html#практика-5-экспорт-в-csv",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Практика 5: Экспорт в CSV",
+    "text": "Практика 5: Экспорт в CSV\nresult = conn.execute(\"\"\"\n    SELECT STRANA, TNVED2, SUM(STOIM) as total\n    FROM unified_trade_data\n    WHERE PERIOD &gt;= '2023-01-01' AND NAPR = 'ИМ'\n    GROUP BY STRANA, TNVED2\n    ORDER BY total DESC\n\"\"\").df()\n\nresult.to_csv('export_analysis.csv', index=False)\nprint(f\"Экспортировано {len(result)} строк в export_analysis.csv\")"
+  },
+  {
+    "objectID": "lessons/lesson_03_duckdb.html#итоги-занятия-3",
+    "href": "lessons/lesson_03_duckdb.html#итоги-занятия-3",
+    "title": "Занятие 3. DuckDB и практическая работа с данными",
+    "section": "Итоги занятия 3",
+    "text": "Итоги занятия 3\n\nDuckDB — аналитическая СУБД, быстрые запросы, работа с файлами\nSQL: SELECT, WHERE, GROUP BY, HAVING, ORDER BY, агрегаты\nunified_trade_data_enriched — VIEW с названиями стран и товаров\nПрактика: Товарная структура, динамика, физические объёмы, экспорт\n\nДомашнее задание: Выполнить собственный аналитический запрос (например: топ-5 товарных позиций TNVED4 по экспорту в выбранную страну за 2023)."
   }
 ]
