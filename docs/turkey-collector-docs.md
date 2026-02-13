@@ -55,29 +55,20 @@
 
 ### Шаг 2: Обработка данных с `turkey_processor.py`
 
-**Важно:** Запускайте скрипт из корневой директории проекта:
-```bash
-cd F:\YandexDisk\HSE\mgimo-foreign_trade
-```
-
 1.  **Обработка данных за определенный год** Пользователь запускает скрипт указывая необходимый год.
-    ```bash
-    python src/collectors/turkey_processor.py 2025
     ```
-    Результат сохраняется в `data_processed/turkey_2025_processed.parquet`
+    % python turkey_processor.py [YEAR]
+    ```
+    Результат сохраняется в `data_processed/turkey_[YEAR]_processed.parquet`
 
 2.  **Обработка всех доступных данных** Пользователь запускает скрипт с ключом `--all` или `-a`
-    ```bash
-    python src/collectors/turkey_processor.py --all
     ```
-    или короткая форма:
-    ```bash
-    python src/collectors/turkey_processor.py -a
+    % python turkey_processor.py -a
     ```
     Результат сохраняется в `data_processed/tr_full.parquet` (объединенные данные за все годы)
 
 **Параметры:**
-- `year` (опциональный): Год данных для обработки (2005-текущий год)
+- `[YEAR]` (опциональный): Год данных для обработки (2005-текущий год)
 - `-a, --all`: Обработать все доступные годы и объединить в один файл
 
 ## 3. Требования
@@ -130,7 +121,7 @@ Downloading codes for 2025 ...
 Downloading HS2 01; Total: 26
 Downloading HS2 02; Total: 70
 Downloading HS2 03; Total: 217
-...
+[...]
 Downloading HS2 97; Total: 8263
 Downloading HS2 98; Total: 8263
 Downloading HS2 99; Total: 8265
@@ -145,7 +136,7 @@ HS8 codes were already downloaded and will be used for downloading data.
 Downloading data ...
 01012100-01064900-2025.html is ready
 01069000-02071440-2025.html is ready
-...
+[...]
 96140090-97019200-2025.html is ready
 97019900-99309900-2025.html is ready
 Raw data download completed.
@@ -172,35 +163,31 @@ Continue downloading process ...
 03028200-03034390-2025.html is ready
 03034410-03039900-2025.html is ready
 03044100-03054100-2025.html is ready
-...
+[...]
 ```
 
 ### Пример 4: Обработка данных за один год
-```bash
-# Обработать данные за 2025 год
-python src/collectors/turkey_processor.py 2025
+```
+% python turkey_processor.py 2025
 # Результат: data_processed/turkey_2025_processed.parquet
 ```
 
 ### Пример 5: Обработка всех доступных данных
-```bash
-# Обработать все доступные годы и объединить в один файл
-python src/collectors/turkey_processor.py --all
-# или
-python src/collectors/turkey_processor.py -a
+```
+% python turkey_processor.py -a
 # Результат: data_processed/tr_full.parquet
 ```
 
 ### Пример 6: Полный цикл обработки данных
-```bash
+```
 # 1. Собрать сырые данные за 2025 год
-python src/collectors/turkey_collector.py 2025
+% python turkey_collector.py -y 2025
 
 # 2. Обработать данные за 2025 год
-python src/collectors/turkey_processor.py 2025
+% python turkey_processor.py 2025
 
 # 3. Или обработать все доступные годы сразу
-python src/collectors/turkey_processor.py --all
+% python turkey_processor.py --all
 ```
 
 ## 7. Устранение проблем
@@ -209,28 +196,26 @@ python src/collectors/turkey_processor.py --all
 **Решение:** Скрипт поддерживает дозагрузку данных. Если проблема повторяется:
 - Проверьте интернет-соединение.
 - Убедитесь, что сайт доступен.
-- Попробуйте запустить снова - скрипт продолжит с того места, где остановился.
+- Попробуйте запустить снова - скрипт продолжит с того кода, данные по которому не были загружены.
 - Если проблема повторяется, возможно ведутся технические работы на сайте с данными. Попробуйте повторить загрузку позже.
 
 
 ### Проблема: Поврежденный файл с кодами
 **Решение:** Скрипт автоматически обнаружит проблему и перезагрузит коды. Или удалите файл вручную и запустите выгрузку скрипта снова.
 
-### Проблема: "folder is absent. Can't fetch raw html tables for YYYY"
+### Проблема: "folder is absent. Can't fetch raw html tables for [YEAR]"
 **Решение:** 
 - Убедитесь, что данные были собраны с помощью `turkey_collector.py`
-- Проверьте, что папка существует: `data_raw/turkey/raw_html_tables/turkey_html_data_YYYY/`
-- Если папка имеет другое имя, переименуйте её в формат `turkey_html_data_YYYY`
+- Проверьте, что папка существует: `data_raw/turkey/raw_html_tables/turkey_html_data_[YEAR]/`
+- Если папка имеет другое имя, переименуйте её в формат `turkey_html_data_[YEAR]`
 
-### Проблема: "No data available for year YYYY. Cannot proceed."
+### Проблема: "No data available for year [YEAR]. Cannot proceed."
 **Решение:**
-- Убедитесь, что в папке `data_raw/turkey/raw_html_tables/turkey_html_data_YYYY/` есть HTML файлы
-- Проверьте формат имен файлов: они должны соответствовать паттерну `XXXXXX-YYYYYY-YYYY.html`
-- Если файлы есть, но скрипт их не находит, проверьте формат имен файлов
+- Убедитесь, что в папке `data_raw/turkey/raw_html_tables/turkey_html_data_[YEAR]/` есть HTML файлы
+- Проверьте формат имен файлов: они должны соответствовать паттерну `XXXXXX-YYYYYY-[YEAR].html`
 
 ### Проблема: Файл `tr_full.parquet` не найден в `data_processed/`
 **Решение:**
 - Убедитесь, что вы запустили скрипт с флагом `--all`: `python src/collectors/turkey_processor.py --all`
 - Проверьте, что скрипт завершился успешно без ошибок
 - Файл создается только при успешной обработке всех доступных годов
-
