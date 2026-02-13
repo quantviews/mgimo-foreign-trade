@@ -12,7 +12,7 @@ hs_codes_json/
 *.duckdb
 *.db
 *.csv
-.bat 
+.bat
 .Rproj
 
 *_files/
@@ -98,3 +98,4 @@ logs/
 .env
 .env.local
 .env.*.local
+/.quarto/

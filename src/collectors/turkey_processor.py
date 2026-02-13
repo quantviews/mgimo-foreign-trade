@@ -289,88 +289,124 @@ def build_for_year(year):
     год и возвращает результирующий датасет за определенный год.
 
     :param year:
-    :return:
+    :return: pd.DataFrame или None если данных нет
     """
-
-    html_files_path = Path.cwd() / "raw_html_tables" / str(year)
+    # Определяем путь относительно расположения скрипта
+    script_dir = Path(__file__).resolve().parent.parent.parent
+    html_files_path = script_dir / "data_raw" / "turkey" / "raw_html_tables" / f"turkey_html_data_{year}"
 
     if not html_files_path.is_dir():
         print(
             f"{html_files_path} folder is absent. Can't fetch raw html tables for {year}."
         )
+        return None
+    
+    pattern = re.compile(r"\d{2,10}-\d{2,10}-20\d{2}\.html")
+    html_files = [
+        f
+        for f in html_files_path.iterdir()
+        if f.is_file() and pattern.match(f.name)
+    ]
+    html_files.sort()
+    
+    if not html_files:
+        print(f"There are no required files for {year}.")
+        return None
+    
+    dfs = []
+    for index, f in enumerate(html_files):
+        print(f"{index + 1}/{len(html_files)} Working with: {f.name}")
+        df = load_df(f, year)
+        if not df.empty:
+            dfs.append(df)
+
+    if dfs:
+        final_df = pd.concat(dfs, axis=0, ignore_index=True)
+
+        # Сбросить пустые строки
+        final_df = final_df.dropna(subset=[final_df.columns[3]]).reset_index(
+            drop=True
+        )
+
+        return final_df
     else:
-        pattern = re.compile(r"\d{2,10}-\d{2,10}-20\d{2}\.html")
-        html_files = [
-            f
-            for f in html_files_path.iterdir()
-            if f.is_file() and pattern.match(f.name)
-        ]
-        html_files.sort()
-        if not html_files:
-            print(f"There are no required files for {year}.")
-        else:
-            dfs = []
-            for index, f in enumerate(html_files):
-                print(f"{index + 1}/{len(html_files)} Working with: {f.name}")
-                df = load_df(f, year)
-                if not df.empty:
-                    dfs.append(df)
-
-        if dfs:
-            final_df = pd.concat(dfs, axis=0, ignore_index=True)
-
-            # Сбросить пустые строки
-            final_df = final_df.dropna(subset=[final_df.columns[3]]).reset_index(
-                drop=True
-            )
-
-            return final_df
-
-        else:
-            print(f"No data to process for {year}")
+        print(f"No data to process for {year}")
+        return None
 
 
 def main():
     args = parse_arguments()
 
+    # Определяем путь относительно расположения скрипта для сохранения файлов
+    script_dir = Path(__file__).resolve().parent.parent.parent
+    
     if args.all:
 
-        pattern = re.compile(r"20\d{2}")
+        pattern = re.compile(r"turkey_html_data_(20\d{2})")
 
         # Находим все папки с данными по годам
-        working_dir = Path.cwd() / "raw_html_tables"
-        years = sorted(
-            [
-                p.name
-                for p in working_dir.iterdir()
-                if p.is_dir() and pattern.fullmatch(p.name)
-            ]
-        )
+        working_dir = script_dir / "data_raw" / "turkey" / "raw_html_tables"
+        
+        if not working_dir.is_dir():
+            print(f"Directory {working_dir} does not exist.")
+            return
+        
+        # Извлекаем годы из имен папок вида turkey_html_data_YYYY
+        years = []
+        for p in working_dir.iterdir():
+            if p.is_dir():
+                match = pattern.match(p.name)
+                if match:
+                    years.append(match.group(1))
+        years = sorted(years)
 
         if years:
             dfs = []
             for year in years:
                 print(f"\n{'=' * 30}\n Processing {year}")
                 df = build_for_year(year)
-                df = harmonize_df(df, year)
-                dfs.append(df)
+                if df is not None and not df.empty:
+                    df = harmonize_df(df, year)
+                    dfs.append(df)
+                else:
+                    print(f"Skipping {year}: no data available")
 
-            full_df = pd.concat(dfs, axis=0, ignore_index=True)
-            full_df.to_parquet("tr_full.parquet")
-            print(
-                'Data consolidation and harmonization completed. \nFile "tr_full.parquet" was saved.'
-            )
+            if dfs:
+                full_df = pd.concat(dfs, axis=0, ignore_index=True)
+                # Создаем директорию data_processed если её нет
+                output_dir = script_dir / "data_processed"
+                output_dir.mkdir(exist_ok=True)
+                output_path = output_dir / "tr_full.parquet"
+                full_df.to_parquet(output_path)
+                print(
+                    f'Data consolidation and harmonization completed. \nFile "{output_path}" was saved.'
+                )
+            else:
+                print("No data to process for any year.")
 
         else:
             print("No folders with data.")
 
     elif args.year:
         df = build_for_year(args.year)
+        
+        if df is None or df.empty:
+            print(f"No data available for year {args.year}. Cannot proceed.")
+            return
+        
         df = harmonize_df(df, args.year)
+        
+        if df is None or df.empty:
+            print(f"Failed to harmonize data for year {args.year}.")
+            return
 
-        df.to_parquet(f"turkey_{args.year}_processed.parquet")
+        # Создаем директорию data_processed если её нет
+        output_dir = script_dir / "data_processed"
+        output_dir.mkdir(exist_ok=True)
+        output_path = output_dir / f"turkey_{args.year}_processed.parquet"
+        df.to_parquet(output_path)
         print(
-            f'Data consolidation and harmonization completed. \nFile "turkey_{args.year}_processed.parquet" was saved.'
+            f'Data consolidation and harmonization completed. \nFile "{output_path}" was saved.'
         )
     else:
         print(

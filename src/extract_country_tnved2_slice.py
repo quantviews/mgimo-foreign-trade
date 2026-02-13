@@ -83,7 +83,7 @@ def load_turkey_original_names(turkey_codes_dir: Path) -> Dict[str, str]:
 def extract_slice(
     db_path: Path,
     output_dir: Path,
-    country: Optional[str] = None,
+    countries: Optional[list] = None,
     tnved2: Optional[str] = None,
     tnved4: Optional[str] = None,
     year: Optional[int] = None,
@@ -96,7 +96,7 @@ def extract_slice(
     Args:
         db_path: Path to unified_trade_data.duckdb
         output_dir: Directory to save output files
-        country: ISO2 country code to filter (if None, extracts for all countries)
+        countries: List of ISO2 country codes to filter (if None or empty, extracts for all countries)
         tnved2: 2-digit TNVED code to filter (if None, extracts for all codes)
         tnved4: 4-digit TNVED code to filter (if specified, overrides tnved2)
         year: Year to filter (if None, extracts for all years)
@@ -117,9 +117,17 @@ def extract_slice(
         query = "SELECT * FROM unified_trade_data_enriched WHERE 1=1"
         params = []
         
-        if country:
-            query += " AND STRANA = ?"
-            params.append(country.upper())
+        if countries and len(countries) > 0:
+            # Normalize country codes to uppercase
+            countries_upper = [c.upper() for c in countries]
+            if len(countries_upper) == 1:
+                query += " AND STRANA = ?"
+                params.append(countries_upper[0])
+            else:
+                # Use IN clause for multiple countries
+                placeholders = ', '.join(['?' for _ in countries_upper])
+                query += f" AND STRANA IN ({placeholders})"
+                params.extend(countries_upper)
         
         # If tnved4 is specified, use it (and derive tnved2 from it)
         if tnved4:
@@ -153,8 +161,9 @@ def extract_slice(
         df = pl.from_pandas(df_pandas)
         logger.info(f"Retrieved {len(df):,} rows")
         
-        # Add original Turkey names if country is TR
-        if country and country.upper() == 'TR' and project_root:
+        # Add original Turkey names if TR is in the countries list
+        countries_list = countries if countries else []
+        if 'TR' in [c.upper() for c in countries_list] and project_root:
             turkey_codes_dir = project_root / 'data_raw' / 'turkey' / 'hs_codes_json'
             turkey_names = load_turkey_original_names(turkey_codes_dir)
             
@@ -180,14 +189,19 @@ def extract_slice(
         # Determine output filename and extension
         file_ext = '.xlsx' if output_format.lower() == 'excel' else '.csv'
         
-        if country and (tnved4 or tnved2):
-            # Single slice: country and code specified
+        # Check if we have a single country and code combination
+        has_countries = countries and len(countries) > 0
+        has_code = tnved4 or tnved2
+        
+        if has_countries and len(countries) == 1 and has_code:
+            # Single slice: one country and code specified
+            country = countries[0].upper()
             if tnved4:
                 code_part = f"TNVED4_{tnved4.zfill(4)}"
             else:
                 code_part = f"TNVED2_{tnved2.zfill(2)}"
             year_part = f"_from_{year}" if year else ""
-            filename = f"{country.upper()}_{code_part}{year_part}{file_ext}"
+            filename = f"{country}_{code_part}{year_part}{file_ext}"
             output_path = output_dir / filename
             
             # Save based on format
@@ -196,13 +210,30 @@ def extract_slice(
             else:
                 df.write_csv(output_path)
             logger.info(f"Saved to {output_path}")
+        elif has_countries and len(countries) > 1 and has_code:
+            # Multiple countries, single code: create separate file for each country
+            for country_val in sorted(df['STRANA'].unique().to_list()):
+                df_slice = df.filter(pl.col('STRANA') == country_val)
+                if tnved4:
+                    code_part = f"TNVED4_{tnved4.zfill(4)}"
+                else:
+                    code_part = f"TNVED2_{tnved2.zfill(2)}"
+                year_part = f"_from_{year}" if year else ""
+                filename = f"{country_val}_{code_part}{year_part}{file_ext}"
+                output_path = output_dir / filename
+                if output_format.lower() == 'excel':
+                    df_slice.write_excel(output_path)
+                else:
+                    df_slice.write_csv(output_path)
+                logger.info(f"Saved {len(df_slice):,} rows to {output_path}")
         else:
             # Multiple slices: group by country and/or TNVED2
-            if country:
-                # Group by TNVED2 only
+            if has_countries and len(countries) == 1:
+                # Single country: group by TNVED2 only
+                country = countries[0].upper()
                 for tnved2_val in sorted(df['TNVED2'].unique().to_list()):
                     df_slice = df.filter(pl.col('TNVED2') == tnved2_val)
-                    filename = f"{country.upper()}_TNVED2_{tnved2_val}{file_ext}"
+                    filename = f"{country}_TNVED2_{tnved2_val}{file_ext}"
                     output_path = output_dir / filename
                     if output_format.lower() == 'excel':
                         df_slice.write_excel(output_path)
@@ -250,8 +281,9 @@ def main():
     parser.add_argument(
         '--country',
         type=str,
+        nargs='+',
         default=None,
-        help="ISO2 country code to filter (e.g., CN, IN, TR). If not specified, extracts for all countries."
+        help="ISO2 country code(s) to filter (e.g., CN, or CN IN TR). Can specify multiple countries. If not specified, extracts for all countries."
     )
     parser.add_argument(
         '--tnved2',
@@ -302,7 +334,10 @@ def main():
     logger.info(f"Database: {db_path}")
     logger.info(f"Output directory: {output_dir}")
     if args.country:
-        logger.info(f"Country filter: {args.country}")
+        if len(args.country) == 1:
+            logger.info(f"Country filter: {args.country[0]}")
+        else:
+            logger.info(f"Country filter: {', '.join(args.country)} ({len(args.country)} countries)")
     if args.tnved4:
         logger.info(f"TNVED4 filter: {args.tnved4}")
     elif args.tnved2:
@@ -314,7 +349,7 @@ def main():
     extract_slice(
         db_path=db_path,
         output_dir=output_dir,
-        country=args.country,
+        countries=args.country,
         tnved2=args.tnved2,
         tnved4=args.tnved4,
         year=args.year,

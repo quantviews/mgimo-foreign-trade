@@ -1,0 +1,225 @@
+---
+title: "Занятие 4. Superset дашборд и визуализация"
+subtitle: "Работа с интерактивным дашбордом"
+format:
+  revealjs:
+    theme: default
+    fontsize: 18px
+    slide-number: true
+---
+
+## План занятия (80 мин)
+
+1. **Введение в Superset** (20 мин)
+2. **Структура дашборда** (25 мин)
+3. **Практика: Superset** (20 мин) — *доступ к инстансу будет предоставлен*
+4. **Практика: Python + визуализация** (10 мин)
+5. **Итоги курса** (5 мин)
+
+---
+
+## Что такое Apache Superset?
+
+**Superset** — open-source платформа для визуализации данных и бизнес-аналитики.
+
+| Возможность | Описание |
+|-------------|----------|
+| **Подключение к БД** | PostgreSQL, DuckDB, MySQL и др. |
+| **Дашборды** | Интерактивные панели с чартами |
+| **Типы визуализаций** | Графики, таблицы, карты, KPI |
+| **SQL Lab** | Выполнение SQL-запросов |
+| **Фильтры** | Динамическая фильтрация данных |
+
+---
+
+## Архитектура в проекте
+
+```
+Superset Instance
+       │
+       ├── Database: DuckDB (unified_trade_data.duckdb)
+       │
+       ├── Datasets: unified_trade_data_enriched, unified_trade_data
+       │
+       ├── Charts: Time Series, Bar, Table, Pie...
+       │
+       └── Dashboard: «Национальная торговая статистика»
+```
+
+**Примечание:** Вам будет предоставлен доступ к отдельному инстансу Superset с подключённой базой данных.
+
+---
+
+## Основные элементы дашборда
+
+- **Общая статистика** — сумма по импорту/экспорту
+- **Динамика по месяцам** — временные ряды
+- **Топ стран-партнёров** — столбчатые диаграммы
+- **Товарная структура** — по TNVED2, TNVED4
+- **Фильтры** — период, страна, товарная группа
+
+---
+
+## Типы визуализаций
+
+| Тип | Назначение |
+|-----|------------|
+| **Time Series** | Динамика импорта/экспорта по месяцам |
+| **Bar Chart** | Топ стран, топ товарных групп |
+| **Table** | Детализированные данные, экспорт |
+| **Pie Chart** | Доля стран/товаров в общем объёме |
+| **Big Number** | Ключевые KPI |
+
+---
+
+## SQL Lab в Superset
+
+**SQL Lab** — встроенный редактор для выполнения SQL-запросов.
+
+```sql
+SELECT 
+    PERIOD,
+    STRANA,
+    SUM(STOIM) as total
+FROM unified_trade_data
+WHERE PERIOD >= '2023-01-01'
+GROUP BY PERIOD, STRANA
+ORDER BY PERIOD DESC, total DESC
+LIMIT 100;
+```
+
+**Возможности:** Выполнить запрос → создать Chart из результата → добавить на Dashboard.
+
+---
+
+## Создание чарта: пошагово
+
+1. **Data** → выбрать Dataset (unified_trade_data_enriched)
+2. **Chart type** → Bar Chart / Time Series / Table
+3. **Metrics** → SUM(STOIM), COUNT(*) и т.д.
+4. **Dimensions** → STRANA, TNVED2, PERIOD
+5. **Filters** → PERIOD, NAPR, STRANA
+6. **Save** → сохранить чарт
+
+---
+
+## Практика 1: Навигация по дашборду
+
+**Задание (в Superset):**
+
+1. Открыть дашборд «Национальная торговая статистика»
+2. Применить фильтр по периоду: 2023–2024
+3. Выбрать страну: Китай (CN)
+4. Найти данные по импорту за последний доступный месяц
+5. Экспортировать таблицу в CSV (если доступно)
+
+---
+
+## Практика 2: SQL Lab — простой запрос
+
+**Задание (в Superset SQL Lab):**
+
+Выполнить запрос и проверить результат:
+
+```sql
+SELECT 
+    STRANA,
+    SUM(STOIM) as total_import
+FROM unified_trade_data
+WHERE PERIOD >= '2023-01-01' AND NAPR = 'ИМ'
+GROUP BY STRANA
+ORDER BY total_import DESC
+LIMIT 10;
+```
+
+Создать из результата простой Bar Chart (если интерфейс позволяет).
+
+---
+
+## Практика 3: Python — визуализация для отчёта
+
+Если Superset недоступен во время занятия, используйте Python:
+
+```python
+import duckdb
+import matplotlib.pyplot as plt
+
+conn = duckdb.connect("db/unified_trade_data.duckdb")
+df = conn.execute("""
+    SELECT PERIOD, SUM(STOIM) as total
+    FROM unified_trade_data
+    WHERE PERIOD >= '2022-01-01' AND NAPR = 'ИМ'
+    GROUP BY PERIOD
+    ORDER BY PERIOD
+""").df()
+
+plt.figure(figsize=(10, 5))
+plt.plot(df['PERIOD'], df['total'])
+plt.title('Динамика импорта (тыс. USD)')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.savefig('import_dynamics.png')
+plt.show()
+```
+
+---
+
+## Практика 4: Сводная таблица в Python
+
+```python
+import pandas as pd
+
+# Импорт по странам и TNVED2 за 2023
+pivot = conn.execute("""
+    SELECT STRANA, TNVED2, SUM(STOIM) as total
+    FROM unified_trade_data
+    WHERE PERIOD >= '2023-01-01' AND PERIOD < '2024-01-01'
+      AND NAPR = 'ИМ' AND TNVED2 IN ('27', '84', '85', '87')
+    GROUP BY STRANA, TNVED2
+""").df()
+
+# Pivot для удобства
+pivot_wide = pivot.pivot(index='TNVED2', columns='STRANA', values='total')
+print(pivot_wide)
+```
+
+---
+
+## Подключение DuckDB к Superset
+
+**Connection string (для администратора):**
+```
+duckdb:///path/to/db/unified_trade_data.duckdb
+```
+
+Или через SQLAlchemy:
+```
+duckdb:///db/unified_trade_data.duckdb
+```
+
+**Рекомендуемый Dataset:** `unified_trade_data_enriched` — уже содержит названия стран и товаров.
+
+---
+
+## Итоги занятия 4 и курса
+
+**Занятие 4:**
+- Superset — платформа для визуализации
+- SQL Lab, создание чартов, дашборды
+- Доступ к инстансу будет предоставлен отдельно
+
+**Весь курс:**
+1. Таможенная статистика, ТН ВЭД, зеркальная статистика
+2. Старая vs новая статистика (до/после 2022)
+3. DuckDB, SQL, аналитические запросы
+4. Superset, визуализация, дашборды
+
+---
+
+## Практическое применение
+
+- **Аналитики:** Оценка рынков, мониторинг потоков, отчёты
+- **Бизнес:** Поиск ниш, анализ конкурентов, планирование
+- **Исследователи:** Эмпирические работы, датасеты для моделей
+
+**Дальнейшее изучение:** docs/, sql/, data_analytics/

@@ -275,7 +275,7 @@ fo_tot <-
   mutate(fo_unit = if_else(fo_constr == 'netto', netto_12, kol_12),
          fo_unit_bp = if_else(fo_constr == 'netto', NETTO_bp, KOL_bp)
   ) %>%
-  # Группировка не включает TNVED
+  # Группировка не включает TNVED — агрегат по всем кодам
   group_by(STRANA, NAPR, PERIOD) %>%
   reframe(fizob = sum(fo_unit),
           bp = min(first_year_entry)
@@ -283,7 +283,8 @@ fo_tot <-
   mutate(fizob_bp = mean(fizob[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
          .by = c(STRANA, NAPR)
   ) %>%
-  mutate(fizob = fizob / fizob_bp)
+  mutate(fizob = fizob / fizob_bp,
+         TNVED2 = 0L)  # маркер агрегата по всем кодам для fizob_index
 
 ###################
 # Таблицы # ALL ###

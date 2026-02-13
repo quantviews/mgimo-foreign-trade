@@ -1,0 +1,7 @@
+project:
+  type: website
+  output-dir: .
+
+format:
+  revealjs:
+    theme: default

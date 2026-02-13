@@ -51,7 +51,7 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
     # prefs = {"download.default_directory": str(download_dir)}
     # options.add_experimental_option("prefs", prefs)
 
-    driver = uc.Chrome(options=options)
+    driver = uc.Chrome(options=options, version_main=144)
     # Evade detection
     # driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 

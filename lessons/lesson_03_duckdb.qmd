@@ -1,0 +1,254 @@
+---
+title: "Занятие 3. DuckDB и практическая работа с данными"
+subtitle: "SQL-запросы и аналитика"
+format:
+  revealjs:
+    theme: default
+    fontsize: 18px
+    slide-number: true
+---
+
+## План занятия (80 мин)
+
+1. **Введение в DuckDB** (15 мин)
+2. **Основы SQL** (25 мин): SELECT, WHERE, GROUP BY, JOIN
+3. **Практические задачи** (35 мин): Товарная структура, динамика, физические объёмы
+4. **Экспорт и итоги** (5 мин)
+
+---
+
+## Что такое DuckDB?
+
+**DuckDB** — быстрая аналитическая СУБД, встроенная в приложение (embedded).
+
+| Особенность | Описание |
+|-------------|----------|
+| **Тип** | In-process, не требует сервера |
+| **Оптимизация** | Для аналитических запросов (OLAP) |
+| **Файлы** | Работа с Parquet, CSV напрямую |
+| **SQL** | Стандартный SQL |
+| **Скорость** | Высокая на агрегациях и JOIN |
+
+**Сравнение:** SQLite — транзакции, малые объёмы; DuckDB — аналитика, большие данные.
+
+---
+
+## Структура БД проекта
+
+```
+unified_trade_data.duckdb
+├── unified_trade_data      # Основная таблица
+├── country_reference      # STRANA → название страны
+├── tnved_reference        # TNVED_CODE → название товара
+├── unified_trade_data_enriched  # VIEW с JOIN справочников
+└── fizob_index (опц.)     # Физические объёмы
+```
+
+**Рекомендация:** Для аналитики с названиями используйте `unified_trade_data_enriched`.
+
+---
+
+## Просмотр структуры
+
+```python
+import duckdb
+conn = duckdb.connect("db/unified_trade_data.duckdb")
+
+# Список таблиц
+tables = conn.execute("SHOW TABLES").fetchall()
+print("Таблицы:", tables)
+
+# Схема основной таблицы
+schema = conn.execute("DESCRIBE unified_trade_data").df()
+print(schema)
+```
+
+---
+
+## Базовый SQL: SELECT, WHERE, GROUP BY
+
+```sql
+-- Импорт по странам за 2023
+SELECT STRANA, SUM(STOIM) as total_import
+FROM unified_trade_data
+WHERE PERIOD >= '2023-01-01' AND PERIOD < '2024-01-01'
+  AND NAPR = 'ИМ'
+GROUP BY STRANA
+ORDER BY total_import DESC
+LIMIT 10;
+```
+
+**Ключевые элементы:** WHERE (фильтр), GROUP BY (агрегация), ORDER BY (сортировка), LIMIT (ограничение).
+
+---
+
+## Агрегатные функции
+
+| Функция | Описание |
+|---------|----------|
+| SUM() | Сумма |
+| COUNT() | Количество |
+| AVG() | Среднее |
+| MIN(), MAX() | Минимум, максимум |
+| COUNT(DISTINCT x) | Уникальные значения |
+
+```sql
+SELECT 
+    STRANA,
+    COUNT(*) as records,
+    SUM(STOIM) as total_value,
+    AVG(NETTO) as avg_weight
+FROM unified_trade_data
+WHERE PERIOD >= '2023-01-01' AND NAPR = 'ИМ'
+GROUP BY STRANA;
+```
+
+---
+
+## VIEW unified_trade_data_enriched
+
+Содержит JOIN с справочниками — готовые названия стран и товаров.
+
+```sql
+SELECT 
+    COUNTRY_NAME,
+    TNVED2_NAME,
+    SUM(STOIM) as total_value
+FROM unified_trade_data_enriched
+WHERE PERIOD >= '2023-01-01' AND NAPR = 'ИМ'
+GROUP BY COUNTRY_NAME, TNVED2_NAME
+ORDER BY total_value DESC
+LIMIT 20;
+```
+
+**Колонки:** COUNTRY_NAME, TNVED2_NAME, TNVED4_NAME, TNVED6_NAME, TNVED_NAME, period_rank.
+
+---
+
+## Работа с физическими объёмами
+
+```sql
+SELECT 
+    STRANA,
+    SUM(STOIM) as total_value_usd,
+    SUM(NETTO) as total_weight_kg,
+    SUM(STOIM) / NULLIF(SUM(NETTO), 0) as price_per_kg
+FROM unified_trade_data
+WHERE PERIOD >= '2023-01-01' AND PERIOD < '2024-01-01'
+  AND NAPR = 'ИМ' AND NETTO > 0
+GROUP BY STRANA
+HAVING SUM(NETTO) > 1000000
+ORDER BY total_value_usd DESC;
+```
+
+**NULLIF(a, 0)** — избегает деления на ноль. **HAVING** — фильтр после GROUP BY.
+
+---
+
+## Практика 1: Топ товарных групп по импорту
+
+```python
+conn = duckdb.connect("db/unified_trade_data.duckdb")
+
+top_groups = conn.execute("""
+    SELECT 
+        TNVED2_NAME,
+        SUM(STOIM) as total_import,
+        COUNT(DISTINCT STRANA) as num_countries
+    FROM unified_trade_data_enriched
+    WHERE PERIOD >= '2023-01-01' AND NAPR = 'ИМ'
+    GROUP BY TNVED2_NAME
+    ORDER BY total_import DESC
+    LIMIT 10
+""").df()
+
+print(top_groups)
+```
+
+---
+
+## Практика 2: Месячная динамика импорта и экспорта
+
+```python
+dynamics = conn.execute("""
+    SELECT 
+        PERIOD,
+        SUM(CASE WHEN NAPR = 'ИМ' THEN STOIM ELSE 0 END) as import_value,
+        SUM(CASE WHEN NAPR = 'ЭК' THEN STOIM ELSE 0 END) as export_value
+    FROM unified_trade_data
+    WHERE PERIOD >= '2023-01-01'
+    GROUP BY PERIOD
+    ORDER BY PERIOD
+""").df()
+
+print(dynamics)
+```
+
+---
+
+## Практика 3: Товары с наибольшим весом
+
+```python
+by_weight = conn.execute("""
+    SELECT 
+        TNVED4_NAME,
+        SUM(NETTO) as total_weight_kg,
+        SUM(STOIM) as total_value_usd
+    FROM unified_trade_data_enriched
+    WHERE PERIOD >= '2023-01-01' AND NAPR = 'ИМ' AND NETTO > 0
+    GROUP BY TNVED4_NAME
+    HAVING SUM(NETTO) > 10000000
+    ORDER BY total_weight_kg DESC
+    LIMIT 10
+""").df()
+
+print(by_weight)
+```
+
+---
+
+## Практика 4: Импорт по странам с названиями
+
+```python
+import_countries = conn.execute("""
+    SELECT 
+        COUNTRY_NAME,
+        SUM(STOIM) as total_import,
+        SUM(NETTO) as total_weight
+    FROM unified_trade_data_enriched
+    WHERE PERIOD >= '2023-01-01' AND NAPR = 'ИМ'
+    GROUP BY COUNTRY_NAME
+    ORDER BY total_import DESC
+    LIMIT 15
+""").df()
+
+print(import_countries)
+```
+
+---
+
+## Практика 5: Экспорт в CSV
+
+```python
+result = conn.execute("""
+    SELECT STRANA, TNVED2, SUM(STOIM) as total
+    FROM unified_trade_data
+    WHERE PERIOD >= '2023-01-01' AND NAPR = 'ИМ'
+    GROUP BY STRANA, TNVED2
+    ORDER BY total DESC
+""").df()
+
+result.to_csv('export_analysis.csv', index=False)
+print(f"Экспортировано {len(result)} строк в export_analysis.csv")
+```
+
+---
+
+## Итоги занятия 3
+
+- **DuckDB** — аналитическая СУБД, быстрые запросы, работа с файлами
+- **SQL:** SELECT, WHERE, GROUP BY, HAVING, ORDER BY, агрегаты
+- **unified_trade_data_enriched** — VIEW с названиями стран и товаров
+- **Практика:** Товарная структура, динамика, физические объёмы, экспорт
+
+**Домашнее задание:** Выполнить собственный аналитический запрос (например: топ-5 товарных позиций TNVED4 по экспорту в выбранную страну за 2023).

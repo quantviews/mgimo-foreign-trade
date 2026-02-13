@@ -1,0 +1,247 @@
+---
+title: "Занятие 2. Старая и новая статистика"
+subtitle: "Данные до и после января 2022"
+format:
+  revealjs:
+    theme: default
+    fontsize: 18px
+    slide-number: true
+---
+
+## План занятия (80 мин)
+
+1. **Теория** (20 мин): Исторический контекст, различия источников
+2. **Практика: старая статистика** (25 мин): Данные до 2022
+3. **Практика: новая статистика** (30 мин): Данные после 2022, сравнение
+4. **Итоги** (5 мин)
+
+---
+
+## Исторический контекст
+
+::: columns
+::: {.column width="50%"}
+
+### До января 2022
+
+- **Официальная статистика ФТС**
+- Прямые данные российской таможни
+- Высокая детализация (10 знаков ТН ВЭД)
+- Публикация через официальные каналы
+- Данные по всем странам-партнёрам
+
+:::
+::: {.column width="50%"}
+
+### После января 2022
+
+- **Официальная статистика недоступна**
+- Зеркальная статистика стран-партнёров
+- UN Comtrade как доп. источник
+- Ограниченное покрытие (Китай, Индия, Турция + Comtrade)
+- Задержка публикации в Comtrade (6–12 мес.)
+
+:::
+:::
+
+---
+
+## Источники данных в проекте
+
+| Источник | Тип | Период | Детализация |
+|----------|-----|--------|-------------|
+| **National** (CN, IN, TR) | Зеркальная | 2005–2025 | 8–10 знаков, физические объёмы |
+| **Comtrade** | Зеркальная | По годам | HS6, только страны без national |
+| **ФТС** (архив) | Прямая | До 2022 | В архитектуре, не в текущей БД |
+
+**Колонка SOURCE:** `national` или `comtrade` — откуда пришла запись.
+
+---
+
+## UN Comtrade
+
+- **Что:** База ООН по международной торговле
+- **Как работает:** Страны отчитываются о своей торговле; ООН агрегирует
+- **Зеркальность:** Экспорт Китая в РФ = импорт РФ из Китая (с точки зрения РФ)
+- **Ограничения:** Задержка до 6–12 мес., уровень HS6, не все страны отчитываются вовремя
+
+---
+
+## Практика 1: Подключение и данные до 2022
+
+```python
+import duckdb
+from pathlib import Path
+
+db_path = Path("db/unified_trade_data.duckdb")
+conn = duckdb.connect(str(db_path))
+
+# Данные до января 2022
+df_old = conn.execute("""
+    SELECT * FROM unified_trade_data 
+    WHERE PERIOD < '2022-01-01'
+    LIMIT 5000
+""").df()
+
+print(f"Строк: {len(df_old)}")
+print(f"Период: {df_old['PERIOD'].min()} — {df_old['PERIOD'].max()}")
+print(f"Страны: {df_old['STRANA'].unique()}")
+if 'SOURCE' in df_old.columns:
+    print(df_old['SOURCE'].value_counts())
+```
+
+---
+
+## Практика 2: Топ-10 стран по импорту в 2021
+
+```python
+top_import_2021 = conn.execute("""
+    SELECT STRANA, SUM(STOIM) as total_import
+    FROM unified_trade_data
+    WHERE PERIOD >= '2021-01-01' AND PERIOD < '2022-01-01'
+      AND NAPR = 'ИМ'
+    GROUP BY STRANA
+    ORDER BY total_import DESC
+    LIMIT 10
+""").df()
+
+print("Топ-10 стран по импорту в 2021 (тыс. USD):")
+print(top_import_2021)
+```
+
+---
+
+## Практика 3: Динамика экспорта по месяцам 2021
+
+```python
+export_dynamics = conn.execute("""
+    SELECT PERIOD, SUM(STOIM) as total_export
+    FROM unified_trade_data
+    WHERE PERIOD >= '2021-01-01' AND PERIOD < '2022-01-01'
+      AND NAPR = 'ЭК'
+    GROUP BY PERIOD
+    ORDER BY PERIOD
+""").df()
+
+print(export_dynamics)
+# Визуализация (опционально):
+# import matplotlib.pyplot as plt
+# export_dynamics.plot(x='PERIOD', y='total_export', kind='line')
+```
+
+---
+
+## Практика 4: Данные после января 2022
+
+```python
+df_new = conn.execute("""
+    SELECT * FROM unified_trade_data 
+    WHERE PERIOD >= '2022-01-01'
+    LIMIT 5000
+""").df()
+
+print(f"Строк: {len(df_new)}")
+print(f"Период: {df_new['PERIOD'].min()} — {df_new['PERIOD'].max()}")
+if 'SOURCE' in df_new.columns:
+    print("\nПо источникам:")
+    print(df_new['SOURCE'].value_counts())
+```
+
+---
+
+## Практика 5: Сравнение топ-5 стран до и после 2022
+
+```python
+before_2022 = conn.execute("""
+    SELECT STRANA, SUM(STOIM) as total
+    FROM unified_trade_data
+    WHERE PERIOD >= '2021-01-01' AND PERIOD < '2022-01-01'
+      AND NAPR = 'ИМ'
+    GROUP BY STRANA
+    ORDER BY total DESC
+    LIMIT 5
+""").df()
+
+after_2022 = conn.execute("""
+    SELECT STRANA, SUM(STOIM) as total
+    FROM unified_trade_data
+    WHERE PERIOD >= '2022-01-01' AND NAPR = 'ИМ'
+    GROUP BY STRANA
+    ORDER BY total DESC
+    LIMIT 5
+""").df()
+
+print("Топ-5 по импорту 2021:", before_2022['STRANA'].tolist())
+print("Топ-5 по импорту 2022+:", after_2022['STRANA'].tolist())
+```
+
+---
+
+## Практика 6: Визуализация динамики
+
+```python
+import matplotlib.pyplot as plt
+
+# Месячная динамика импорта и экспорта 2021–2024
+dynamics = conn.execute("""
+    SELECT 
+        PERIOD,
+        SUM(CASE WHEN NAPR = 'ИМ' THEN STOIM ELSE 0 END) as import_val,
+        SUM(CASE WHEN NAPR = 'ЭК' THEN STOIM ELSE 0 END) as export_val
+    FROM unified_trade_data
+    WHERE PERIOD >= '2021-01-01'
+    GROUP BY PERIOD
+    ORDER BY PERIOD
+""").df()
+
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.plot(dynamics['PERIOD'], dynamics['import_val'], label='Импорт')
+ax.plot(dynamics['PERIOD'], dynamics['export_val'], label='Экспорт')
+ax.legend()
+ax.set_title('Динамика импорта и экспорта (тыс. USD)')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## Практика 7: Сравнение по товарным группам
+
+**Задание:** Сравнить структуру импорта по TNVED2 в 2021 и 2023.
+
+```python
+import_2021 = conn.execute("""
+    SELECT TNVED2, SUM(STOIM) as total
+    FROM unified_trade_data
+    WHERE PERIOD >= '2021-01-01' AND PERIOD < '2022-01-01'
+      AND NAPR = 'ИМ' AND TNVED2 IS NOT NULL
+    GROUP BY TNVED2
+    ORDER BY total DESC
+    LIMIT 10
+""").df()
+
+import_2023 = conn.execute("""
+    SELECT TNVED2, SUM(STOIM) as total
+    FROM unified_trade_data
+    WHERE PERIOD >= '2023-01-01' AND PERIOD < '2024-01-01'
+      AND NAPR = 'ИМ' AND TNVED2 IS NOT NULL
+    GROUP BY TNVED2
+    ORDER BY total DESC
+    LIMIT 10
+""").df()
+
+print("Топ-10 TNVED2 по импорту 2021:\n", import_2021)
+print("\nТоп-10 TNVED2 по импорту 2023:\n", import_2023)
+```
+
+---
+
+## Итоги занятия 2
+
+- **До 2022:** Официальная статистика ФТС, полное покрытие
+- **После 2022:** Зеркальная статистика (national + Comtrade)
+- **SOURCE:** Различает national и comtrade
+- **Практика:** Фильтрация по PERIOD, сравнение периодов, визуализация
+
+**Домашнее задание:** Провести сравнительный анализ по выбранной стране или товарной группе (TNVED2) за 2021 vs 2023.
