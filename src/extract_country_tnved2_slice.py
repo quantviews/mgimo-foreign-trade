@@ -26,57 +26,119 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_turkey_original_names(turkey_codes_dir: Path) -> Dict[str, str]:
-    """
-    Load original commodity names from Turkey JSON files.
-    
-    Args:
-        turkey_codes_dir: Path to data_raw/turkey/hs_codes_json directory
-        
-    Returns:
-        Dictionary mapping 8-digit HS code -> commodity name
-    """
-    logger.info(f"Loading Turkey original names from {turkey_codes_dir}")
-    
-    if not turkey_codes_dir.exists():
-        logger.warning(f"Directory does not exist: {turkey_codes_dir}")
-        return {}
-    
+# Paths and file patterns for original names per country (ISO2).
+# Each loader returns Dict[8-digit HS code, commodity name] for lookup by TNVED[:8].
+_COUNTRY_ORIGINAL_NAMES_CONFIG = {
+    'TR': {
+        'dir_relative': ['data_raw', 'turkey', 'hs_codes_json'],
+        'glob': 'turkey_codes*.json',
+        'loader': 'json_dict',  # JSON: { "hs8": "name", ... }
+    },
+    'CN': {
+        'dir_relative': ['metadata', 'china'],
+        'glob': '*-codes.json',
+        'loader': 'china_json_list',  # JSON list: [ {"TNVED": "...", "COMMODITY_NAME": "..."}, ... ]
+    },
+    'IN': {
+        'dir_relative': ['data_raw', 'india_new'],
+        'glob': 'india_*.csv',
+        'loader': 'india_csv',  # CSV: TNVED, Commodity
+    },
+}
+
+
+def _load_original_names_tr(codes_dir: Path) -> Dict[str, str]:
+    """Turkey: JSON dict HS8 -> name."""
     code_names = {}
-    json_files = sorted(turkey_codes_dir.glob("turkey_codes*.json"))
-    
-    if not json_files:
-        logger.warning(f"No JSON files found in {turkey_codes_dir}")
-        return {}
-    
-    logger.info(f"Found {len(json_files)} JSON files to process")
-    
-    for json_file in json_files:
+    for json_file in sorted(codes_dir.glob("turkey_codes*.json")):
         try:
             with open(json_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
-            # Turkey JSON files are dictionaries with HS8 codes as keys
             for hs8_code, commodity_name in data.items():
                 original_code = str(hs8_code).strip()
-                
-                # Ensure code is 8 digits (pad with zeros on the left if needed)
                 if len(original_code) < 8:
                     original_code = original_code.zfill(8)
                 elif len(original_code) > 8:
                     original_code = original_code[:8]
-                
-                # Store commodity name (keep the most recent if code appears in multiple files)
                 if commodity_name:
                     code_names[original_code] = str(commodity_name).strip()
-            
-            logger.info(f"  Processed {json_file.name}: {len(data)} records")
-            
         except Exception as e:
             logger.error(f"Failed to process {json_file.name}: {e}")
-            continue
-    
-    logger.info(f"Loaded {len(code_names)} Turkey original names")
+    return code_names
+
+
+def _load_original_names_cn(codes_dir: Path) -> Dict[str, str]:
+    """China: JSON list with TNVED + COMMODITY_NAME, normalize to 10 then key by first 8."""
+    code_names = {}
+    for json_file in sorted(codes_dir.glob("*-codes.json")):
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            for record in data:
+                if not record.get('TNVED'):
+                    continue
+                original_code = str(record['TNVED']).strip()
+                if len(original_code) == 10 and original_code.startswith('00'):
+                    base_code = original_code[2:]
+                else:
+                    base_code = original_code.lstrip('0') or '0'
+                tnved10 = base_code + '0' * (10 - len(base_code))
+                hs8_key = tnved10[:8]
+                if record.get('COMMODITY_NAME'):
+                    code_names[hs8_key] = str(record['COMMODITY_NAME']).strip()
+        except Exception as e:
+            logger.error(f"Failed to process {json_file.name}: {e}")
+    return code_names
+
+
+def _load_original_names_in(codes_dir: Path) -> Dict[str, str]:
+    """India: CSV with TNVED (8-digit), Commodity."""
+    code_names = {}
+    for csv_file in sorted(codes_dir.glob("india_*.csv")):
+        try:
+            df = pl.read_csv(csv_file, schema_overrides={'TNVED': pl.Utf8})
+            if 'Commodity' not in df.columns:
+                continue
+            for row in df.iter_rows(named=True):
+                original_code = str(row.get('TNVED', '')).strip()
+                if not original_code:
+                    continue
+                if len(original_code) < 8:
+                    original_code = original_code.zfill(8)
+                elif len(original_code) > 8:
+                    original_code = original_code[:8]
+                name = row.get('Commodity')
+                if name and str(name).strip():
+                    code_names[original_code] = str(name).strip()
+        except Exception as e:
+            logger.error(f"Failed to process {csv_file.name}: {e}")
+    return code_names
+
+
+def load_country_original_names(country_iso2: str, project_root: Path) -> Dict[str, str]:
+    """
+    Load original commodity names for a country (8-digit HS code -> name).
+    Supported: TR (Turkey), CN (China), IN (India). Others return {}.
+    """
+    country_iso2 = country_iso2.upper()
+    config = _COUNTRY_ORIGINAL_NAMES_CONFIG.get(country_iso2)
+    if not config:
+        return {}
+    codes_dir = project_root.joinpath(*config['dir_relative'])
+    if not codes_dir.exists():
+        logger.warning(f"Original names dir does not exist for {country_iso2}: {codes_dir}")
+        return {}
+    loader = config['loader']
+    if loader == 'json_dict':
+        code_names = _load_original_names_tr(codes_dir)
+    elif loader == 'china_json_list':
+        code_names = _load_original_names_cn(codes_dir)
+    elif loader == 'india_csv':
+        code_names = _load_original_names_in(codes_dir)
+    else:
+        return {}
+    if code_names:
+        logger.info(f"Loaded {len(code_names)} original names for {country_iso2}")
     return code_names
 
 
@@ -161,30 +223,32 @@ def extract_slice(
         df = pl.from_pandas(df_pandas)
         logger.info(f"Retrieved {len(df):,} rows")
         
-        # Add original Turkey names if TR is in the countries list
-        countries_list = countries if countries else []
-        if 'TR' in [c.upper() for c in countries_list] and project_root:
-            turkey_codes_dir = project_root / 'data_raw' / 'turkey' / 'hs_codes_json'
-            turkey_names = load_turkey_original_names(turkey_codes_dir)
-            
-            if turkey_names:
-                # Match 8-digit codes from Turkey JSON with TNVED codes
-                # TNVED codes are 10 digits, we need first 8 digits
-                def get_turkey_name(tnved_code: str) -> str:
-                    if not tnved_code or len(tnved_code) < 8:
-                        return ''
-                    hs8_code = tnved_code[:8]
-                    return turkey_names.get(hs8_code, '')
-                
-                # Add column with original Turkey names
-                df = df.with_columns(
-                    pl.col('TNVED').map_elements(get_turkey_name, return_dtype=pl.Utf8).alias('TNVED_NAME_ORIGINAL_TURKEY')
-                )
-                logger.info(f"Added original Turkey names column")
-            else:
-                # Add empty column if no names loaded
-                df = df.with_columns(pl.lit('').alias('TNVED_NAME_ORIGINAL_TURKEY'))
-                logger.warning("Could not load Turkey original names, added empty column")
+        # Add original names per country (TR, CN, IN, ...); for countries in filter or in data if no filter
+        countries_list = [c.upper() for c in (countries or [])]
+        if not countries_list:
+            countries_list = sorted(df['STRANA'].unique().to_list())
+        # Only try for countries we support
+        countries_list = [c for c in countries_list if c in _COUNTRY_ORIGINAL_NAMES_CONFIG]
+        if countries_list and project_root:
+            for country_iso in countries_list:
+                code_names = load_country_original_names(country_iso, project_root)
+                col_name = f'TNVED_NAME_ORIGINAL_{country_iso}'
+                if code_names:
+                    def get_name(tnved_code: str, names: Dict[str, str]) -> str:
+                        if not tnved_code or len(tnved_code) < 8:
+                            return ''
+                        return names.get(tnved_code[:8], '')
+
+                    # Fill only for rows of this country
+                    df = df.with_columns(
+                        pl.when(pl.col('STRANA') == country_iso)
+                        .then(pl.col('TNVED').map_elements(lambda c: get_name(c, code_names), return_dtype=pl.Utf8))
+                        .otherwise(pl.lit(''))
+                        .alias(col_name)
+                    )
+                    logger.info(f"Added original names column {col_name}")
+                else:
+                    df = df.with_columns(pl.lit('').alias(col_name))
         
         # Determine output filename and extension
         file_ext = '.xlsx' if output_format.lower() == 'excel' else '.csv'

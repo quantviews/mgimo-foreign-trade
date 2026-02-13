@@ -8,6 +8,7 @@ superset/
 data_interim_csv/
 old_notebooks/
 hs_codes_json/
+lessons/site_libs/
 
 *.duckdb
 *.db

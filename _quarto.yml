@@ -2,6 +2,16 @@ project:
   type: website
   output-dir: _site
   render:
+    profile: ci   # при сборке в CI: ячейки не выполняются (нет данных в репо)
+
+profiles:
+  ci:
+    execute:
+      eval: false
+
+project:
+  output-dir: _site
+  render:
     - other/intro-presentation.qmd
     - lessons/lesson_01_intro.qmd
     - lessons/lesson_02_old_new_stats.qmd

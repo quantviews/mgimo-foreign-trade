@@ -40,8 +40,29 @@ NAPR,PERIOD,STRANA,TNVED,EDIZM,STOIM,NETTO,KOL
 
 ## Запуск
 
+Скрипт `src/load_fts_csv.py` загружает все CSV из `data_raw/fts_data/`, объединяет их и сохраняет в Parquet.
+
+**Без фильтра (все коды ТН ВЭД):**
 ```bash
 python src/load_fts_csv.py
 ```
+Результат: `data_interim_csv/fts_2021_2022.parquet`
 
-Результат: `data_processed/fts_2021_2022.parquet`
+**Фильтр по 2-значному коду ТН ВЭД:**
+```bash
+python src/load_fts_csv.py --tnved2 27
+```
+Результат: `data_interim_csv/fts_2021_2022_TNVED2_27.parquet`
+
+**Фильтр по 4-значному коду ТН ВЭД:**
+```bash
+python src/load_fts_csv.py --tnved4 2710
+```
+Результат: `data_interim_csv/fts_2021_2022_TNVED4_2710.parquet` (при указании `--tnved4` фильтр по 2 знакам задаётся автоматически).
+
+**Аргументы:**
+- `--tnved2 <код>` — оставить только строки с заданным 2-значным кодом (например, `27`).
+- `--tnved4 <код>` — оставить только строки с заданным 4-значным кодом (например, `2710`); при указании переопределяет `--tnved2`.
+- `--output-dir <путь>` — папка для сохранения (по умолчанию: `data_interim_csv`).
+
+Имя сохраняемого файла всегда отражает применённый фильтр: без фильтра — `fts_2021_2022.parquet`, с `--tnved2` — суффикс `_TNVED2_XX`, с `--tnved4` — суффикс `_TNVED4_XXXX`.
