@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Практические задания к Занятию 4: Визуализация (альтернатива Superset).
-Используйте, если Superset недоступен во время занятия.
-Запускать из корня проекта: python lessons/practices/practice_04_superset.py
+Практические задания к Занятию 4: Superset (Viewer) + Python.
+Практики 1–4 выполняются в Superset в роли Viewer (фильтры, экспорт, чтение графиков).
+Практики 5–6 — в Python (свой анализ и визуализация по тем же данным).
+Запуск из корня проекта: python lessons/practices/practice_04_superset.py
 """
 from pathlib import Path
 
@@ -22,7 +23,7 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print("ПРАКТИКА 1: Динамика импорта (для графика)")
+    print("ПРАКТИКА 5 (Python): Динамика импорта и график")
     print("=" * 60)
     df = conn.execute("""
         SELECT PERIOD, SUM(STOIM) as total
@@ -37,9 +38,7 @@ def main():
     try:
         import matplotlib.pyplot as plt
 
-        print("=" * 60)
-        print("ПРАКТИКА 2: Построение графика")
-        print("=" * 60)
+        print("Построение графика...")
         plt.figure(figsize=(10, 5))
         plt.plot(df["PERIOD"], df["total"])
         plt.title("Динамика импорта (тыс. USD)")
@@ -55,7 +54,7 @@ def main():
         print("matplotlib не установлен — установите: pip install matplotlib")
 
     print("=" * 60)
-    print("ПРАКТИКА 3: Сводная таблица по странам и TNVED2")
+    print("ПРАКТИКА 6 (Python): Сводная таблица по странам и TNVED2")
     print("=" * 60)
     pivot = conn.execute("""
         SELECT STRANA, TNVED2, SUM(STOIM) as total
@@ -71,7 +70,7 @@ def main():
 
     conn.close()
     print("Готово!")
-    print("\nПримечание: Для работы с Superset получите доступ к инстансу от преподавателя.")
+    print("\nПрактики 1–4: в Superset (роль Viewer) — фильтры, экспорт CSV, чтение графиков.")
 
 
 if __name__ == "__main__":

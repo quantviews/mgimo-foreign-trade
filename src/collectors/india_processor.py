@@ -98,7 +98,8 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            # Convert STOIM from millions USD to thousands USD
+            # STOIM → тысячи USD (стандарт проекта).
+            # Сырые CSV до 2025-09: в миллионах → *1000. С 2025-09: в тысячах → тоже *1000 для единого масштаба с предыдущими месяцами.
             if 'STOIM' in df.columns:
                 df['STOIM'] = df['STOIM'] * 1000
 
@@ -122,6 +123,10 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
                 'KOL', 'TNVED4', 'TNVED6', 'TNVED2'
             ]].copy()
 
+            period_label = df_final['PERIOD'].iloc[0].strftime('%Y-%m') if len(df_final) else "?"
+            total_stoim = df_final['STOIM'].sum()
+            logger.info(f"     STOIM сумма за {period_label}: {total_stoim:,.0f} (тыс. USD)")
+
             dfs.append(df_final)
 
         except Exception as e:
@@ -132,6 +137,12 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
         return
 
     final_df = pd.concat(dfs, ignore_index=True)
+
+    # Сводка по месяцам — для проверки размерности (резкий скачок/провал = возможная ошибка масштаба)
+    stoim_by_month = final_df.groupby(final_df['PERIOD'].dt.to_period('M'))['STOIM'].sum()
+    logger.info("STOIM по месяцам (тыс. USD), для проверки размерности:")
+    for period, total in stoim_by_month.items():
+        logger.info(f"  {period}: {total:,.0f}")
 
     final_df.drop_duplicates(inplace=True)
     final_df.sort_values(by=['PERIOD', 'NAPR', 'TNVED'], inplace=True)

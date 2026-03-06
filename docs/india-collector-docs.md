@@ -51,7 +51,7 @@
 2.  **Сбор данных за определенный период (например, с Мая 2022 по Июнь 2023):**
 
     ```bash
-    python india_collector.py --start_year 2022 --start_month 5 --end_year 2023 --end_month 6
+    python india_collector.py --start_year 2025 --start_month 9 --end_year 2025 --end_month 12
     ```
 
 3.  **Сбор данных с начала 2021 года до текущего момента:**
