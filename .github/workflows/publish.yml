@@ -31,11 +31,10 @@ jobs:
       - name: Render site
         run: quarto render . --no-execute
 
-      # Публикуем содержимое _site в ветку gh-pages (Pages уже настроен на эту ветку)
-      - name: Publish to GitHub Pages
-        uses: quarto-dev/quarto-actions/publish@v2
+      # Публикуем уже собранный _site без повторного рендера
+      - name: Publish _site to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          target: gh-pages
-          path: _site
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          publish_branch: gh-pages
