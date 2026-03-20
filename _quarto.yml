@@ -3,6 +3,7 @@ project:
   output-dir: _site
   render:
     - other/intro-presentation.qmd
+    - other/foreign-trade-slide-2026.qmd
     - lessons/lesson_01_intro.qmd
     - lessons/lesson_02_old_new_stats.qmd
     - lessons/lesson_03_duckdb.qmd
