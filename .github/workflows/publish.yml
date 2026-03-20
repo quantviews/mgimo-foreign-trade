@@ -29,11 +29,7 @@ jobs:
 
       # Рендерим весь проект (но что именно рендерить — лучше указать в _quarto.yml -> project.render)
       - name: Render site
-        uses: quarto-dev/quarto-actions/render@v2
-        with:
-          path: "."
-        env:
-          QUARTO_PROFILE: ci
+        run: quarto render . --no-execute
 
       # Публикуем содержимое _site в ветку gh-pages (Pages уже настроен на эту ветку)
       - name: Publish to GitHub Pages
