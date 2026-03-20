@@ -9,7 +9,7 @@
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-c8ad9e5dbd60b7b70b38521ab19b7da4.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
   <meta name="generator" content="quarto-1.7.34">
 
-  <title>mgimo-foreign-trade – Занятие 4. Superset дашборд и визуализация</title>
+  <title>mgimo-foreign-trade – Занятие 2. Superset дашборд для анализа внешней торговли</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
@@ -95,6 +95,7 @@
     code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
   </style>
   <link rel="stylesheet" href="../site_libs/revealjs/dist/theme/quarto-c6eb6c1582289678d62ad3dffa5480f7.css">
+  <link rel="stylesheet" href="styles.css">
   <link href="../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -192,26 +193,74 @@
     <div class="slides">
 
 <section id="title-slide" class="quarto-title-block center">
-  <h1 class="title">Занятие 4. Superset дашборд и визуализация</h1>
-  <p class="subtitle">Работа с интерактивным дашбордом</p>
+  <h1 class="title">Занятие 2. Superset дашборд для анализа внешней торговли</h1>
+  <p class="subtitle">Международные технологические рынки и технологическое лидерство</p>
 
 <div class="quarto-title-authors">
 </div>
 
 </section>
 <section id="план-занятия-80-мин" class="slide level2">
-<h2>План занятия (80 мин)</h2>
+<h2>План занятия (~80 мин)</h2>
 <ol type="1">
-<li><strong>Введение в Superset</strong> (20 мин)</li>
-<li><strong>Структура дашборда</strong> (25 мин)</li>
-<li><strong>Практика: Superset</strong> (20 мин) — <em>доступ к инстансу будет предоставлен</em></li>
-<li><strong>Практика: Python + визуализация</strong> (10 мин)</li>
-<li><strong>Итоги курса</strong> (5 мин)</li>
+<li><strong>Дашборды: зачем и как строить</strong> (10 мин)</li>
+<li><strong>Введение в Superset и структура дашборда</strong> (30 мин)</li>
+<li><strong>Практика Superset: работа в роли Viewer</strong> (30 мин) — фильтры, экспорт, чтение графиков</li>
+<li><strong>Итоги</strong> (5 мин)</li>
 </ol>
+<p><strong>Роль доступа:</strong> Viewer — просмотр дашбордов и чартов, использование фильтров, экспорт данных. SQL Lab и создание чартов недоступны.</p>
+</section>
+<section id="дашборды-зачем-и-что-это" class="slide level2">
+<h2>Дашборды: зачем и что это</h2>
+<p><strong>Дашборд</strong> — один экран с ключевыми метриками и графиками, чтобы быстро оценить ситуацию и принять решение.</p>
+<ul>
+<li>Агрегация данных из разных источников в одном месте</li>
+<li>Актуальность (данные обновляются при пересчёте)</li>
+<li>Интерактивность: фильтры, drill-down, экспорт</li>
+</ul>
+<p><strong>Примеры:</strong> анализ данных по внешней торговле, мониторинг продаж, отчёт для руководства.</p>
+</section>
+<section id="как-строить-хорошие-дашборды" class="slide level2">
+<h2>Как строить хорошие дашборды</h2>
+<table class="caption-top">
+<colgroup>
+<col style="width: 45%">
+<col style="width: 55%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Принцип</th>
+<th>Пояснение</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Аудитория</strong></td>
+<td>Один дашборд — одна целевая задача и одна аудитория (руководство / аналитик / оператор)</td>
+</tr>
+<tr class="even">
+<td><strong>Иерархия</strong></td>
+<td>Главное — крупнее и выше (KPI, итоги), детали — ниже или по клику</td>
+</tr>
+<tr class="odd">
+<td><strong>Тип графика</strong></td>
+<td>Время → линия/область; сравнение категорий → столбцы; доля → столбцы (stacked) или таблица; точные числа → таблица</td>
+</tr>
+<tr class="even">
+<td><strong>Меньше шума</strong></td>
+<td>Без лишних цветов, декора и чартов; подписи осей и легенды — понятные</td>
+</tr>
+<tr class="odd">
+<td><strong>Контекст</strong></td>
+<td>Фильтры (период, регион, продукт) дают контекст; без них цифры неочевидны</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Итог:</strong> дашборд отвечает на 1–3 главных вопроса «с первого взгляда», детали — по фильтрам и экспорту.</p>
 </section>
 <section id="что-такое-apache-superset" class="slide level2">
 <h2>Что такое Apache Superset?</h2>
-<p><strong>Superset</strong> — open-source платформа для визуализации данных и бизнес-аналитики.</p>
+<p><strong>Superset</strong> — open-source платформа для визуализации данных и бизнес-аналитики. Наиболее продвинутая система из open-source аналогов.</p>
 <table class="caption-top">
 <thead>
 <tr class="header">
@@ -233,12 +282,12 @@
 <td>Графики, таблицы, карты, KPI</td>
 </tr>
 <tr class="even">
-<td><strong>SQL Lab</strong></td>
-<td>Выполнение SQL-запросов</td>
+<td><strong>Фильтры</strong></td>
+<td>Динамическая фильтрация на дашборде</td>
 </tr>
 <tr class="odd">
-<td><strong>Фильтры</strong></td>
-<td>Динамическая фильтрация данных</td>
+<td><strong>Экспорт</strong></td>
+<td>Выгрузка данных из таблиц и чартов (CSV)</td>
 </tr>
 </tbody>
 </table>
@@ -251,10 +300,10 @@
        │
        ├── Datasets: unified_trade_data_enriched, unified_trade_data
        │
-       ├── Charts: Time Series, Bar, Table, Pie...
+       ├── Charts: Time Series, Bar, Table, Big Number...
        │
        └── Dashboard: «Национальная торговая статистика»</code></pre>
-<p><strong>Примечание:</strong> Вам будет предоставлен доступ к отдельному инстансу Superset с подключённой базой данных.</p>
+<p><strong>Доступ:</strong> Инстанс Superset с дашбордом. Роль <strong>Viewer</strong> — только просмотр и экспорт, без SQL Lab и без создания чартов.</p>
 </section>
 <section id="основные-элементы-дашборда" class="slide level2">
 <h2>Основные элементы дашборда</h2>
@@ -262,9 +311,54 @@
 <li><strong>Общая статистика</strong> — сумма по импорту/экспорту</li>
 <li><strong>Динамика по месяцам</strong> — временные ряды</li>
 <li><strong>Топ стран-партнёров</strong> — столбчатые диаграммы</li>
-<li><strong>Товарная структура</strong> — по TNVED2, TNVED4</li>
+<li><strong>Товарная структура</strong> — по ТНВЭД2, ТНВЭД4, ТНВЭД6</li>
 <li><strong>Фильтры</strong> — период, страна, товарная группа</li>
 </ul>
+</section>
+<section id="физические-объёмы-зачем-и-откуда-данные" class="slide level2">
+<h2>Физические объёмы: зачем и откуда данные</h2>
+<p>Внешнеторговая статистика даёт не только <strong>стоимость</strong> (STOIM), но и <strong>натуральные показатели</strong> — вес нетто (NETTO, кг) и количество в доп. единицах (KOL, единицы по справочнику EDIZM).</p>
+<p><strong>Зачем физобъёмы:</strong> рост стоимости может быть из-за роста цен, а не объёмов. Индексы физических объёмов показывают динамику «в тоннах / штуках» и позволяют отделить ценовой эффект.</p>
+<p><strong>Исходные переменные</strong> (из <code>unified_trade_data</code>): STRANA, NAPR, TNVED, PERIOD, STOIM, NETTO, KOL, EDIZM.</p>
+</section>
+<section id="расчёт-индексов-физических-объёмов-физобъёмы" class="slide level2">
+<h2>Расчёт индексов физических объёмов (физобъёмы)</h2>
+<p>В проекте индексы строит скрипт <code>fizob_queries.R</code> (см. <code>docs/documentation_fizob.md</code>). Кратко:</p>
+<table class="caption-top">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 66%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Этап</th>
+<th>Содержание</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Выбор величины</strong></td>
+<td>Для каждой товарной позиции: объём по весу (NETTO) или по количеству (KOL) — в зависимости от EDIZM и наличия данных</td>
+</tr>
+<tr class="even">
+<td><strong>Цена и сглаживание</strong></td>
+<td>Цена = STOIM / NETTO или STOIM / KOL; сглаживание скользящим окном 12 мес.; восстановление пропусков KOL/NETTO через цену</td>
+</tr>
+<tr class="odd">
+<td><strong>Скользящие средние</strong></td>
+<td>12-месячные средние по стоимости, весу и количеству (устранение сезонности)</td>
+</tr>
+<tr class="even">
+<td><strong>Доли и агрегация</strong></td>
+<td>Стоимостные доли по уровням ТН ВЭД (2, 4, 6 знаков); физобъём = Σ (физ. величина × доля)</td>
+</tr>
+<tr class="odd">
+<td><strong>Нормировка</strong></td>
+<td>Индекс = значение / значение в базовом периоде; в базе индекс = 1</td>
+</tr>
+</tbody>
+</table>
+<p>Итог: индексы по странам, направлениям и товарным группам (2/4/6 знаков ТН ВЭД), пригодные для анализа динамики без влияния цен.</p>
 </section>
 <section id="типы-визуализаций" class="slide level2">
 <h2>Типы визуализаций</h2>
@@ -289,118 +383,85 @@
 <td>Детализированные данные, экспорт</td>
 </tr>
 <tr class="even">
-<td><strong>Pie Chart</strong></td>
-<td>Доля стран/товаров в общем объёме</td>
-</tr>
-<tr class="odd">
 <td><strong>Big Number</strong></td>
 <td>Ключевые KPI</td>
 </tr>
 </tbody>
 </table>
 </section>
-<section id="sql-lab-в-superset" class="slide level2">
-<h2>SQL Lab в Superset</h2>
-<p><strong>SQL Lab</strong> — встроенный редактор для выполнения SQL-запросов.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode numberSource sql number-lines code-with-copy"><code class="sourceCode sql"><span id="cb2-1"><a></a><span class="kw">SELECT</span> </span>
-<span id="cb2-2"><a></a>    PERIOD,</span>
-<span id="cb2-3"><a></a>    STRANA,</span>
-<span id="cb2-4"><a></a>    <span class="fu">SUM</span>(STOIM) <span class="kw">as</span> total</span>
-<span id="cb2-5"><a></a><span class="kw">FROM</span> unified_trade_data</span>
-<span id="cb2-6"><a></a><span class="kw">WHERE</span> PERIOD <span class="op">&gt;=</span> <span class="st">'2023-01-01'</span></span>
-<span id="cb2-7"><a></a><span class="kw">GROUP</span> <span class="kw">BY</span> PERIOD, STRANA</span>
-<span id="cb2-8"><a></a><span class="kw">ORDER</span> <span class="kw">BY</span> PERIOD <span class="kw">DESC</span>, total <span class="kw">DESC</span></span>
-<span id="cb2-9"><a></a><span class="kw">LIMIT</span> <span class="dv">100</span>;</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><strong>Возможности:</strong> Выполнить запрос → создать Chart из результата → добавить на Dashboard.</p>
+<section id="что-доступно-в-роли-viewer" class="slide level2">
+<h2>Что доступно в роли Viewer</h2>
+<ul>
+<li>Просмотр дашбордов и чартов</li>
+<li>Изменение фильтров на дашборде (период, страна, направление, товарная группа)</li>
+<li>Drill-down по графикам (если включено в чарте)</li>
+<li><strong>Экспорт данных</strong> — кнопка экспорта в таблицах/чартах (CSV, Excel)</li>
+<li>SQL Lab и создание/редактирование чартов <strong>недоступны</strong></li>
+</ul>
 </section>
-<section id="создание-чарта-пошагово" class="slide level2">
-<h2>Создание чарта: пошагово</h2>
-<ol type="1">
-<li><strong>Data</strong> → выбрать Dataset (unified_trade_data_enriched)</li>
-<li><strong>Chart type</strong> → Bar Chart / Time Series / Table</li>
-<li><strong>Metrics</strong> → SUM(STOIM), COUNT(*) и т.д.</li>
-<li><strong>Dimensions</strong> → STRANA, TNVED2, PERIOD</li>
-<li><strong>Filters</strong> → PERIOD, NAPR, STRANA</li>
-<li><strong>Save</strong> → сохранить чарт</li>
-</ol>
-</section>
-<section id="практика-1-навигация-по-дашборду" class="slide level2">
-<h2>Практика 1: Навигация по дашборду</h2>
-<p><strong>Задание (в Superset):</strong></p>
+<section id="практика-1-навигация-и-фильтры" class="slide level2">
+<h2>Практика 1: Навигация и фильтры</h2>
+<p><strong>Задание (в Superset, роль Viewer):</strong></p>
 <ol type="1">
 <li>Открыть дашборд «Национальная торговая статистика»</li>
-<li>Применить фильтр по периоду: 2023–2024</li>
-<li>Выбрать страну: Китай (CN)</li>
-<li>Найти данные по импорту за последний доступный месяц</li>
-<li>Экспортировать таблицу в CSV (если доступно)</li>
+<li>Выбрать в фильтрах <strong>период:</strong> например 2024–2025</li>
+<li>Выбрать <strong>страну:</strong> Китай (CN)</li>
+<li>Выбрать <strong>направление:</strong> Импорт (ИМ)</li>
+<li>Записать (или сфотографировать): какая общая сумма импорта из Китая за выбранный период отображается на дашборде?</li>
 </ol>
 </section>
-<section id="практика-2-sql-lab-простой-запрос" class="slide level2">
-<h2>Практика 2: SQL Lab — простой запрос</h2>
-<p><strong>Задание (в Superset SQL Lab):</strong></p>
-<p>Выполнить запрос и проверить результат:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode numberSource sql number-lines code-with-copy"><code class="sourceCode sql"><span id="cb3-1"><a></a><span class="kw">SELECT</span> </span>
-<span id="cb3-2"><a></a>    STRANA,</span>
-<span id="cb3-3"><a></a>    <span class="fu">SUM</span>(STOIM) <span class="kw">as</span> total_import</span>
-<span id="cb3-4"><a></a><span class="kw">FROM</span> unified_trade_data</span>
-<span id="cb3-5"><a></a><span class="kw">WHERE</span> PERIOD <span class="op">&gt;=</span> <span class="st">'2023-01-01'</span> <span class="kw">AND</span> NAPR <span class="op">=</span> <span class="st">'ИМ'</span></span>
-<span id="cb3-6"><a></a><span class="kw">GROUP</span> <span class="kw">BY</span> STRANA</span>
-<span id="cb3-7"><a></a><span class="kw">ORDER</span> <span class="kw">BY</span> total_import <span class="kw">DESC</span></span>
-<span id="cb3-8"><a></a><span class="kw">LIMIT</span> <span class="dv">10</span>;</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Создать из результата простой Bar Chart (если интерфейс позволяет).</p>
+<section id="практика-2-сравнение-двух-стран" class="slide level2">
+<h2>Практика 2: Сравнение двух стран</h2>
+<p><strong>Задание (в Superset):</strong></p>
+<ol type="1">
+<li>Оставить фильтр по периоду (например, 2024)</li>
+<li>Последовательно выбрать страну: <strong>Китай (CN)</strong> — записать значение импорта/экспорта из графика</li>
+<li>Сменить страну на <strong>Германия (DE)</strong> — записать значение</li>
+<li>Сравнить: какая страна имеет больший объём импорта в РФ за период? На сколько (примерно)?</li>
+</ol>
 </section>
-<section id="практика-3-python-визуализация-для-отчёта" class="slide level2">
-<h2>Практика 3: Python — визуализация для отчёта</h2>
-<p>Если Superset недоступен во время занятия, используйте Python:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a></a><span class="im">import</span> duckdb</span>
-<span id="cb4-2"><a></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb4-3"><a></a></span>
-<span id="cb4-4"><a></a>conn <span class="op">=</span> duckdb.<span class="ex">connect</span>(<span class="st">"db/unified_trade_data.duckdb"</span>)</span>
-<span id="cb4-5"><a></a>df <span class="op">=</span> conn.execute(<span class="st">"""</span></span>
-<span id="cb4-6"><a></a><span class="st">    SELECT PERIOD, SUM(STOIM) as total</span></span>
-<span id="cb4-7"><a></a><span class="st">    FROM unified_trade_data</span></span>
-<span id="cb4-8"><a></a><span class="st">    WHERE PERIOD &gt;= '2022-01-01' AND NAPR = 'ИМ'</span></span>
-<span id="cb4-9"><a></a><span class="st">    GROUP BY PERIOD</span></span>
-<span id="cb4-10"><a></a><span class="st">    ORDER BY PERIOD</span></span>
-<span id="cb4-11"><a></a><span class="st">"""</span>).df()</span>
-<span id="cb4-12"><a></a></span>
-<span id="cb4-13"><a></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
-<span id="cb4-14"><a></a>plt.plot(df[<span class="st">'PERIOD'</span>], df[<span class="st">'total'</span>])</span>
-<span id="cb4-15"><a></a>plt.title(<span class="st">'Динамика импорта (тыс. USD)'</span>)</span>
-<span id="cb4-16"><a></a>plt.xticks(rotation<span class="op">=</span><span class="dv">45</span>)</span>
-<span id="cb4-17"><a></a>plt.tight_layout()</span>
-<span id="cb4-18"><a></a>plt.savefig(<span class="st">'import_dynamics.png'</span>)</span>
-<span id="cb4-19"><a></a>plt.show()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="практика-3-экспорт-данных" class="slide level2">
+<h2>Практика 3: Экспорт данных</h2>
+<p><strong>Задание (в Superset):</strong></p>
+<ol type="1">
+<li>Найти на дашборде чарт с <strong>таблицей</strong> (например, детализация по товарным группам или по странам)</li>
+<li>Применить нужные фильтры (период, страна)</li>
+<li>Нажать кнопку <strong>экспорта</strong> (иконка загрузки) и сохранить данные в CSV</li>
+<li>Открыть файл в Excel или в Python и проверить: сколько строк, какие колонки</li>
+</ol>
 </section>
-<section id="практика-4-сводная-таблица-в-python" class="slide level2">
-<h2>Практика 4: Сводная таблица в Python</h2>
-<div class="sourceCode" id="cb5"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
-<span id="cb5-2"><a></a></span>
-<span id="cb5-3"><a></a><span class="co"># Импорт по странам и TNVED2 за 2023</span></span>
-<span id="cb5-4"><a></a>pivot <span class="op">=</span> conn.execute(<span class="st">"""</span></span>
-<span id="cb5-5"><a></a><span class="st">    SELECT STRANA, TNVED2, SUM(STOIM) as total</span></span>
-<span id="cb5-6"><a></a><span class="st">    FROM unified_trade_data</span></span>
-<span id="cb5-7"><a></a><span class="st">    WHERE PERIOD &gt;= '2023-01-01' AND PERIOD &lt; '2024-01-01'</span></span>
-<span id="cb5-8"><a></a><span class="st">      AND NAPR = 'ИМ' AND TNVED2 IN ('27', '84', '85', '87')</span></span>
-<span id="cb5-9"><a></a><span class="st">    GROUP BY STRANA, TNVED2</span></span>
-<span id="cb5-10"><a></a><span class="st">"""</span>).df()</span>
-<span id="cb5-11"><a></a></span>
-<span id="cb5-12"><a></a><span class="co"># Pivot для удобства</span></span>
-<span id="cb5-13"><a></a>pivot_wide <span class="op">=</span> pivot.pivot(index<span class="op">=</span><span class="st">'TNVED2'</span>, columns<span class="op">=</span><span class="st">'STRANA'</span>, values<span class="op">=</span><span class="st">'total'</span>)</span>
-<span id="cb5-14"><a></a><span class="bu">print</span>(pivot_wide)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="практика-4-чтение-графиков" class="slide level2">
+<h2>Практика 4: Чтение графиков</h2>
+<p><strong>Задание (в Superset):</strong></p>
+<ol type="1">
+<li>Найти график <strong>динамики по месяцам</strong> (Time Series)</li>
+<li>Выбрать фильтр: импорт, одна страна (например, Турция TR)</li>
+<li>Ответить: в каком месяце за выбранный год был пик импорта? Был ли сезонный спад?</li>
+<li>(Опционально) Сравнить динамику импорта и экспорта по одной стране</li>
+</ol>
 </section>
-<section id="подключение-duckdb-к-superset" class="slide level2">
-<h2>Подключение DuckDB к Superset</h2>
-<p><strong>Connection string (для администратора):</strong></p>
-<pre><code>duckdb:///path/to/db/unified_trade_data.duckdb</code></pre>
-<p>Или через SQLAlchemy:</p>
-<pre><code>duckdb:///db/unified_trade_data.duckdb</code></pre>
-<p><strong>Рекомендуемый Dataset:</strong> <code>unified_trade_data_enriched</code> — уже содержит названия стран и товаров.</p>
-</section>
-<section id="итоги-занятия-4-и-курса" class="slide level2">
-<h2>Итоги занятия 4 и курса</h2>
-<p><strong>Занятие 4:</strong> - Superset — платформа для визуализации - SQL Lab, создание чартов, дашборды - Доступ к инстансу будет предоставлен отдельно</p>
-<p><strong>Весь курс:</strong> 1. Таможенная статистика, ТН ВЭД, зеркальная статистика 2. Старая vs новая статистика (до/после 2022) 3. DuckDB, SQL, аналитические запросы 4. Superset, визуализация, дашборды</p>
+<section id="практика-5-python-свой-анализ-и-визуализация" class="slide level2">
+<h2>Практика 5: Python — свой анализ и визуализация</h2>
+<p>Для собственных срезов и отчётов используйте Python + DuckDB (данные те же, что в дашборде):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a></a><span class="im">import</span> duckdb</span>
+<span id="cb2-2"><a></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb2-3"><a></a></span>
+<span id="cb2-4"><a></a>conn <span class="op">=</span> duckdb.<span class="ex">connect</span>(<span class="st">"db/unified_trade_data.duckdb"</span>)</span>
+<span id="cb2-5"><a></a>df <span class="op">=</span> conn.execute(<span class="st">"""</span></span>
+<span id="cb2-6"><a></a><span class="st">    SELECT PERIOD, SUM(STOIM) as total</span></span>
+<span id="cb2-7"><a></a><span class="st">    FROM unified_trade_data</span></span>
+<span id="cb2-8"><a></a><span class="st">    WHERE PERIOD &gt;= '2022-01-01' AND NAPR = 'ИМ'</span></span>
+<span id="cb2-9"><a></a><span class="st">    GROUP BY PERIOD</span></span>
+<span id="cb2-10"><a></a><span class="st">    ORDER BY PERIOD</span></span>
+<span id="cb2-11"><a></a><span class="st">"""</span>).df()</span>
+<span id="cb2-12"><a></a></span>
+<span id="cb2-13"><a></a>plt.figure(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb2-14"><a></a>plt.plot(df[<span class="st">'PERIOD'</span>], df[<span class="st">'total'</span>])</span>
+<span id="cb2-15"><a></a>plt.title(<span class="st">'Динамика импорта (тыс. USD)'</span>)</span>
+<span id="cb2-16"><a></a>plt.xticks(rotation<span class="op">=</span><span class="dv">45</span>)</span>
+<span id="cb2-17"><a></a>plt.tight_layout()</span>
+<span id="cb2-18"><a></a>plt.savefig(<span class="st">'import_dynamics.png'</span>)</span>
+<span id="cb2-19"><a></a>plt.show()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="практическое-применение" class="slide level2">
 <h2>Практическое применение</h2>
@@ -697,7 +758,7 @@
         }
           var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
           var mailtoRegex = new RegExp(/^mailto:/);
-            var filterRegex = new RegExp("https:\/\/quantviews\.github\.io\/mgimo-foreign-trade\/");
+            var filterRegex = new RegExp('/' + window.location.host + '/');
           var isInternal = (href) => {
               return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
           }

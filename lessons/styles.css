@@ -1,3 +1,16 @@
+/* Основной шрифт презентации */
+.reveal {
+  font-family: "Inter", "Noto Sans", "Segoe UI", Arial, sans-serif;
+}
+
+/* Заголовки */
+.reveal h1, 
+.reveal h2, 
+.reveal h3, 
+.reveal h4 {
+  font-family: "Inter", "Noto Sans", "Segoe UI", Arial, sans-serif;
+}
+
 /* Размер шрифта кода на слайдах */
 .reveal pre code {
   font-size: 24px !important;
