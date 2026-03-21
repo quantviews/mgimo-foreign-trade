@@ -787,7 +787,7 @@
 </section>
 <section id="практика-2-загрузка-и-просмотр-данных-фтс" class="slide level2">
 <h2>Практика 2: Загрузка и просмотр данных ФТС</h2>
-<div id="84ef2fbd" class="cell">
+<div id="a8be60ac" class="cell">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
 <span id="cb7-2"><a></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
 <span id="cb7-3"><a></a></span>
@@ -802,7 +802,7 @@
 </section>
 <section id="практика-3-изучение-структуры" class="slide level2">
 <h2>Практика 3: Изучение структуры</h2>
-<div id="3b0d3340" class="cell">
+<div id="9f7311d0" class="cell">
 <div class="sourceCode cell-code" id="cb8"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a></a><span class="co"># Базовая информация</span></span>
 <span id="cb8-2"><a></a>df.info()</span>
 <span id="cb8-3"><a></a></span>
@@ -818,12 +818,12 @@
 <section id="практика-4-простые-агрегации-pandas" class="slide level2">
 <h2>Практика 4: Простые агрегации (pandas)</h2>
 <p><strong>Задание 1:</strong> Сколько записей по каждой стране?</p>
-<div id="c6a493bc" class="cell">
+<div id="defac5d1" class="cell">
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a></a>by_country <span class="op">=</span> df.groupby(<span class="st">'STRANA'</span>).size().sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb9-2"><a></a><span class="bu">print</span>(by_country.head(<span class="dv">15</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><strong>Задание 2:</strong> Сумма импорта и экспорта по странам за весь период</p>
-<div id="3273e69c" class="cell">
+<div id="17d25264" class="cell">
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a></a>import_by_country <span class="op">=</span> df[df[<span class="st">'NAPR'</span>] <span class="op">==</span> <span class="st">'ИМ'</span>].groupby(<span class="st">'STRANA'</span>)[<span class="st">'STOIM'</span>].<span class="bu">sum</span>().sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb10-2"><a></a>export_by_country <span class="op">=</span> df[df[<span class="st">'NAPR'</span>] <span class="op">==</span> <span class="st">'ЭК'</span>].groupby(<span class="st">'STRANA'</span>)[<span class="st">'STOIM'</span>].<span class="bu">sum</span>().sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb10-3"><a></a><span class="bu">print</span>(<span class="st">"Импорт (топ-10):"</span>)<span class="op">;</span> <span class="bu">print</span>(import_by_country.head(<span class="dv">10</span>))</span>
@@ -832,7 +832,7 @@
 </section>
 <section id="практика-5-топ-товарных-групп-tnved2" class="slide level2">
 <h2>Практика 5: Топ товарных групп (TNVED2)</h2>
-<div id="59360a36" class="cell">
+<div id="1cb8e3dc" class="cell">
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a></a>top_tnved2 <span class="op">=</span> df.groupby(<span class="st">'TNVED2'</span>).agg(</span>
 <span id="cb11-2"><a></a>    total_stoim<span class="op">=</span>(<span class="st">'STOIM'</span>, <span class="st">'sum'</span>),</span>
 <span id="cb11-3"><a></a>    cnt<span class="op">=</span>(<span class="st">'TNVED'</span>, <span class="st">'count'</span>)</span>
@@ -843,11 +843,11 @@
 <section id="практика-6-единицы-измерения-и-эффективные-цены" class="slide level2">
 <h2>Практика 6: Единицы измерения и эффективные цены</h2>
 <p><strong>Задание 1:</strong> Какие единицы измерения (EDIZM) чаще всего встречаются в данных?</p>
-<div id="dd3c255f" class="cell">
+<div id="55542991" class="cell">
 <div class="sourceCode cell-code" id="cb12"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a></a><span class="bu">print</span>(df[<span class="st">'EDIZM'</span>].value_counts().head(<span class="dv">15</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><strong>Задание 2:</strong> Рассчитать среднюю эффективную цену (тыс. USD за тонну) по товарным группам TNVED2 для импорта. Использовать только строки, где NETTO &gt; 0.</p>
-<div id="52535472" class="cell">
+<div id="c312d7f0" class="cell">
 <div class="sourceCode cell-code" id="cb13"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a></a>imp <span class="op">=</span> df[(df[<span class="st">'NAPR'</span>] <span class="op">==</span> <span class="st">'ИМ'</span>) <span class="op">&amp;</span> (df[<span class="st">'NETTO'</span>] <span class="op">&gt;</span> <span class="dv">0</span>)]</span>
 <span id="cb13-2"><a></a>price_by_tnved2 <span class="op">=</span> imp.groupby(<span class="st">'TNVED2'</span>).agg(</span>
 <span id="cb13-3"><a></a>    total_stoim<span class="op">=</span>(<span class="st">'STOIM'</span>, <span class="st">'sum'</span>),</span>
@@ -857,7 +857,7 @@
 <span id="cb13-7"><a></a><span class="bu">print</span>(price_by_tnved2.sort_values(<span class="st">'total_stoim'</span>, ascending<span class="op">=</span><span class="va">False</span>).head(<span class="dv">10</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><strong>Задание 3:</strong> Сравнить эффективные цены импорта из Китая и Германии по группе <strong>2710</strong> (нефтепродукты: бензин, дизель, мазут) за 2021 год. Группа более гомогенна, чем машины.</p>
-<div id="35f4c9f0" class="cell">
+<div id="90077de9" class="cell">
 <div class="sourceCode cell-code" id="cb14"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a></a>g2710 <span class="op">=</span> df[(df[<span class="st">'NAPR'</span>] <span class="op">==</span> <span class="st">'ИМ'</span>) <span class="op">&amp;</span> (df[<span class="st">'TNVED4'</span>] <span class="op">==</span> <span class="st">'2710'</span>) <span class="op">&amp;</span> (df[<span class="st">'NETTO'</span>] <span class="op">&gt;</span> <span class="dv">0</span>)</span>
 <span id="cb14-2"><a></a>           <span class="op">&amp;</span> (df[<span class="st">'PERIOD'</span>].dt.year <span class="op">==</span> <span class="dv">2021</span>) <span class="op">&amp;</span> (df[<span class="st">'STRANA'</span>].isin([<span class="st">'CN'</span>, <span class="st">'DE'</span>]))]</span>
 <span id="cb14-3"><a></a>by_country <span class="op">=</span> g2710.groupby(<span class="st">'STRANA'</span>).agg(total_stoim<span class="op">=</span>(<span class="st">'STOIM'</span>, <span class="st">'sum'</span>), total_netto<span class="op">=</span>(<span class="st">'NETTO'</span>, <span class="st">'sum'</span>))</span>

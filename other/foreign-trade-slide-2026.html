@@ -9,7 +9,7 @@
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-c8ad9e5dbd60b7b70b38521ab19b7da4.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
   <meta name="generator" content="quarto-1.7.34">
 
-  <title>mgimo-foreign-trade – Аналитическая платформа  Национальная торговая статистика</title>
+  <title>mgimo-foreign-trade – Национальная торговая статистика</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
@@ -28,7 +28,8 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="../site_libs/revealjs/dist/theme/quarto-9dde652ab040131bf70944e12f973946.css">
+  <link rel="stylesheet" href="../site_libs/revealjs/dist/theme/quarto-c6eb6c1582289678d62ad3dffa5480f7.css">
+  <link rel="stylesheet" href="styles.css">
   <link href="../site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="../site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="../site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -126,7 +127,7 @@
     <div class="slides">
 
 <section id="title-slide" class="quarto-title-block center">
-  <h1 class="title">Аналитическая платформа <br> Национальная торговая статистика</h1>
+  <h1 class="title">Национальная торговая статистика</h1>
   <p class="subtitle">Статус проекта и планы 2026 года</p>
 
 <div class="quarto-title-authors">
@@ -135,15 +136,15 @@
 </section>
 <section id="где-мы-сейчас-март-2026" class="slide level2">
 <h2>Где мы сейчас (март 2026)</h2>
-<p>Мы строим data-product по зеркальной статистике внешней торговли РФ: сбор, гармонизация, аналитика, прогноз.</p>
+<p>Мы строим data-продукт по зеркальной статистике внешней торговли РФ: сбор данных, гармонизация, аналитика, прогноз.</p>
 <p><strong>Что уже реализовано:</strong></p>
 <ul>
-<li>Автоматизированная процедура сборки (pipeline) по национальным источникам: <strong>Китай, Турция, Индия</strong></li>
-<li>Единая база <code>unified_trade_data.duckdb</code> + процесс валидации и нормализации</li>
-<li>Перевод названий товаров и стран на русский язык из источников с использованием LLM</li>
+<li><strong>Автоматизированная процедура сборки</strong> (pipeline) по национальным источникам: <strong>Китай, Турция, Индия</strong></li>
+<li><strong>Единая база на DuckDB</strong> + процесс валидации и нормализации (Python)</li>
+<li><strong>Перевод названий товаров</strong> (коды ТН ВЭД) на русский язык из источников с использованием LLM</li>
 <li>Расчет и интеграция <strong>индексов физических объемов (fizob2/fizob4/fizob6)</strong></li>
-<li>Детекция аномалий по количествам и соотношениям <code>KOL/STOIM</code>, <code>KOL/NETTO</code></li>
-<li>BI-слой в Superset для регулярного мониторинга и анализа</li>
+<li><strong>Детекция аномалий</strong> по количествам и соотношениям <code>KOL/STOIM</code>, <code>KOL/NETTO</code></li>
+<li><strong>Дашборд в Superset</strong> для удобной работы с данными</li>
 </ul>
 </section>
 <section id="фактический-масштаб-данных" class="slide level2">
@@ -163,7 +164,7 @@
 </tr>
 <tr class="even">
 <td>Период</td>
-<td><strong>2019-01 — 2025-12</strong></td>
+<td><strong>янв 2019 — дек 2025</strong></td>
 </tr>
 <tr class="odd">
 <td>Индия (строк)</td>
@@ -175,16 +176,16 @@
 </tr>
 </tbody>
 </table>
-<p>Ключевой акцент 2026: повысить долю <strong>национальных</strong> источников (более оперативных и детализированных), а не только широкое покрытие через Comtrade.</p>
+<p>Акцент 2026 на год: повысить долю <strong>национальных</strong> источников (более оперативных и детализированных), а не только широкое покрытие через Comtrade.</p>
 </section>
 <section id="текущий-фокус-1-полугодие-2026" class="slide level2">
 <h2>Текущий фокус (1 полугодие 2026)</h2>
 <h3 id="nowcast-на-var-моделях">Nowcast на VAR-моделях</h3>
 <p>Что делаем сейчас:</p>
 <ul>
-<li>Месячный nowcast по ключевым товарным группам и странам-партнерам</li>
+<li>Месячный nowcast по всем товарным группам и странам-партнерам</li>
 <li>Оценка качества прогнозов, стабильность по “шоковым” периодам</li>
-<li>Сравнение с эталонными моделями (наивная модель, сезонно-наивная, скользящее среднее)</li>
+<li>Сравнение с простыми бенчмарками</li>
 </ul>
 <p>Результат этапа: рабочий модуль nowcast с регулярным обновлением и включением в дашборд</p>
 </section>
@@ -196,20 +197,21 @@
 <li>ЕС</li>
 <li>США</li>
 <li>Южная Корея</li>
-<li>Дополнительно: страны с высоким вкладом в оборот РФ и доступной ежемесячной статистикой</li>
+<li>Дополнительно: другие страны с высоким вкладом в оборот РФ и доступной ежемесячной статистикой</li>
 </ul>
 <h3 id="краткосрочный-прогноз-следующий-этап-после-nowcast">2) Краткосрочный прогноз (следующий этап после nowcast)</h3>
 <ul>
 <li>Горизонты <strong>1-3-6 месяцев</strong></li>
+<li>Оценка точности прогнозов</li>
 <li>Вывод доверительных интервалов, а не только прогнозные значения</li>
 </ul>
 </section>
-<section id="план-2026-платформа-и-ux" class="slide level2">
-<h2>План 2026: платформа и UX</h2>
+<section id="план-2026-платформа-и-uiux" class="slide level2">
+<h2>План 2026: платформа и UI/UX</h2>
 <h3 id="uiux-дашборда">UI/UX дашборда</h3>
 <ul>
 <li>Улучшаем пользовательский интерфейс: делаем его удобнее и понятнее для анализа данных.</li>
-<li>Отдельные витрины/дашборды по ключевым товарным группам (например, нефть, удобрения, электроника) — возможность фокусироваться на главных сегментах.</li>
+<li>Отдельные витрины/дашборды по ключевым товарным группам (например, нефть, удобрения, электроника) — возможность фокусироваться на отдельных сегментах.</li>
 <li>Гибкая детализация: работа с группами по кодам ТН ВЭД, быстрая фильтрация и переход между уровнями детализации.</li>
 <li>Планы по развитию специальных рабочих экранов для самых важных рынков/товарных сегментов.</li>
 </ul>
@@ -220,8 +222,8 @@
 <li>Версионирование данных/моделей для воспроизводимости</li>
 </ul>
 </section>
-<section id="коммерциализация-2026" class="slide level2">
-<h2>Коммерциализация 2026</h2>
+<section id="план-2026-коммерциализация" class="slide level2">
+<h2>План 2026: коммерциализация</h2>
 <h3 id="модель-выхода-на-рынок">Модель выхода на рынок</h3>
 <ul>
 <li>Предоставление доступа к дашборду для пилотных пользователей</li>
@@ -235,8 +237,8 @@
 <li>SLA и продуктовая аналитика использования</li>
 </ul>
 </section>
-<section id="data-governance-каталог-источников-и-контроль-качества" class="slide level2">
-<h2>Data Governance (каталог источников и контроль качества)</h2>
+<section id="план-2026-data-governance-каталог-источников-и-контроль-качества" class="slide level2">
+<h2>План 2026: Data Governance (каталог источников и контроль качества)</h2>
 <h3 id="каталог-источников">Каталог источников</h3>
 <ul>
 <li>Единый реестр по каждой стране: URL, периодичность, лаг публикации, охват, уровень детализации</li>
@@ -314,7 +316,7 @@
         progress: true,
 
         // Display the page number of the current slide
-        slideNumber: false,
+        slideNumber: 'c/t',
 
         // 'all', 'print', or 'speaker'
         showSlideNumber: 'all',
