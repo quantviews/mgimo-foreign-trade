@@ -100,3 +100,5 @@ logs/
 .env.local
 .env.*.local
 /.quarto/
+
+**/*.quarto_ipynb
