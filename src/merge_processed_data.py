@@ -9,7 +9,8 @@ This script:
 4. Merges all datasets into one unified dataset
 5. Excludes countries specified in --exclude-countries argument
 6. start_year argument to filter data from this year onwards
-7. Saves the merged dataset to DuckDB format in db/unified_trade_data.duckdb
+7. Optionally loads nowcast from data_processed/nowcast/nowcast.parquet (TYPE=pred; on by default, disable with --no-nowcast)
+8. Saves the merged dataset to DuckDB format in db/unified_trade_data.duckdb
 """
 
 import pandas as pd
@@ -191,6 +192,59 @@ def generate_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
         df_processed['TNVED8'] = df_processed['TNVED'].str[:8]
             
     return df_processed
+
+
+def transform_nowcast_to_unified(df: pd.DataFrame, start_year: int = None) -> pd.DataFrame:
+    """
+    Transform nowcast parquet to unified schema and keep only TYPE='pred' rows.
+    """
+    required_cols = {'STRANA', 'PERIOD', 'TNVED', 'NAPR', 'TYPE', 'STOIM', 'NETTO'}
+    missing_cols = required_cols - set(df.columns)
+    if missing_cols:
+        logger.warning(f"Nowcast file is missing required columns: {missing_cols}. Skipping nowcast.")
+        return pd.DataFrame()
+
+    nowcast_df = df.copy()
+    nowcast_df['TYPE'] = nowcast_df['TYPE'].astype(str).str.strip().str.lower()
+    nowcast_df = nowcast_df[nowcast_df['TYPE'] == 'pred'].copy()
+
+    if nowcast_df.empty:
+        logger.info("Nowcast file has no rows with TYPE='pred'.")
+        return pd.DataFrame()
+
+    nowcast_df['PERIOD'] = pd.to_datetime(nowcast_df['PERIOD'], errors='coerce').dt.normalize()
+    nowcast_df.dropna(subset=['PERIOD'], inplace=True)
+
+    if start_year:
+        initial_rows = len(nowcast_df)
+        nowcast_df = nowcast_df[nowcast_df['PERIOD'].dt.year >= start_year].copy()
+        if len(nowcast_df) < initial_rows:
+            logger.info(
+                f"Filtered nowcast by start_year >= {start_year}. "
+                f"Kept {len(nowcast_df)} of {initial_rows} rows."
+            )
+
+    if nowcast_df.empty:
+        logger.info("Nowcast is empty after filtering.")
+        return pd.DataFrame()
+
+    nowcast_df = generate_derived_columns(nowcast_df)
+    nowcast_df['STRANA'] = nowcast_df['STRANA'].astype(str).str.upper()
+    nowcast_df['NAPR'] = nowcast_df['NAPR'].astype(str).str.strip()
+
+    # Bring nowcast rows to unified structure.
+    nowcast_df['EDIZM'] = None
+    nowcast_df['EDIZM_ISO'] = None
+    nowcast_df['KOL'] = None
+    nowcast_df['STOIM'] = pd.to_numeric(nowcast_df['STOIM'], errors='coerce')
+    nowcast_df['NETTO'] = pd.to_numeric(nowcast_df['NETTO'], errors='coerce')
+
+    unified_cols = list(EXPECTED_SCHEMA.keys()) + ['TYPE']
+    for col in unified_cols:
+        if col not in nowcast_df.columns:
+            nowcast_df[col] = None
+
+    return nowcast_df[unified_cols]
 
 
 def transform_fizob_to_unified(df: pd.DataFrame, file_stem: str) -> pd.DataFrame:
@@ -1084,6 +1138,13 @@ def main():
         default=[],
         help="List of ISO2 country codes to exclude from the merge (e.g., IN CN)."
     )
+    parser.add_argument(
+        '--no-nowcast',
+        dest='include_nowcast',
+        action='store_false',
+        help="Do not load nowcast from data_processed/nowcast/nowcast.parquet (TYPE=pred rows).",
+    )
+    parser.set_defaults(include_nowcast=True)
     args = parser.parse_args()
 
     # Define paths using the script's location for robustness
@@ -1092,6 +1153,7 @@ def main():
     db_dir = project_root / "db"
     output_db_path = db_dir / "unified_trade_data.duckdb"
     comtrade_db_path = db_dir / "comtrade.db"
+    nowcast_path = data_processed_dir / "nowcast" / "nowcast.parquet"
     
     # Ensure output directory exists
     db_dir.mkdir(exist_ok=True)
@@ -1152,6 +1214,10 @@ def main():
     # Process national data
     for source_name, df in national_datasets.items():
         df['SOURCE'] = 'national'
+        if 'TYPE' not in df.columns:
+            df['TYPE'] = 'fact'
+        else:
+            df['TYPE'] = df['TYPE'].fillna('fact')
         all_dataframes.append(df)
         if 'STRANA' in df.columns and not df.empty:
             # Get all unique country codes from this dataset and ensure uppercase
@@ -1187,7 +1253,32 @@ def main():
                     logger.info(f"Filtered {filtered_rows:,} duplicate rows from Comtrade data that matched national countries.")
                 
                 comtrade_df['SOURCE'] = 'comtrade'
+                comtrade_df['TYPE'] = 'fact'
                 all_dataframes.append(comtrade_df)
+
+    # Process nowcast data (pred only)
+    if args.include_nowcast:
+        if nowcast_path.exists():
+            logger.info(f"Loading nowcast data from {nowcast_path}")
+            nowcast_raw_df = pd.read_parquet(nowcast_path)
+            nowcast_df = transform_nowcast_to_unified(nowcast_raw_df, start_year=args.start_year)
+            if not nowcast_df.empty:
+                # Respect final exclusion list to keep behavior consistent with other sources.
+                if excluded_countries_upper:
+                    before_excl = len(nowcast_df)
+                    nowcast_df = nowcast_df[~nowcast_df['STRANA'].isin(excluded_countries_upper)].copy()
+                    excluded_count = before_excl - len(nowcast_df)
+                    if excluded_count > 0:
+                        logger.info(f"Excluded {excluded_count:,} nowcast rows by --exclude-countries filter.")
+
+                if not nowcast_df.empty:
+                    nowcast_df['SOURCE'] = 'nowcast'
+                    all_dataframes.append(nowcast_df)
+                    logger.info(f"Loaded nowcast rows (TYPE='pred'): {len(nowcast_df):,}")
+        else:
+            logger.info(f"Nowcast file not found, skipping: {nowcast_path}")
+    else:
+        logger.info("Nowcast disabled (--no-nowcast); not loading data_processed/nowcast/nowcast.parquet.")
 
     if not all_dataframes:
         logger.error("No data available to merge.")
@@ -1416,6 +1507,59 @@ def main():
     source_counts = merged_df['SOURCE'].value_counts()
     for source, count in source_counts.items():
         logger.info(f"  {source}: {count:,} rows")
+
+    # Sanity-check for fact/pred coverage after merge
+    logger.info("=== SANITY CHECK: FACT VS PRED ===")
+    if 'TYPE' in merged_df.columns:
+        merged_df['TYPE'] = merged_df['TYPE'].fillna('fact')
+        type_counts = merged_df['TYPE'].value_counts(dropna=False)
+        total_rows = len(merged_df)
+        for type_value, count in type_counts.items():
+            share = (count / total_rows * 100) if total_rows > 0 else 0
+            logger.info(f"  TYPE={type_value}: {count:,} rows ({share:.2f}%)")
+
+        pred_df = merged_df[merged_df['TYPE'] == 'pred'].copy()
+        if pred_df.empty:
+            logger.info("  No TYPE='pred' rows found in merged dataset.")
+        else:
+            min_pred_period = pred_df['PERIOD'].min()
+            max_pred_period = pred_df['PERIOD'].max()
+            logger.info(f"  Pred date range: {min_pred_period} to {max_pred_period}")
+
+            # Months where pred exists and corresponding row counts
+            pred_month_counts = (
+                pred_df
+                .groupby(pred_df['PERIOD'].dt.to_period('M'))
+                .size()
+                .sort_index()
+            )
+            logger.info("  Pred rows by month:")
+            for period_month, count in pred_month_counts.items():
+                logger.info(f"    {period_month}: {count:,}")
+
+            # Countries covered by pred and their row counts
+            pred_country_counts = (
+                pred_df.groupby('STRANA')
+                .size()
+                .sort_values(ascending=False)
+            )
+            logger.info("  Pred rows by country:")
+            for country, count in pred_country_counts.items():
+                logger.info(f"    {country}: {count:,}")
+
+            # Country-month matrix (compact) for pred coverage
+            pred_country_month = (
+                pred_df.assign(PERIOD_MONTH=pred_df['PERIOD'].dt.to_period('M').astype(str))
+                .groupby(['STRANA', 'PERIOD_MONTH'])
+                .size()
+                .reset_index(name='count')
+                .sort_values(['STRANA', 'PERIOD_MONTH'])
+            )
+            logger.info("  Pred coverage by country and month:")
+            for _, row in pred_country_month.iterrows():
+                logger.info(f"    {row['STRANA']} | {row['PERIOD_MONTH']}: {row['count']:,}")
+    else:
+        logger.warning("TYPE column not found: sanity-check for fact/pred skipped.")
         
     logger.info("Rows by country:")
     country_counts = merged_df.groupby('SOURCE')['STRANA'].value_counts()

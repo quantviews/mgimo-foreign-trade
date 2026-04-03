@@ -1,0 +1,20 @@
+/*-- scss:defaults --*/
+$primary: #1a3a5c;
+$headings-color: #0d2137;
+$navbar-bg: #1a3a5c;
+$navbar-fg: #ffffff;
+$link-color: #1a4a7a;
+
+/*-- scss:rules --*/
+.navbar-brand {
+  font-weight: 600;
+}
+.navbar-dark .navbar-nav .nav-link {
+  color: rgba(255, 255, 255, 0.92);
+}
+.navbar-dark .navbar-nav .nav-link:hover {
+  color: #ffffff;
+}
+.quarto-title-banner .quarto-title .title {
+  color: $headings-color;
+}

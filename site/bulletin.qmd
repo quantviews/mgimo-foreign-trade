@@ -1,0 +1,58 @@
+---
+title: "Бюллетень по внешней торговле"
+subtitle: "Макет ежемесячного выпуска"
+date: last-modified
+params:
+  data_source: "snapshot"
+  bulletin_csv: "data/bulletin_snapshot.csv"
+  fizob2_path: "../data_processed/fizob_2.parquet"
+---
+
+```{r}
+#| include: false
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 10,
+  fig.height = 5
+)
+```
+
+Краткий комментарий к выпуску (обновляйте ежемесячно): индексы физобъёмов по **Китаю, Индии, Турции** и агрегату **все страны** (`ALL`); отдельно **экспорт** и **импорт**. По умолчанию используется снимок [`data/bulletin_snapshot.csv`](data/bulletin_snapshot.csv). Чтобы строить графики напрямую из выгрузки **`fizob_2.parquet`** (среднее `fizob2` по 2-значным группам ТН ВЭД), задайте в YAML `params.data_source: "parquet"` и убедитесь, что файл существует локально.
+
+```{r}
+#| label: load-data
+source("bulletin_plots.R")
+
+use_parquet <- identical(params$data_source, "parquet") &&
+  nzchar(params$fizob2_path) &&
+  file.exists(params$fizob2_path)
+
+if (use_parquet) {
+  agg <- aggregate_fizob2_bulletin(read_fizob2_parquet(params$fizob2_path))
+} else {
+  csv_path <- params$bulletin_csv
+  if (!file.exists(csv_path)) {
+    stop("Нет файла снимка: ", csv_path)
+  }
+  agg <- read_bulletin_csv(csv_path)
+}
+
+napr_export <- "ЭК"
+napr_import <- "ИМ"
+```
+
+## Экспорт
+
+```{r}
+#| fig-cap: "Индексы физобъёмов, экспорт"
+bulletin_hc(agg, napr_export, "экспорт")
+```
+
+## Импорт
+
+```{r}
+#| fig-cap: "Индексы физобъёмов, импорт"
+bulletin_hc(agg, napr_import, "импорт")
+```

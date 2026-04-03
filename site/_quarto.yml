@@ -1,0 +1,26 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - index.qmd
+    - technical.qmd
+    - bulletin.qmd
+
+website:
+  title: "Национальная торговая статистика"
+  navbar:
+    left:
+      - text: "Главная"
+        href: index.qmd
+      - text: "Техническая документация"
+        href: technical.qmd
+      - text: "Бюллетень"
+        href: bulletin.qmd
+
+format:
+  html:
+    theme:
+      - cosmo
+      - styles/mgimo.scss
+    toc: true
+    lang: ru
