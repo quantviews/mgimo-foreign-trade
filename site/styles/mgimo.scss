@@ -1,20 +1,214 @@
 /*-- scss:defaults --*/
-$primary: #1a3a5c;
-$headings-color: #0d2137;
-$navbar-bg: #1a3a5c;
-$navbar-fg: #ffffff;
-$link-color: #1a4a7a;
+$primary: #003d7a;           // МГИМО синий основной
+$secondary: #e74c3c;         // Красный акцент
+$success: #27ae60;           // Зелёный для позитива
+$info: #3498db;              // Голубой для информации
+$warning: #f39c12;           // Оранжевый для внимания
+$danger: #c0392b;            // Тёмный красный для опасности
+
+$headings-color: #003d7a;    // Тёмный синий для заголовков
+$text-color: #2c3e50;        // Тёмный серо-голубой для текста
+$navbar-bg: #003d7a;         // МГИМО синий
+$navbar-fg: #ffffff;         // Белый текст
+$link-color: #0056b3;        // Синий для ссылок
+
+$border-color: #ecf0f1;      // Светлый серый для границ
+$body-bg: #f8f9fa;           // Очень светлый фон
 
 /*-- scss:rules --*/
+
+// Навигация
 .navbar-brand {
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-size: 1.1rem;
 }
+
+.navbar {
+  box-shadow: 0 2px 4px rgba(0, 61, 122, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
 .navbar-dark .navbar-nav .nav-link {
   color: rgba(255, 255, 255, 0.92);
+  transition: color 0.2s ease;
+  font-weight: 500;
 }
+
 .navbar-dark .navbar-nav .nav-link:hover {
   color: #ffffff;
+  text-decoration: underline;
+  text-decoration-color: #e74c3c;
+  text-underline-offset: 4px;
 }
+
+// Титульный баннер
+.quarto-title-banner {
+  background: linear-gradient(135deg, #003d7a 0%, #005fa3 100%);
+  border-bottom: 4px solid #e74c3c;
+  color: #ffffff;
+}
+
 .quarto-title-banner .quarto-title .title {
-  color: $headings-color;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 2.5rem;
+  letter-spacing: 0.5px;
+}
+
+.quarto-title-banner .quarto-title .subtitle {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.2rem;
+  font-weight: 400;
+}
+
+// Основной контент
+body {
+  background-color: #f8f9fa;
+  color: $text-color;
+}
+
+// Заголовки
+h1, h2, h3, h4, h5, h6 {
+  color: #003d7a;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+h1 {
+  border-bottom: 3px solid #e74c3c;
+  padding-bottom: 10px;
+  margin-bottom: 25px;
+}
+
+h2 {
+  border-bottom: 2px solid #ecf0f1;
+  padding-bottom: 8px;
+  margin-top: 30px;
+  margin-bottom: 18px;
+}
+
+// Ссылки
+a {
+  color: $link-color;
+  text-decoration: none;
+  transition: color 0.2s ease, border-bottom 0.2s ease;
+}
+
+a:hover {
+  color: #e74c3c;
+  border-bottom: 2px solid #e74c3c;
+}
+
+// Списки
+ul, ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.8;
+}
+
+li {
+  margin-bottom: 8px;
+  color: $text-color;
+}
+
+// Блоки кода
+pre {
+  background-color: #f4f4f4;
+  border-left: 4px solid #003d7a;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+code {
+  background-color: #ecf0f1;
+  color: #c0392b;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+}
+
+// Таблицы
+.table {
+  background-color: #ffffff;
+}
+
+.table thead th {
+  background-color: #003d7a;
+  color: #ffffff;
+  border-color: #003d7a;
+  font-weight: 600;
+}
+
+.table tbody tr:hover {
+  background-color: #f0f5ff;
+}
+
+.table td {
+  border-color: #ecf0f1;
+}
+
+// Callouts и адмониции
+.callout {
+  border-left: 4px solid #003d7a;
+  background-color: #f0f5ff;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.callout.callout-warning {
+  border-left-color: #f39c12;
+  background-color: #fffbf0;
+}
+
+.callout.callout-important {
+  border-left-color: #e74c3c;
+  background-color: #fff5f5;
+}
+
+.callout.callout-tip {
+  border-left-color: #27ae60;
+  background-color: #f0fff4;
+}
+
+// Кнопки
+.btn {
+  font-weight: 600;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: #003d7a;
+  border-color: #003d7a;
+}
+
+.btn-primary:hover {
+  background-color: #002e5c;
+  border-color: #002e5c;
+  box-shadow: 0 4px 8px rgba(0, 61, 122, 0.3);
+}
+
+// TOC (оглавление)
+nav[aria-label="Table of contents"] {
+  border-left: 3px solid #ecf0f1;
+  padding-left: 15px;
+}
+
+nav[aria-label="Table of contents"] ul li a {
+  color: $text-color;
+}
+
+nav[aria-label="Table of contents"] ul li a:hover {
+  color: #e74c3c;
+}
+
+nav[aria-label="Table of contents"] ul li.active a {
+  color: #003d7a;
+  font-weight: 600;
+  border-left: 3px solid #e74c3c;
+  padding-left: 8px;
+  margin-left: -11px;
 }

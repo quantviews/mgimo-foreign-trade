@@ -2,6 +2,9 @@ project:
   type: website
   output-dir: _site
   render:
+    - site/index.qmd
+    - site/technical.qmd
+    - site/bulletin.qmd
     - other/intro-presentation.qmd
     - other/foreign-trade-slide-2026.qmd
     - lessons/lesson_01_intro.qmd
@@ -18,17 +21,31 @@ website:
   title: "mgimo-foreign-trade"
   navbar:
     left:
+      - text: "🎯 Лендинг"
+        href: site/index.qmd
+      - text: "📄 О проекте"
+        menu:
+          - text: "Как это работает"
+            href: site/technical.qmd
+          - text: "Бюллетень"
+            href: site/bulletin.qmd
       - text: "Вводная презентация"
         href: other/intro-presentation.qmd
-      - text: "Занятие 1"
-        href: lessons/lesson_01_intro.qmd
-      - text: "Занятие 2"
-        href: lessons/lesson_02_old_new_stats.qmd
-      - text: "Занятие 3"
-        href: lessons/lesson_03_duckdb.qmd
-      - text: "Занятие 4"
-        href: lessons/lesson_04_superset.qmd
+      - text: "Занятия"
+        menu:
+          - text: "Занятие 1"
+            href: lessons/lesson_01_intro.qmd
+          - text: "Занятие 2"
+            href: lessons/lesson_02_old_new_stats.qmd
+          - text: "Занятие 3"
+            href: lessons/lesson_03_duckdb.qmd
+          - text: "Занятие 4"
+            href: lessons/lesson_04_superset.qmd
 
 format:
   html:
-    theme: cosmo
+    theme:
+      - cosmo
+      - site/styles/mgimo.scss
+    toc: true
+    lang: ru

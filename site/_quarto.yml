@@ -22,5 +22,5 @@ format:
     theme:
       - cosmo
       - styles/mgimo.scss
-    toc: true
+    toc: false
     lang: ru
