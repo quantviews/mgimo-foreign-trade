@@ -23,6 +23,7 @@ from merge_processed_data import (
     load_strana_mapping,
     load_common_edizm_mapping,
     save_to_duckdb,
+    smoke_check_merged_dataset,
     EXPECTED_SCHEMA
 )
 
@@ -114,49 +115,88 @@ class TestValidateSchema:
 
 class TestGenerateDerivedColumns:
     """Tests for generate_derived_columns function."""
-    
-    def test_generate_tnved_columns(self):
-        """Test generation of TNVED derived columns."""
-        df = pd.DataFrame({
-            'TNVED': ['0101010000', '0202020000', '0000870421']
-        })
+
+    def test_generates_all_derived_columns(self):
+        """generate_derived_columns adds TNVED2/4/6/8 columns."""
+        df = pd.DataFrame({'TNVED': ['0101010000']})
         result = generate_derived_columns(df)
-        
+
         assert 'TNVED2' in result.columns
         assert 'TNVED4' in result.columns
         assert 'TNVED6' in result.columns
         assert 'TNVED8' in result.columns
-        
-        # Test normalization: leading zeros removed, then padded to 10 digits on the right
-        assert result.loc[0, 'TNVED'] == '1010100000'  # Leading zeros removed, padded right
-        assert result.loc[1, 'TNVED'] == '2020200000'  # Leading zeros removed, padded right
-        assert result.loc[2, 'TNVED'] == '8704210000'  # Leading zeros removed, padded right
-        
-        # Test derived columns (based on normalized codes)
-        assert result.loc[0, 'TNVED2'] == '10'
-        assert result.loc[0, 'TNVED4'] == '1010'
-        assert result.loc[0, 'TNVED6'] == '101010'
-        assert result.loc[0, 'TNVED8'] == '10101000'
-    
-    def test_pad_right_normalization(self):
-        """Test right padding normalization."""
+
+    def test_leading_zeros_preserved_ten_digit_codes(self):
+        """10-digit TNVED codes are kept verbatim; leading zeros are NOT stripped."""
         df = pd.DataFrame({
-            'TNVED': ['123', '0000123', '123456789012345']  # Short, with leading zeros, too long
+            'TNVED': ['0101010000', '0202020000', '0000870421']
         })
         result = generate_derived_columns(df)
-        
-        assert len(result.loc[0, 'TNVED']) == 10
-        assert result.loc[0, 'TNVED'] == '1230000000'  # Padded on the right
-        assert result.loc[1, 'TNVED'] == '1230000000'  # Leading zeros removed, padded right
-        assert result.loc[2, 'TNVED'] == '1234567890'  # Truncated to 10
-    
+
+        # Codes that are already 10 chars must not change
+        assert result.loc[0, 'TNVED'] == '0101010000'
+        assert result.loc[1, 'TNVED'] == '0202020000'
+        assert result.loc[2, 'TNVED'] == '0000870421'
+
+        # Derived columns for '0101010000' (section 01 — live animals)
+        assert result.loc[0, 'TNVED2'] == '01'
+        assert result.loc[0, 'TNVED4'] == '0101'
+        assert result.loc[0, 'TNVED6'] == '010101'
+        assert result.loc[0, 'TNVED8'] == '01010100'
+
+        # Derived columns for '0000870421' — leading zeros are part of the code
+        assert result.loc[2, 'TNVED2'] == '00'
+        assert result.loc[2, 'TNVED4'] == '0000'
+        assert result.loc[2, 'TNVED6'] == '000087'
+        assert result.loc[2, 'TNVED8'] == '00008704'
+
+    def test_short_codes_right_padded(self):
+        """Codes shorter than 10 chars are right-padded with zeros; leading zeros kept."""
+        df = pd.DataFrame({
+            'TNVED': ['87', '8704', '870421', '87042100']
+        })
+        result = generate_derived_columns(df)
+
+        assert result.loc[0, 'TNVED'] == '8700000000'
+        assert result.loc[1, 'TNVED'] == '8704000000'
+        assert result.loc[2, 'TNVED'] == '8704210000'
+        assert result.loc[3, 'TNVED'] == '8704210000'
+
+    def test_short_codes_with_leading_zeros_right_padded(self):
+        """Short codes that start with zeros are right-padded, NOT lstripped."""
+        df = pd.DataFrame({
+            'TNVED': ['01', '0101', '010101', '0000123']
+        })
+        result = generate_derived_columns(df)
+
+        assert result.loc[0, 'TNVED'] == '0100000000'
+        assert result.loc[1, 'TNVED'] == '0101000000'
+        assert result.loc[2, 'TNVED'] == '0101010000'
+        # '0000123' (7 chars) → right-pad 3 zeros → '0000123000', NOT '1230000000'
+        assert result.loc[3, 'TNVED'] == '0000123000'
+
+        # Section 01 must have TNVED2 == '01', never '10'
+        assert result.loc[0, 'TNVED2'] == '01'
+
+    def test_long_codes_truncated(self):
+        """Codes longer than 10 chars are truncated from the right."""
+        df = pd.DataFrame({
+            'TNVED': ['123', '0000123', '123456789012345']
+        })
+        result = generate_derived_columns(df)
+
+        assert result.loc[0, 'TNVED'] == '1230000000'
+        # '0000123' (7 chars) → right-pad 3 zeros → '0000123000'
+        assert result.loc[1, 'TNVED'] == '0000123000'
+        assert result.loc[2, 'TNVED'] == '1234567890'
+
     def test_all_zeros_code(self):
-        """Test handling of all-zeros code."""
+        """All-zeros codes are handled without raising errors."""
         df = pd.DataFrame({
             'TNVED': ['0000000000', '0']
         })
         result = generate_derived_columns(df)
-        
+
         assert result.loc[0, 'TNVED'] == '0000000000'
         assert result.loc[1, 'TNVED'] == '0000000000'
 
@@ -226,8 +266,8 @@ class TestLoadTnvedMapping:
         
         # Check that translation was loaded
         assert 'tnved10' in mappings
-        # Code normalization: 0101010000 -> lstrip('0') -> '101010000' -> pad right -> '1010100000'
-        normalized_code = '1010100000'
+        # Code normalization: 0101010000 is already 10 chars → kept as-is (leading zeros preserved)
+        normalized_code = '0101010000'
         assert normalized_code in mappings['tnved10']
         assert mappings['tnved10'][normalized_code]['name'] == 'ТЕСТОВОЕ НАЗВАНИЕ'  # Should be uppercase
         assert mappings['tnved10'][normalized_code]['translated'] == True
@@ -366,7 +406,24 @@ class TestLoadCommonEdizmMapping:
 
 class TestSaveToDuckDB:
     """Tests for save_to_duckdb function."""
-    
+
+    @pytest.fixture
+    def sample_df(self):
+        return pd.DataFrame({
+            'NAPR':     ['ИМ', 'ЭК'],
+            'PERIOD':   pd.to_datetime(['2024-01-01', '2024-02-01']),
+            'STRANA':   ['RU', 'CN'],
+            'TNVED':    ['0101010000', '0202020000'],
+            'EDIZM':    ['КГ', 'ШТ'],
+            'EDIZM_ISO': ['166', '796'],
+            'STOIM':    [1000.0, 2000.0],
+            'NETTO':    [500.0, 600.0],
+            'KOL':      [10.0, 20.0],
+            'TNVED2':   ['01', '02'],
+            'TNVED4':   ['0101', '0202'],
+            'TNVED6':   ['010101', '020202'],
+        })
+
     def test_save_to_duckdb(self, tmp_path):
         """Test saving DataFrame to DuckDB."""
         df = pd.DataFrame({
@@ -429,15 +486,92 @@ class TestSaveToDuckDB:
             'TNVED4': ['0101'] * 150000,
             'TNVED6': ['010101'] * 150000
         })
-        
+
         output_path = tmp_path / "test_db.duckdb"
         save_to_duckdb(df, output_path, chunk_size=50000)
-        
+
         # Verify all data was saved
         conn = duckdb.connect(str(output_path))
         result = conn.execute("SELECT COUNT(*) FROM unified_trade_data").fetchone()
         assert result[0] == 150000
         conn.close()
+
+    # ------------------------------------------------------------------
+    # Atomic write safety tests
+    # ------------------------------------------------------------------
+
+    def test_no_temp_file_left_after_success(self, tmp_path, sample_df):
+        """The .tmp file must not exist after a successful write."""
+        output = tmp_path / "test_db.duckdb"
+        save_to_duckdb(sample_df, output)
+        assert output.exists()
+        assert not (tmp_path / "test_db.duckdb.tmp").exists()
+
+    def test_existing_db_preserved_on_write_failure(self, tmp_path, sample_df):
+        """If the write fails, the existing database must not be modified."""
+        output = tmp_path / "test_db.duckdb"
+
+        # Seed an existing valid database with sentinel data
+        conn = duckdb.connect(str(output))
+        conn.execute("CREATE TABLE sentinel AS SELECT 99 AS id")
+        conn.close()
+        original_mtime = output.stat().st_mtime
+
+        # Force a failure by making duckdb.connect raise before writing anything
+        with patch('duckdb.connect', side_effect=RuntimeError("simulated disk full")):
+            with pytest.raises(RuntimeError):
+                save_to_duckdb(sample_df, output)
+
+        # Original file must be untouched (same mtime, still readable)
+        assert output.exists()
+        assert output.stat().st_mtime == original_mtime
+
+        conn = duckdb.connect(str(output))
+        result = conn.execute("SELECT id FROM sentinel").fetchone()
+        conn.close()
+        assert result[0] == 99
+
+    def test_temp_file_cleaned_up_on_failure(self, tmp_path, sample_df):
+        """The .tmp file must be removed after a failed write."""
+        output = tmp_path / "test_db.duckdb"
+        tmp_file = output.with_name(output.name + '.tmp')
+
+        with patch('duckdb.connect', side_effect=RuntimeError("simulated error")):
+            with pytest.raises(RuntimeError):
+                save_to_duckdb(sample_df, output)
+
+        assert not tmp_file.exists()
+
+    def test_stale_temp_file_removed_before_write(self, tmp_path, sample_df):
+        """A leftover .tmp file from a previous failed run is removed before starting."""
+        output = tmp_path / "test_db.duckdb"
+        tmp_file = output.with_name(output.name + '.tmp')
+
+        # Simulate a stale temp file from a previous crash
+        tmp_file.write_bytes(b"stale data")
+        assert tmp_file.exists()
+
+        save_to_duckdb(sample_df, output)
+
+        assert output.exists()
+        assert not tmp_file.exists()
+
+    def test_overwrites_existing_file_correctly(self, tmp_path, sample_df):
+        """Saving over an existing database replaces it with the new content."""
+        output = tmp_path / "test_db.duckdb"
+
+        # Write an old database
+        conn = duckdb.connect(str(output))
+        conn.execute("CREATE TABLE old_table AS SELECT 1 AS v")
+        conn.close()
+
+        save_to_duckdb(sample_df, output, table_name='unified_trade_data')
+
+        # New table exists and has correct row count
+        conn = duckdb.connect(str(output))
+        count = conn.execute("SELECT COUNT(*) FROM unified_trade_data").fetchone()[0]
+        conn.close()
+        assert count == len(sample_df)
 
 
 class TestIntegration:
@@ -501,6 +635,81 @@ class TestIntegration:
         result = conn.execute("SELECT COUNT(*) FROM unified_trade_data").fetchone()
         assert result[0] == 2
         conn.close()
+
+
+class TestSmokeCheckMergedDataset:
+    """Tests for smoke_check_merged_dataset — the final quality gate before DuckDB write."""
+
+    @pytest.fixture
+    def valid_merged_df(self):
+        """Minimal valid merged DataFrame that should pass all smoke checks."""
+        return pd.DataFrame({
+            'NAPR':     ['ИМ', 'ЭК'],
+            'PERIOD':   pd.to_datetime(['2024-01-01', '2024-02-01']),
+            'STRANA':   ['CN', 'TR'],
+            'TNVED':    ['0101010000', '8704210000'],
+            'EDIZM':    ['КИЛОГРАММ', 'ШТУКА'],
+            'EDIZM_ISO': ['166', '796'],
+            'STOIM':    [5000.0, 12000.0],
+            'NETTO':    [1000.0, 8000.0],
+            'KOL':      [5.0, 3.0],
+            'TNVED2':   ['01', '87'],
+            'TNVED4':   ['0101', '8704'],
+            'TNVED6':   ['010101', '870421'],
+        })
+
+    def test_passes_on_valid_data(self, valid_merged_df):
+        assert smoke_check_merged_dataset(valid_merged_df) is True
+
+    def test_fails_on_empty_dataframe(self):
+        assert smoke_check_merged_dataset(pd.DataFrame()) is False
+
+    def test_fails_on_missing_required_columns(self):
+        df = pd.DataFrame({
+            'NAPR':   ['ИМ'],
+            'PERIOD': pd.to_datetime(['2024-01-01']),
+            # All other required columns missing
+        })
+        assert smoke_check_merged_dataset(df) is False
+
+    def test_fails_when_period_is_string(self, valid_merged_df):
+        df = valid_merged_df.copy()
+        df['PERIOD'] = df['PERIOD'].astype(str)
+        assert smoke_check_merged_dataset(df) is False
+
+    def test_fails_when_period_has_nulls(self, valid_merged_df):
+        df = valid_merged_df.copy()
+        df.loc[0, 'PERIOD'] = pd.NaT
+        assert smoke_check_merged_dataset(df) is False
+
+    def test_fails_on_invalid_napr_values(self, valid_merged_df):
+        df = valid_merged_df.copy()
+        df.loc[0, 'NAPR'] = 'EXPORT'
+        assert smoke_check_merged_dataset(df) is False
+
+    def test_fails_on_numeric_napr_codes(self, valid_merged_df):
+        """Numeric NAPR codes ('1', '2') must be normalised by processors before merge."""
+        df = valid_merged_df.copy()
+        df.loc[0, 'NAPR'] = '1'
+        assert smoke_check_merged_dataset(df) is False
+
+    def test_passes_with_extra_columns(self, valid_merged_df):
+        """Extra columns (SOURCE, TYPE, TNVED8) should not cause failures."""
+        df = valid_merged_df.copy()
+        df['SOURCE'] = 'national'
+        df['TYPE'] = 'fact'
+        df['TNVED8'] = df['TNVED'].str[:8]
+        assert smoke_check_merged_dataset(df) is True
+
+    def test_multiple_checks_all_reported(self):
+        """When multiple checks fail, the function returns False (not short-circuit)."""
+        df = pd.DataFrame({
+            'NAPR':   ['EXPORT'],   # invalid NAPR
+            'PERIOD': ['2024-01-01'],  # wrong type (string, not datetime)
+            # All other required columns missing
+        })
+        result = smoke_check_merged_dataset(df)
+        assert result is False
 
 
 if __name__ == "__main__":

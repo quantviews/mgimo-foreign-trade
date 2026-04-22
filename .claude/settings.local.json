@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_processor_contracts.py -v)",
+      "Bash(python -m pytest tests/ -v)"
+    ]
+  }
+}

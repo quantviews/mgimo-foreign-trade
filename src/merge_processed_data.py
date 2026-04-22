@@ -113,6 +113,75 @@ def validate_schema(df: pd.DataFrame, filename: str) -> bool:
     logger.info(f"Schema validation passed for {filename}")
     return True
 
+
+def smoke_check_merged_dataset(df: pd.DataFrame, label: str = "merged dataset") -> bool:
+    """
+    Smoke-checks the final merged DataFrame before it is written to DuckDB.
+
+    Checks (all failures are logged as ERROR):
+      1. Non-empty result after merge.
+      2. All required columns from EXPECTED_SCHEMA are present.
+      3. PERIOD is datetime64 and has no null values.
+      4. NAPR contains only valid values: 'ИМ' or 'ЭК'.
+
+    Returns True if every check passes, False otherwise.
+    Callers should abort saving when False is returned.
+    """
+    passed = True
+
+    # 1. Non-empty
+    if df.empty:
+        logger.error(f"SMOKE CHECK FAILED [{label}]: result is empty (0 rows after merge)")
+        return False
+
+    # 2. Required columns
+    required = frozenset(EXPECTED_SCHEMA.keys())
+    missing = required - set(df.columns)
+    if missing:
+        logger.error(
+            f"SMOKE CHECK FAILED [{label}]: missing required columns: {sorted(missing)}"
+        )
+        passed = False
+
+    # 3. PERIOD type and nullability
+    if 'PERIOD' in df.columns:
+        if not pd.api.types.is_datetime64_any_dtype(df['PERIOD']):
+            logger.error(
+                f"SMOKE CHECK FAILED [{label}]: PERIOD is not datetime64 "
+                f"(got {df['PERIOD'].dtype})"
+            )
+            passed = False
+        elif df['PERIOD'].isna().any():
+            null_count = int(df['PERIOD'].isna().sum())
+            logger.error(
+                f"SMOKE CHECK FAILED [{label}]: PERIOD has {null_count:,} null values"
+            )
+            passed = False
+
+    # 4. NAPR values
+    if 'NAPR' in df.columns:
+        invalid_napr = set(df['NAPR'].dropna().unique()) - {'ИМ', 'ЭК'}
+        if invalid_napr:
+            bad_rows = int(df['NAPR'].isin(invalid_napr).sum())
+            logger.error(
+                f"SMOKE CHECK FAILED [{label}]: invalid NAPR values in {bad_rows:,} rows: "
+                f"{sorted(invalid_napr)}"
+            )
+            passed = False
+
+    if passed:
+        period_min = df['PERIOD'].min() if 'PERIOD' in df.columns else '?'
+        period_max = df['PERIOD'].max() if 'PERIOD' in df.columns else '?'
+        napr_vals = sorted(df['NAPR'].dropna().unique()) if 'NAPR' in df.columns else []
+        logger.info(
+            f"SMOKE CHECK PASSED [{label}]: {len(df):,} rows | "
+            f"PERIOD [{period_min} – {period_max}] | "
+            f"NAPR {napr_vals}"
+        )
+
+    return passed
+
+
 def load_and_validate_file(file_path: Path, start_year: int = None) -> pd.DataFrame:
     """
     Load parquet file and validate schema.
@@ -307,31 +376,34 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
     """
     logger.info(f"Saving merged data to DuckDB: {output_path}")
 
-    # It's safer to delete the old DB file to ensure a clean write.
-    if output_path.exists():
-        output_path.unlink()
-
     if df.empty:
         logger.warning("Input DataFrame is empty. Nothing to save to DuckDB.")
         return
 
+    # Write to a temporary file first so the existing database is never touched
+    # until the write completes successfully.
+    tmp_path = output_path.with_name(output_path.name + '.tmp')
+    if tmp_path.exists():
+        logger.warning(f"Removing stale temp file from a previous failed run: {tmp_path}")
+        tmp_path.unlink()
+
     try:
-        conn = duckdb.connect(str(output_path))
-        
+        conn = duckdb.connect(str(tmp_path))
+
         # Ensure PERIOD is normalized (time set to 00:00:00) before saving
         # We'll cast it to DATE in DuckDB to remove time component completely
         if 'PERIOD' in df.columns:
             # Convert to datetime and normalize to remove time (set to 00:00:00)
             df['PERIOD'] = pd.to_datetime(df['PERIOD'], errors='coerce').dt.normalize()
-        
+
         # Create the table and insert the first chunk
         # Explicitly cast PERIOD to DATE in DuckDB to ensure no time component
         first_chunk = df.iloc[:chunk_size]
         conn.register('first_chunk_df', first_chunk)
         if 'PERIOD' in first_chunk.columns:
             conn.execute(f"""
-                CREATE TABLE {table_name} AS 
-                SELECT 
+                CREATE TABLE {table_name} AS
+                SELECT
                     * EXCLUDE (PERIOD),
                     CAST(PERIOD AS DATE) AS PERIOD
                 FROM first_chunk_df
@@ -353,7 +425,7 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
                 conn.register('chunk_df', chunk)
                 conn.execute(f"""
                     INSERT INTO {table_name}
-                    SELECT 
+                    SELECT
                         * EXCLUDE (PERIOD),
                         CAST(PERIOD AS DATE) AS PERIOD
                     FROM chunk_df
@@ -366,15 +438,27 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
         # Get row count for verification
         result = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
         row_count = result[0]
-        
+
         conn.close()
 
         if row_count != len(df):
             logger.warning(f"Row count mismatch! Expected {len(df):,}, but DuckDB table has {row_count:,}.")
-        
+
+        # Atomically replace the target with the fully-written temp file.
+        # Path.replace() is backed by os.replace() which is atomic on both POSIX and Windows:
+        # the target is replaced in a single filesystem operation with no observable gap.
+        tmp_path.replace(output_path)
         logger.info(f"Successfully saved {row_count:,} rows to {output_path}")
-        
+
     except Exception as e:
+        # Remove the incomplete temp file so no stale data is left behind.
+        # The original output_path was never touched, so it remains valid.
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+                logger.info(f"Removed incomplete temp file: {tmp_path}")
+            except OSError:
+                logger.warning(f"Could not remove temp file (manual cleanup needed): {tmp_path}")
         logger.error(f"Failed to save to DuckDB: {e}")
         raise
 
@@ -1437,6 +1521,16 @@ def main():
     # Note: Country names and TNVED names are now stored in separate reference tables
     # and can be joined via the unified_trade_data_enriched view or directly in queries
     logger.info("Reference tables (country names, TNVED names) will be created as separate tables in the database.")
+
+    # Smoke check: validate final merged dataset before committing to DuckDB.
+    # If any check fails, abort to protect the existing database from being overwritten
+    # with invalid or incomplete data.
+    if not smoke_check_merged_dataset(merged_df):
+        logger.error(
+            "Aborting save: smoke checks failed. "
+            "The existing DuckDB was NOT modified."
+        )
+        return
 
     # Save to DuckDB
     save_to_duckdb(merged_df, output_db_path)
