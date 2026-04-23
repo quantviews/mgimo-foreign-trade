@@ -154,7 +154,7 @@ bulletin_hc <- function(agg, napr_code, napr_title) {
     highcharter::hc_colors(colors_for_chart) |>
     # Заголовок и подзаголовок
     highcharter::hc_title(
-      text = paste0("Индексы физических объёмов (ТН ВЭД 2 знака), ", napr_title),
+      text = paste0("Индексы физических объёмов, ", napr_title),
       style = list(
         color = mgimo_colors[["primary"]],
         fontSize = "18px",
@@ -162,7 +162,7 @@ bulletin_hc <- function(agg, napr_code, napr_title) {
       )
     ) |>
     highcharter::hc_subtitle(
-      text = "Данные из комбинированных источников (таможня, Nowcast при необходимости)",
+      text = "Данные из комбинированных источников (национальная статистика, Comtrade)",
       style = list(
         color = mgimo_colors[["text"]],
         fontSize = "13px"
@@ -223,7 +223,7 @@ bulletin_hc <- function(agg, napr_code, napr_title) {
     highcharter::hc_plotOptions(
       line = list(
         marker = list(
-          enabled = TRUE,
+          enabled = FALSE,
           radius = 4,
           symbol = "circle"
         ),

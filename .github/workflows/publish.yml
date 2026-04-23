@@ -4,12 +4,15 @@ on:
   push:
     branches: [ main ]
     paths:
-      - "site/**.qmd"
-      - "site/styles/**.scss"
-      - "site/data/**.csv"
-      - "other/**.qmd"
-      - "lessons/**.qmd"
+      - "site/**/*.qmd"
+      - "site/styles/**/*.scss"
+      - "site/styles/**/*.css"
+      - "site/data/**/*.csv"
+      - "other/**/*.qmd"
+      - "lessons/**/*.qmd"
+      - "lessons/**/*.css"
       - "_quarto.yml"
+      - "site/_quarto.yml"
       - ".github/workflows/publish.yml"
   workflow_dispatch:
 
