@@ -21,7 +21,7 @@ website:
   title: "mgimo-foreign-trade"
   navbar:
     left:
-      - text: "🎯 Лендинг"
+      - text: ""
         href: site/index.qmd
       - text: "📄 О проекте"
         menu:
