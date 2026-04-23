@@ -34,6 +34,19 @@ jobs:
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
 
+      - name: Setup R dependencies (pak + cache)
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::knitr
+            any::rmarkdown
+            any::readr
+            any::dplyr
+            any::forcats
+            any::arrow
+            any::tibble
+            any::highcharter
+
       - name: Show Quarto version (debug)
         run: quarto --version
 
