@@ -77,29 +77,42 @@ async def download_and_save_codes(playwright, year: str) -> dict:
     """
     browser = await playwright.chromium.launch(headless=True)
     page = await browser.new_page()
-    await page.goto(DATA_URL)
-    html_content = await page.content()
-    doc = BeautifulSoup(html_content, "html.parser")
+    await page.goto(DATA_URL, wait_until="domcontentloaded")
 
     print(f"Downloading codes for {year} ...")
 
-    for i in [1, 11, 26, 28, 30]:
-        id = doc.find_all(class_="z-radio-cnt")[i].get("for")
-        await page.check(f'[for= "{id}"]')
+    # The UI changes over time, so avoid brittle index-based selectors.
+    # We only click options that are present.
+    for option_text in [
+        "Monthly",
+        "I know country code",
+        "I know HS8(CN) code",
+        "Export",
+        "Import",
+        "$(Dollar)",
+    ]:
+        option = page.get_by_text(option_text)
+        if await option.count() > 0:
+            await option.first.click()
 
     await page.get_by_text(year).click()
     await page.get_by_text("<< All months >>").click(delay=300)
 
-    text_id = doc.find_all(class_="z-textbox")[0].get("id")
-    await page.fill(f"#{text_id}", COUNTRY_ID)
+    textboxes = page.locator("input.z-textbox:visible")
+    if await textboxes.count() < 4:
+        raise RuntimeError("Can't find required input fields while downloading HS codes.")
+
+    country_input = textboxes.nth(0)
+    cn_input = textboxes.nth(3)
+
+    await country_input.fill(COUNTRY_ID)
 
     hs_codes = {}
     pattern = r"\d{8} - .+"  # regex шаблон формата "01234567 - Text..."
-    cn_id = doc.find_all(class_="z-textbox")[3].get("id")
 
     # Ждём загрузки кнопки "Ara" после клика
     for two_digits in [f"{i:02}" for i in range(1, 100)]:
-        await page.fill(f"#{cn_id}", two_digits)
+        await cn_input.fill(two_digits)
         await page.get_by_role("button", name="Ara").click(delay=300, timeout=2000)
         await page.wait_for_timeout(2000)
         output = await page.content()
@@ -119,6 +132,7 @@ async def download_and_save_codes(playwright, year: str) -> dict:
     print(f"Codes were saved in {CODES_FILE_PATH.name}")
 
     await browser.close()
+    return hs_codes
 
 
 async def load_codes(playwright, year: str) -> dict:
@@ -129,24 +143,27 @@ async def load_codes(playwright, year: str) -> dict:
     :param year:
     :return hs_codes:
     """
-    hs_codes = None
+    def _read_codes_from_file() -> dict:
+        with CODES_FILE_PATH.open("r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        if not isinstance(loaded, dict) or not loaded:
+            raise ValueError("codes file is empty or has invalid structure")
+        return loaded
+
+    if CODES_FILE_PATH.exists():
+        try:
+            print("HS8 codes were already downloaded and will be used for downloading data.")
+            return _read_codes_from_file()
+        except Exception as e:
+            print(f"Codes file is corrupted or unreadable ({CODES_FILE_PATH.name}): {e}")
+            print("Will re-download HS8 codes...")
+            CODES_FILE_PATH.unlink(missing_ok=True)
 
     try:
-        if not CODES_FILE_PATH.exists():
-            await download_and_save_codes(playwright, year)
-        else:
-            print("HS8 codes were already downloaded and will be used for downloading data.")
-        with CODES_FILE_PATH.open("r", encoding="utf-8") as f:
-            hs_codes = json.load(f)
-
+        await download_and_save_codes(playwright, year)
+        return _read_codes_from_file()
     except Exception as e:
-        print(f"Error handling file: {e}")
-
-    # Проверка, что hs_codes обязательно имеет значение перед возвратом
-    if hs_codes is None:
-        raise RuntimeError("Failed to load codes.")
-
-    return hs_codes
+        raise RuntimeError(f"Failed to load codes: {e}") from e
 
 
 async def collect_data(playwright, year: str, hs_codes: dict):
@@ -281,7 +298,8 @@ if __name__ == "__main__":
     DATA_URL = "https://biruni.tuik.gov.tr/disticaretapp/disticaret_ing.zul?param1=4&param2=24&sitcrev=0&isicrev=0&sayac=5902"
     COUNTRY_ID = "75"  ## 75 - Россия
     BATCH_SIZE = 25  # максимальное количество кодов в одном отчете - 25
-    HS_CODES_DIR = Path.cwd() / "hs_codes_json"
+    project_root = Path(__file__).resolve().parent.parent.parent
+    HS_CODES_DIR = project_root / "data_raw" / "turkey" / "hs_codes_json"
 
     args = parse_arguments()
     if args.codes is not None:
@@ -290,5 +308,7 @@ if __name__ == "__main__":
         YEAR = str(args.year)
 
     CODES_FILE_PATH = HS_CODES_DIR / f"turkey_codes_{YEAR}.json"
-    HTML_TABLES_DIR = Path.cwd() / "raw_html_tables" / YEAR
+    HTML_TABLES_DIR = (
+        project_root / "data_raw" / "turkey" / "raw_html_tables" / f"turkey_html_data_{YEAR}"
+    )
     asyncio.run(main(args))

@@ -98,10 +98,15 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            # STOIM → тысячи USD (стандарт проекта).
-            # Сырые CSV до 2025-09: в миллионах → *1000. С 2025-09: в тысячах → тоже *1000 для единого масштаба с предыдущими месяцами.
+            # STOIM -> тысячи USD (стандарт проекта).
+            # Для текущего архива india_new:
+            # - до 2026-01 значения уже в тысячах USD -> без умножения
+            # - с 2026-01 значения в млн USD -> *1000
             if 'STOIM' in df.columns:
-                df['STOIM'] = df['STOIM'] * 1000
+                file_year = int(df['Year'].iloc[0]) if 'Year' in df.columns and len(df) else 0
+                file_month = int(df['Month'].iloc[0]) if 'Month' in df.columns and len(df) else 0
+                if (file_year, file_month) >= (2026, 1):
+                    df['STOIM'] = df['STOIM'] * 1000
 
             # Map units to ISO and then to Russian names
             if 'EDIZM' in df.columns:

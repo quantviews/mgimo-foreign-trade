@@ -51,7 +51,8 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
     # prefs = {"download.default_directory": str(download_dir)}
     # options.add_experimental_option("prefs", prefs)
 
-    driver = uc.Chrome(options=options, version_main=144)
+    # Let undetected_chromedriver resolve the matching driver version automatically.
+    driver = uc.Chrome(options=options)
     # Evade detection
     # driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
@@ -78,7 +79,16 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
         print(f"An error occurred during browser automation: {e}")
         return False
     finally:
-        driver.quit()
+        # uc.Chrome may call quit() again from __del__ on Windows, which can throw
+        # OSError: [WinError 6] for an already closed handle. Shut down once and
+        # then replace instance quit() with a no-op to keep __del__ silent.
+        original_quit = driver.quit
+        try:
+            original_quit()
+        except OSError:
+            pass
+        finally:
+            driver.quit = lambda: None
 
 def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
     """
