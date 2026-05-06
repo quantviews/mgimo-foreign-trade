@@ -418,6 +418,18 @@ def _cleanup_temp_duckdb_files(tmp_path: Path, strict: bool = True) -> None:
                 logger.warning(f"Could not remove stale temp DuckDB file: {path}")
 
 
+def _cleanup_duckdb_sidecars(db_path: Path, strict: bool = True) -> None:
+    """Remove only DuckDB sidecar files, leaving the main database in place."""
+    for path in _duckdb_sidecar_paths(db_path):
+        if path.exists():
+            try:
+                _unlink_with_retry(path)
+            except OSError:
+                if strict:
+                    raise
+                logger.warning(f"Could not remove DuckDB sidecar file: {path}")
+
+
 def _duckdb_build_path(output_path: Path) -> Path:
     """Choose a non-synced temp location for building DuckDB files."""
     base_dir = Path(
@@ -512,6 +524,10 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
         result = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
         row_count = result[0]
 
+        # Flush WAL contents into the main DB before copying it to a synced
+        # folder. On Windows, the WAL sidecar can remain briefly locked even
+        # after close, so cleanup below is best-effort.
+        conn.execute("CHECKPOINT")
         conn.close()
         conn = None
         gc.collect()
@@ -519,10 +535,7 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
         if row_count != len(df):
             logger.warning(f"Row count mismatch! Expected {len(df):,}, but DuckDB table has {row_count:,}.")
 
-        for sidecar_path in _duckdb_sidecar_paths(tmp_path):
-            if sidecar_path.exists():
-                logger.info(f"Removing temporary DuckDB sidecar file: {sidecar_path}")
-                _unlink_with_retry(sidecar_path)
+        _cleanup_duckdb_sidecars(tmp_path, strict=False)
 
         # YandexDisk can lock freshly copied staging files and make os.replace
         # unreliable. Copy the closed local DuckDB file directly, but keep a

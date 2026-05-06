@@ -132,7 +132,8 @@ class TestIndiaProcessorContract:
     """Contract tests for india_processor.process_and_merge_india_data.
 
     Input: india_*.csv files with Year and Month columns (PERIOD is constructed).
-    STOIM: multiplied ×1000 to normalize from source units to project standard.
+    STOIM: before 2026-01 source values are already in thousand USD; from
+    2026-01 source values are in million USD and are multiplied by 1000.
     EDIZM_ISO: mapped via EDIZM_TO_ISO dict (e.g. KGS→166, NOS→796).
     """
 
@@ -157,10 +158,26 @@ class TestIndiaProcessorContract:
     def test_napr_both_directions(self, india_df):
         assert set(india_df["NAPR"].unique()) == {"ИМ", "ЭК"}
 
-    def test_stoim_scaled_by_1000(self, india_df):
-        """STOIM is multiplied ×1000 to normalize to thousands USD."""
+    def test_stoim_before_2026_kept_as_thousand_usd(self, india_df):
+        """Before 2026-01, STOIM is already in thousand USD."""
         im_stoim = india_df.loc[india_df["NAPR"] == "ИМ", "STOIM"].iloc[0]
-        assert im_stoim == 5000.0, f"Expected 5.0 × 1000 = 5000.0, got {im_stoim}"
+        assert im_stoim == 5.0, f"Expected 2024 STOIM to stay 5.0, got {im_stoim}"
+
+    def test_stoim_from_2026_scaled_by_1000(self, tmp_path):
+        """From 2026-01, source STOIM is in million USD and is scaled to thousand USD."""
+        (tmp_path / "india_2026_01.csv").write_text(
+            "NAPR,STRANA,TNVED,TNVED2,TNVED4,TNVED6,STOIM,NETTO,KOL,EDIZM,Year,Month\n"
+            "ИМ,IN,0101010000,01,0101,010101,5.0,1000.0,5.0,KGS,2026,1\n",
+            encoding="utf-8",
+        )
+        missing_edizm = tmp_path / "edizm_missing.csv"
+        output = tmp_path / "in_2026_test.parquet"
+
+        india_processor.process_and_merge_india_data(tmp_path, output, missing_edizm)
+        df = pd.read_parquet(output)
+
+        im_stoim = df.loc[df["NAPR"] == "ИМ", "STOIM"].iloc[0]
+        assert im_stoim == 5000.0, f"Expected 2026 STOIM 5.0 * 1000 = 5000.0, got {im_stoim}"
 
     def test_edizm_iso_mapped_from_dict(self, india_df):
         """EDIZM_ISO is derived from EDIZM_TO_ISO: KGS→166, NOS→796."""
