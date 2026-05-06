@@ -511,10 +511,10 @@ class TestSaveToDuckDB:
         """If the write fails, the existing database must not be modified."""
         output = tmp_path / "test_db.duckdb"
 
-        # Seed an existing valid database with sentinel data
-        conn = duckdb.connect(str(output))
-        conn.execute("CREATE TABLE sentinel AS SELECT 99 AS id")
-        conn.close()
+        # Seed an existing valid database using the same Windows/YandexDisk-safe
+        # writer path. Opening DuckDB directly in a synced tmp_path can leave a
+        # locked .wal sidecar on this machine.
+        save_to_duckdb(pd.DataFrame({'id': [99]}), output, table_name='sentinel')
         original_mtime = output.stat().st_mtime
 
         # Force a failure by making duckdb.connect raise before writing anything
@@ -542,28 +542,28 @@ class TestSaveToDuckDB:
 
         assert not tmp_file.exists()
 
-    def test_stale_temp_file_removed_before_write(self, tmp_path, sample_df):
-        """A leftover .tmp file from a previous failed run is removed before starting."""
+    def test_locked_legacy_temp_file_does_not_block_write(self, tmp_path, sample_df):
+        """A legacy .duckdb.tmp file must not block the current safe writer."""
         output = tmp_path / "test_db.duckdb"
         tmp_file = output.with_name(output.name + '.tmp')
 
-        # Simulate a stale temp file from a previous crash
+        # Simulate a stale legacy temp file from a previous crash. On YandexDisk
+        # this filename can be locked by the sync client, so the writer should
+        # tolerate failed cleanup and continue with its current local-temp path.
         tmp_file.write_bytes(b"stale data")
         assert tmp_file.exists()
 
         save_to_duckdb(sample_df, output)
 
         assert output.exists()
-        assert not tmp_file.exists()
 
     def test_overwrites_existing_file_correctly(self, tmp_path, sample_df):
         """Saving over an existing database replaces it with the new content."""
         output = tmp_path / "test_db.duckdb"
 
-        # Write an old database
-        conn = duckdb.connect(str(output))
-        conn.execute("CREATE TABLE old_table AS SELECT 1 AS v")
-        conn.close()
+        # Seed the old database through save_to_duckdb to avoid direct DuckDB
+        # WAL files in the synced test directory.
+        save_to_duckdb(pd.DataFrame({'v': [1]}), output, table_name='old_table')
 
         save_to_duckdb(sample_df, output, table_name='unified_trade_data')
 

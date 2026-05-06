@@ -19,6 +19,12 @@ from pathlib import Path
 import logging
 import argparse
 import json
+import gc
+import os
+import shutil
+import tempfile
+import time
+import uuid
 from typing import Dict, List
 
 # Configure logging
@@ -364,6 +370,66 @@ def transform_fizob_to_unified(df: pd.DataFrame, file_stem: str) -> pd.DataFrame
     return out
 
 
+def _duckdb_sidecar_paths(db_path: Path) -> List[Path]:
+    """Return DuckDB sidecar files that can linger after a connection closes."""
+    return [
+        db_path.with_name(db_path.name + '.wal'),
+        db_path.with_name(db_path.name + '.tmp'),
+    ]
+
+
+def _unlink_with_retry(path: Path, attempts: int = 10, delay: float = 0.2) -> None:
+    """Remove a file, tolerating short-lived Windows/YandexDisk file locks."""
+    for attempt in range(attempts):
+        try:
+            path.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            gc.collect()
+            time.sleep(delay * (attempt + 1))
+
+
+def _copy_with_retry(source: Path, target: Path, attempts: int = 10, delay: float = 0.2) -> None:
+    """Copy source to target, retrying transient sync-client locks."""
+    for attempt in range(attempts):
+        try:
+            shutil.copy2(source, target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            gc.collect()
+            time.sleep(delay * (attempt + 1))
+
+
+def _cleanup_temp_duckdb_files(tmp_path: Path, strict: bool = True) -> None:
+    """Remove temporary DuckDB file and its sidecars."""
+    for path in [tmp_path] + _duckdb_sidecar_paths(tmp_path):
+        if path.exists():
+            try:
+                _unlink_with_retry(path)
+            except OSError:
+                if strict:
+                    raise
+                logger.warning(f"Could not remove stale temp DuckDB file: {path}")
+
+
+def _duckdb_build_path(output_path: Path) -> Path:
+    """Choose a non-synced temp location for building DuckDB files."""
+    base_dir = Path(
+        os.environ.get(
+            'MGIMO_DUCKDB_TMPDIR',
+            Path(tempfile.gettempdir()) / 'mgimo_foreign_trade_duckdb'
+        )
+    )
+    base_dir.mkdir(parents=True, exist_ok=True)
+    return base_dir / f"{output_path.stem}.{uuid.uuid4().hex}{output_path.suffix}"
+
+
 def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unified_trade_data', chunk_size: int = 100000):
     """
     Save DataFrame to DuckDB database in chunks to conserve memory.
@@ -380,13 +446,20 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
         logger.warning("Input DataFrame is empty. Nothing to save to DuckDB.")
         return
 
-    # Write to a temporary file first so the existing database is never touched
-    # until the write completes successfully.
-    tmp_path = output_path.with_name(output_path.name + '.tmp')
-    if tmp_path.exists():
-        logger.warning(f"Removing stale temp file from a previous failed run: {tmp_path}")
-        tmp_path.unlink()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Build DuckDB outside YandexDisk/synced folders. DuckDB creates WAL files
+    # while writing, and sync clients on Windows can lock those sidecars long
+    # enough to break checkpoint/replace operations.
+    tmp_path = _duckdb_build_path(output_path)
+    backup_path = None
+    legacy_tmp_path = output_path.with_name(output_path.name + '.tmp')
+    for stale_path in [legacy_tmp_path]:
+        if stale_path.exists() or any(path.exists() for path in _duckdb_sidecar_paths(stale_path)):
+            logger.warning(f"Removing stale temp DuckDB files from a previous failed run: {stale_path}")
+            _cleanup_temp_duckdb_files(stale_path, strict=False)
+
+    conn = None
     try:
         conn = duckdb.connect(str(tmp_path))
 
@@ -440,25 +513,63 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
         row_count = result[0]
 
         conn.close()
+        conn = None
+        gc.collect()
 
         if row_count != len(df):
             logger.warning(f"Row count mismatch! Expected {len(df):,}, but DuckDB table has {row_count:,}.")
 
-        # Atomically replace the target with the fully-written temp file.
-        # Path.replace() is backed by os.replace() which is atomic on both POSIX and Windows:
-        # the target is replaced in a single filesystem operation with no observable gap.
-        tmp_path.replace(output_path)
+        for sidecar_path in _duckdb_sidecar_paths(tmp_path):
+            if sidecar_path.exists():
+                logger.info(f"Removing temporary DuckDB sidecar file: {sidecar_path}")
+                _unlink_with_retry(sidecar_path)
+
+        # YandexDisk can lock freshly copied staging files and make os.replace
+        # unreliable. Copy the closed local DuckDB file directly, but keep a
+        # local backup of the previous database so a failed copy can be rolled
+        # back without losing the last good database.
+        if output_path.exists():
+            backup_path = _duckdb_build_path(output_path)
+            _copy_with_retry(output_path, backup_path)
+
+        try:
+            _copy_with_retry(tmp_path, output_path)
+        except Exception:
+            if backup_path and backup_path.exists():
+                logger.warning(f"Restoring previous DuckDB database after failed copy: {output_path}")
+                _copy_with_retry(backup_path, output_path)
+            elif output_path.exists():
+                try:
+                    _unlink_with_retry(output_path)
+                except OSError:
+                    logger.warning(f"Could not remove partial DuckDB file after failed copy: {output_path}")
+            raise
+
+        _cleanup_temp_duckdb_files(tmp_path, strict=False)
+        if backup_path:
+            _cleanup_temp_duckdb_files(backup_path, strict=False)
         logger.info(f"Successfully saved {row_count:,} rows to {output_path}")
 
     except Exception as e:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                logger.warning("Could not close failed DuckDB connection cleanly.")
+            finally:
+                conn = None
+                gc.collect()
+
         # Remove the incomplete temp file so no stale data is left behind.
         # The original output_path was never touched, so it remains valid.
-        if tmp_path.exists():
-            try:
-                tmp_path.unlink()
-                logger.info(f"Removed incomplete temp file: {tmp_path}")
-            except OSError:
-                logger.warning(f"Could not remove temp file (manual cleanup needed): {tmp_path}")
+        try:
+            _cleanup_temp_duckdb_files(tmp_path, strict=False)
+            if backup_path:
+                _cleanup_temp_duckdb_files(backup_path, strict=False)
+            _cleanup_temp_duckdb_files(legacy_tmp_path, strict=False)
+            logger.info(f"Removed incomplete temp DuckDB files for: {tmp_path}")
+        except OSError:
+            logger.warning(f"Could not remove temp DuckDB files (manual cleanup needed): {tmp_path}")
         logger.error(f"Failed to save to DuckDB: {e}")
         raise
 
