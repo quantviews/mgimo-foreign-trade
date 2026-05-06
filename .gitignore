@@ -102,3 +102,30 @@ logs/
 /.quarto/
 
 **/*.quarto_ipynb
+
+# Python / pytest
+.pytest_cache/
+.pytest_tmp/
+.pytest_tmp*/
+.pytest_tmp_run_*/
+__pycache__/
+*.py[cod]
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# DuckDB artifacts
+*.duckdb.wal
+*.duckdb.tmp
+*.duckdb.tmp.wal
+
+# Local test data / generated artifacts
+*.parquet
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

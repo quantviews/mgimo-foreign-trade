@@ -32,19 +32,19 @@ period_min <- dbGetQuery(con, "SELECT MIN(PERIOD) AS min_period
 period_max <- dbGetQuery(con, "SELECT MAX(PERIOD) AS max_period
                                              FROM unified_trade_data") %>% pull(max_period) %>% lubridate::as_date()
 
-df <- dbGetQuery(con, "
+df_raw <- dbGetQuery(con, "
   SELECT STRANA, NAPR, TNVED, PERIOD, EDIZM, STOIM, NETTO, KOL
   FROM unified_trade_data
 ") %>%
-  filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) %>% # Здесь я фильтровал базу данных, чтобы убрать группы, для которых все данные 0. Для Индии.
-  mutate(PERIOD = as_date(PERIOD)) %>% # Перевожу в date
+  mutate(PERIOD = as_date(PERIOD))
+
+df_nonzero <- df_raw %>%
+  filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) # Здесь я фильтровал базу данных, чтобы убрать группы, для которых все данные 0. Для Индии.
+
+df <- df_nonzero %>%
   # Заполняю пропуски без группировки - замена для group_by %>% complete. Минут на 5 быстрее
   right_join(
-    dbGetQuery(con, "
-  SELECT STRANA, NAPR, TNVED, PERIOD, EDIZM, STOIM, NETTO, KOL
-  FROM unified_trade_data
-               ") %>%
-      filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) %>%
+    df_nonzero %>%
       distinct(STRANA, TNVED, NAPR) %>%
       cross_join(
         data.frame(
