@@ -8,7 +8,7 @@
 
 1. **Создайте файл `.env` в корне проекта:**
    ```
-   F:\YandexDisk\HSE\mgimo-foreign_trade\.env
+   .env
    ```
 
 2. **Добавьте в файл:**

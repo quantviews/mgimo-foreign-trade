@@ -1,354 +1,205 @@
-# Документация по тестированию
+# Документация по тестам
 
-## Обзор
+## Кратко
 
-Проект использует pytest для тестирования модулей. Тесты находятся в директории `tests/` и покрывают основные функции модулей обработки данных.
+Проект использует `pytest` для проверки Python-части ETL: объединение обработанных данных, запись в DuckDB, smoke-check финального датасета и контрактные проверки процессоров стран.
 
-## Установка зависимостей
-
-Для запуска тестов необходимо установить pytest и другие зависимости:
+Актуальное корректное состояние тестов:
 
 ```bash
-pip install pytest pandas duckdb
+pytest -q
 ```
 
-Или используйте файл requirements.txt, если он есть в проекте.
+Ожидаемый результат на 2026-05-07:
 
-## Структура тестов
-
+```text
+65 passed, 1 xfailed
 ```
+
+`xfail` сейчас является осознанным контрактным разрывом: `load_fts_csv` пока не производит `EDIZM_ISO`, тогда как единая целевая схема уже ожидает эту колонку.
+
+## Зависимости
+
+В проекте пока нет отдельного `requirements.txt` или `pyproject.toml` для Python-тестов. Минимальный набор зависимостей для текущего test suite:
+
+```bash
+python -m pip install pytest pandas numpy duckdb pyarrow beautifulsoup4
+```
+
+Зачем нужны пакеты:
+
+- `pytest` — запуск тестов.
+- `pandas`, `numpy` — обработка табличных данных.
+- `duckdb` — проверка записи и чтения DuckDB.
+- `pyarrow` — чтение/запись Parquet в тестах процессоров.
+- `beautifulsoup4` — импортируется модулем `turkey_processor`.
+
+## Структура
+
+```text
 tests/
 ├── __init__.py
-└── test_merge_processed_data.py
+├── conftest.py
+├── test_merge_processed_data.py
+└── test_processor_contracts.py
 ```
 
-## Запуск тестов
+`tests/conftest.py` задает уникальный `basetemp` внутри `.pytest_tmp/` для каждого запуска. Это нужно, чтобы локальный запуск на Windows не зависел от недоступного системного каталога `%TEMP%\pytest-of-*`.
 
-### Запуск всех тестов
+Важно: `conftest.py` не переназначает `TMP`/`TEMP` глобально, потому что `save_to_duckdb()` специально строит DuckDB во внешнем temp-каталоге. Если отправить DuckDB temp обратно в YandexDisk, Windows/sync-client может держать `.wal` lock и ломать тесты.
+
+## Запуск
+
+Полный прогон:
 
 ```bash
-# Из корневой директории проекта
+pytest -q
+```
+
+Подробный прогон:
+
+```bash
 pytest tests/ -v
 ```
 
-### Запуск конкретного тестового файла
+Один файл:
 
 ```bash
-pytest tests/test_merge_processed_data.py -v
+pytest tests/test_merge_processed_data.py -q
+pytest tests/test_processor_contracts.py -q
 ```
 
-### Запуск конкретного тестового класса
+Один класс или тест:
 
 ```bash
-pytest tests/test_merge_processed_data.py::TestValidateSchema -v
+pytest tests/test_merge_processed_data.py::TestSaveToDuckDB -q
+pytest tests/test_processor_contracts.py::TestIndiaProcessorContract::test_stoim_from_2026_scaled_by_1000 -q
 ```
 
-### Запуск конкретного теста
-
-```bash
-pytest tests/test_merge_processed_data.py::TestValidateSchema::test_valid_schema -v
-```
-
-### Запуск с выводом print-ов
-
-```bash
-pytest tests/ -v -s
-```
-
-### Запуск с покрытием кода (если установлен pytest-cov)
-
-```bash
-pytest tests/ --cov=src --cov-report=html
-```
-
-## Тесты для merge_processed_data.py
-
-### TestValidateSchema
-
-Тестирует функцию `validate_schema`, которая проверяет соответствие DataFrame ожидаемой схеме данных.
-
-**Тесты:**
-- `test_valid_schema` - проверка валидной схемы
-- `test_missing_columns` - проверка отсутствующих колонок
-- `test_invalid_napr_values` - проверка невалидных значений NAPR
-- `test_null_period` - проверка null значений в PERIOD
-- `test_wrong_data_types` - проверка неверных типов данных
-
-**Пример использования:**
-```python
-df = pd.DataFrame({
-    'NAPR': ['ИМ', 'ЭК'],
-    'PERIOD': pd.to_datetime(['2024-01-01', '2024-02-01']),
-    # ... другие колонки
-})
-assert validate_schema(df, 'test.parquet') == True
-```
-
-### TestGenerateDerivedColumns
-
-Тестирует функцию `generate_derived_columns`, которая генерирует производные колонки TNVED (TNVED2, TNVED4, TNVED6, TNVED8).
-
-**Тесты:**
-- `test_generate_tnved_columns` - генерация производных колонок
-- `test_pad_right_normalization` - нормализация кодов (удаление ведущих нулей, дополнение справа)
-- `test_all_zeros_code` - обработка кодов из нулей
-
-**Особенности:**
-- Коды нормализуются: удаляются ведущие нули, затем дополняются справа до 10 знаков
-- Например: `0000870421` → `8704210000`
-
-### TestLoadTnvedMapping
-
-Тестирует функцию `load_tnved_mapping`, которая загружает маппинги кодов ТН ВЭД из CSV и JSON файлов.
-
-**Тесты:**
-- `test_load_official_mappings` - загрузка официальных маппингов из CSV
-- `test_load_translations` - загрузка переводов из JSON
-- `test_uppercase_names` - преобразование названий в uppercase
-
-**Структура файлов для тестов:**
-```
-metadata/
-├── tnved.csv
-└── translations/
-    └── missing_codes_translations.json
-```
-
-**Формат tnved.csv:**
-```csv
-KOD,NAME,level
-01,ЖИВЫЕ ЖИВОТНЫЕ,2
-0101,ЛОШАДИ, ОСЛЫ, МУЛЫ И ЛОШАКИ,4
-```
-
-**Формат missing_codes_translations.json:**
-```json
-{
-    "0101010000": {
-        "russian_name": "Тестовое название"
-    }
-}
-```
-
-### TestLoadStranaMapping
-
-Тестирует функцию `load_strana_mapping`, которая загружает маппинги кодов стран.
-
-**Тесты:**
-- `test_load_strana_mapping` - загрузка маппингов стран
-- `test_case_insensitive_keys` - регистронезависимые ключи (uppercase)
-
-**Формат STRANA.csv:**
-```csv
-KOD	NAME
-RU	РОССИЯ
-CN	КИТАЙ
-```
-
-### TestLoadCommonEdizmMapping
-
-Тестирует функцию `load_common_edizm_mapping`, которая загружает маппинги единиц измерения.
-
-**Тесты:**
-- `test_load_edizm_mapping` - загрузка маппингов единиц измерения
-- `test_aliases` - проверка алиасов (KG, КГ и т.д.)
-- `test_uppercase_names` - преобразование названий в uppercase
-
-**Формат edizm.csv:**
-```csv
-KOD,NAME
-166,КИЛОГРАММ
-796,ШТУКА
-```
-
-### TestSaveToDuckDB
-
-Тестирует функцию `save_to_duckdb`, которая сохраняет DataFrame в DuckDB.
-
-**Тесты:**
-- `test_save_to_duckdb` - базовое сохранение в DuckDB
-- `test_save_empty_dataframe` - обработка пустого DataFrame
-- `test_save_with_chunking` - сохранение больших данных с чанкингом
-
-**Особенности:**
-- Тесты используют временные файлы через pytest fixture `tmp_path`
-- PERIOD автоматически преобразуется в DATE тип
-- Поддерживается чанкинг для больших данных
-
-### TestIntegration
-
-Интеграционные тесты, проверяющие взаимодействие нескольких функций.
-
-**Тесты:**
-- `test_schema_validation_with_generated_columns` - генерация колонок и валидация схемы
-- `test_full_pipeline` - полный пайплайн: генерация → валидация → сохранение
-
-## Использование pytest fixtures
-
-Тесты используют встроенные pytest fixtures:
-
-### tmp_path
-
-Временная директория для каждого теста:
-
-```python
-def test_example(tmp_path):
-    file_path = tmp_path / "test.txt"
-    file_path.write_text("test content")
-    # Файл автоматически удаляется после теста
-```
-
-## Добавление новых тестов
-
-### Структура тестового класса
-
-```python
-class TestFunctionName:
-    """Tests for function_name function."""
-    
-    def test_specific_case(self):
-        """Test description."""
-        # Arrange
-        test_data = ...
-        
-        # Act
-        result = function_name(test_data)
-        
-        # Assert
-        assert result == expected_value
-```
-
-### Тестирование с временными файлами
-
-```python
-def test_load_file(tmp_path):
-    """Test loading file."""
-    # Создаем структуру директорий
-    metadata_dir = tmp_path / "metadata"
-    metadata_dir.mkdir()
-    
-    # Создаем тестовый файл
-    test_file = metadata_dir / "test.csv"
-    test_file.write_text("KOD,NAME\n01,Test", encoding='utf-8')
-    
-    # Тестируем функцию
-    project_root = tmp_path
-    result = load_function(project_root)
-    
-    # Проверяем результат
-    assert result is not None
-```
-
-### Тестирование с моками
-
-```python
-from unittest.mock import patch, MagicMock
-
-def test_with_mock():
-    """Test with mocked dependency."""
-    with patch('module.external_function') as mock_func:
-        mock_func.return_value = "mocked result"
-        
-        result = function_under_test()
-        
-        assert result == "expected"
-        mock_func.assert_called_once()
-```
-
-## Лучшие практики
-
-1. **Именование тестов**: используйте описательные имена, начинающиеся с `test_`
-2. **Один тест - одна проверка**: каждый тест должен проверять одну конкретную вещь
-3. **Arrange-Act-Assert**: структурируйте тесты по паттерну AAA
-4. **Изоляция**: тесты должны быть независимыми и не зависеть от порядка выполнения
-5. **Временные файлы**: используйте `tmp_path` для создания временных файлов
-6. **Документация**: добавляйте docstrings к тестовым классам и методам
-
-## Отладка тестов
-
-### Запуск с отладочным выводом
-
-```bash
-pytest tests/ -v -s --pdb
-```
-
-### Запуск последнего упавшего теста
+Полезные режимы отладки:
 
 ```bash
 pytest tests/ --lf
-```
-
-### Запуск с остановкой на первой ошибке
-
-```bash
 pytest tests/ -x
-```
-
-### Просмотр подробной информации об ошибке
-
-```bash
 pytest tests/ -vv
+pytest tests/ -v -s --pdb
 ```
 
-## Покрытие кода
+## Что Покрыто
 
-### Установка pytest-cov
+### `test_merge_processed_data.py`
 
-```bash
-pip install pytest-cov
+Проверяет совместимый публичный API `src/merge_processed_data.py` и вынесенные функции из `src/core/` и `src/pipelines/`.
+
+- `TestValidateSchema` проверяет обязательную схему, типы данных, `NAPR`, `PERIOD` и отсутствие критичных пропусков.
+- `TestGenerateDerivedColumns` проверяет нормализацию `TNVED` и генерацию `TNVED2`, `TNVED4`, `TNVED6`, `TNVED8`.
+- `TestNormalizationRules` напрямую проверяет единый модуль правил `src/core/normalization_rules.py`: нормализацию `EDIZM`, country processor aliases и специальные кейсы `KG`, `TONNE`, `BQ`/`БЕККЕРЕЛЬ`.
+- `TestLoadTnvedMapping` проверяет загрузку справочников ТН ВЭД из CSV/JSON и нормализацию названий.
+- `TestLoadStranaMapping` проверяет загрузку стран и регистронезависимые ключи.
+- `TestLoadCommonEdizmMapping` проверяет единицы измерения и алиасы вроде `KG`/`КГ`.
+- `TestSaveToDuckDB` проверяет запись DataFrame в DuckDB, пустой ввод, чанкинг, overwrite, cleanup временных файлов и сохранность старой базы при ошибке записи.
+- `TestIntegration` проверяет связку: derived columns -> schema validation -> DuckDB save.
+- `TestSmokeCheckMergedDataset` проверяет smoke-check финального объединенного датасета.
+
+### `test_processor_contracts.py`
+
+Проверяет, что процессоры стран возвращают данные в едином контракте для дальнейшего merge.
+
+`TestCountryProcessorContractLayer` проверяет общий слой `src/core/country_processor_contract.py`: стандартные входы, список выходных колонок и единый post-processing.
+
+Обязательные колонки:
+
+```text
+NAPR, PERIOD, STRANA, TNVED, EDIZM, EDIZM_ISO,
+STOIM, NETTO, KOL, TNVED2, TNVED4, TNVED6
 ```
 
-### Генерация отчета о покрытии
+Основные контракты:
+
+- `NAPR` должен быть только `ИМ` или `ЭК`.
+- `PERIOD` должен быть datetime.
+- `STOIM`, `NETTO`, `KOL` должны быть numeric.
+- `TNVED2/4/6` должны быть префиксами `TNVED`.
+- Для Китая `STRANA` жестко нормализуется в `CN`, `TNVED` приводится к 8-значному коду источника, а единицы измерения проходят через общий EDIZM-слой.
+- Для Индии `PERIOD` строится из `Year`/`Month`, а `EDIZM`/`EDIZM_ISO` нормализуются через общий слой `src/core/normalization_rules.py`.
+- Для Индии правило масштаба `STOIM`: до `2026-01` источник уже в тыс. USD; начиная с `2026-01` источник в млн USD и умножается на `1000`.
+- Для Турции направление инвертируется относительно турецкого источника: `Export Dollar` становится российским импортом `ИМ`, `Import Dollar` становится российским экспортом `ЭК`.
+- Для ФТС CSV зафиксирован текущий контракт и известный gap по `EDIZM_ISO`.
+
+## DuckDB И Windows/YandexDisk
+
+`save_to_duckdb()` учитывает особенности Windows и синхронизируемых папок:
+
+- DuckDB строится во временном каталоге вне целевого YandexDisk-пути.
+- Перед копированием выполняется `CHECKPOINT`, чтобы сбросить WAL в основной файл.
+- Cleanup `.wal`/`.tmp` после успешной записи выполняется best-effort: если sync-client кратковременно держит lock, это не должно превращать успешную запись в падение.
+- При перезаписи существующей базы создается локальная backup-копия, чтобы при ошибке копирования можно было восстановить старую базу.
+
+Если локально остаются `.pytest_tmp*`, `.duckdb.wal` или другие временные файлы, сначала проверьте, что это ignored artifacts. На Windows/YandexDisk они могут удалиться не сразу из-за lock со стороны Python, DuckDB или клиента синхронизации.
+
+## CI
+
+Для Python-тестов есть отдельный GitHub Actions workflow:
+
+```text
+.github/workflows/python-tests.yml
+```
+
+Он запускается:
+
+- на `push` в `main`, если менялись `src/**/*.py`, `tests/**/*.py` или сам workflow;
+- на `pull_request` с такими же path-фильтрами;
+- вручную через `workflow_dispatch`.
+
+Workflow использует:
+
+- `ubuntu-latest`;
+- Python `3.11`;
+- `actions/setup-python@v5` с pip cache;
+- установку минимальных test dependencies;
+- команду `pytest -q`.
+
+Quarto publish workflow остается отдельно в `.github/workflows/publish.yml` и не смешивается с Python ETL checks.
+
+## Добавление Новых Тестов
+
+Рекомендации:
+
+- Добавляйте unit/smoke-тесты merge-логики в `tests/test_merge_processed_data.py`.
+- Добавляйте контрактные проверки процессоров стран в `tests/test_processor_contracts.py`.
+- Используйте `tmp_path` для файловых фикстур.
+- Не используйте реальные `data_raw/`, `data_processed/`, `db/` в тестах, если можно собрать минимальную фикстуру на лету.
+- Для новых стран сначала фиксируйте единый output-contract: колонки, типы, `NAPR`, `PERIOD`, `TNVED*`, масштаб `STOIM`.
+- Если поведение известно как временно некорректное, помечайте тест `xfail` с явной причиной и планом снятия.
+
+Минимальный шаблон:
+
+```python
+def test_specific_contract(tmp_path):
+    source = tmp_path / "input.csv"
+    source.write_text("...", encoding="utf-8")
+
+    output = tmp_path / "output.parquet"
+    process_function(tmp_path, output)
+
+    df = pd.read_parquet(output)
+    assert not df.empty
+```
+
+## Покрытие
+
+Если установлен `pytest-cov`, можно запускать:
 
 ```bash
-# HTML отчет
-pytest tests/ --cov=src --cov-report=html
-
-# Консольный отчет
 pytest tests/ --cov=src --cov-report=term-missing
+pytest tests/ --cov=src --cov-report=html
 ```
 
-Отчет будет доступен в `htmlcov/index.html`.
+HTML-отчет будет доступен в `htmlcov/index.html`.
 
-## CI/CD интеграция
+## Смежная Документация
 
-Пример конфигурации для GitHub Actions:
-
-```yaml
-name: Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.9'
-      - name: Install dependencies
-        run: |
-          pip install pytest pandas duckdb
-      - name: Run tests
-        run: |
-          pytest tests/ -v
-```
-
-## Известные проблемы и ограничения
-
-1. **Зависимости от файловой системы**: некоторые тесты требуют создания временных файлов
-2. **DuckDB версии**: убедитесь, что версия DuckDB совместима с используемым API
-3. **Кодировка**: все тестовые файлы должны использовать UTF-8 кодировку
-
-## Полезные ресурсы
-
-- [Документация pytest](https://docs.pytest.org/)
-- [Pytest fixtures](https://docs.pytest.org/en/stable/fixture.html)
-- [Pytest best practices](https://docs.pytest.org/en/stable/goodpractices.html)
-
-## Контакты
-
-При возникновении проблем с тестами или вопросах по тестированию, обращайтесь к разработчикам проекта.
-
+- `docs/refactoring-plan.md` — исторический план технического рефакторинга от 2026-05-06; актуальное состояние проверяйте по коду, тестам и этой документации.
+- `docs/merge_processed_data-docs.md` — документация по объединению данных и DuckDB.
+- `docs/india-processor-docs.md` — детали обработки Индии, включая масштаб `STOIM`.
+- `docs/fts_csv_format.md` — формат CSV ФТС.

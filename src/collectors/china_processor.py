@@ -1,41 +1,22 @@
 import pandas as pd
 from pathlib import Path
-import os
+import sys
 import logging
-from typing import Dict, Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from core.country_processor_contract import (
+    CountryProcessorInput,
+    finalize_country_output,
+    save_country_output,
+)
+from core.edizm import load_common_edizm_mapping, resolve_edizm_record
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def load_edizm_russian_mapping(edizm_file: Path) -> Dict[str, str]:
-    """
-    Loads a mapping from EDIZM ISO codes to their Russian names from edizm.csv.
-
-    Args:
-        edizm_file: Path to the metadata/edizm.csv file.
-
-    Returns:
-        A dictionary mapping ISO codes (str) to Russian names (str).
-    """
-    if not edizm_file.exists():
-        logger.warning(f"EDIZM mapping file not found: {edizm_file}")
-        return {}
-
-    try:
-        df = pd.read_csv(edizm_file, dtype={'KOD': str})
-        # Clean the KOD column by removing quotes and stripping whitespace
-        df['KOD'] = df['KOD'].str.replace('"', '').str.strip()
-        mapping = pd.Series(df.NAME.values, index=df.KOD).to_dict()
-        logger.info(f"Loaded Russian EDIZM mapping with {len(mapping)} entries.")
-        return mapping
-    except Exception as e:
-        logger.error(f"Failed to load or process EDIZM mapping file {edizm_file}: {e}")
-        return {}
-
-
-def load_china_codes_mapping(codes_dir: Path) -> dict:
+def load_china_codes_mapping(codes_dir: Path, common_edizm_map: dict = None) -> dict:
     """
     Load china codes mapping from CSV files to get EDIZM and EDIZM_ISO mapping.
     
@@ -52,24 +33,6 @@ def load_china_codes_mapping(codes_dir: Path) -> dict:
     if not csv_files:
         logger.warning("No china codes CSV files found")
         return {}
-    
-    # Create English to ISO mapping for UNIT_2_DESCRIPTION
-    english_to_iso_mapping = {
-        # Common units from china-codes CSV
-        "Number of item": "796",          # ШТУКА
-        "Piece": "796",                  # ШТУКА  
-        "Pair": "715",                   # ПАРА
-        "Square Metre": "055",           # КВАДРАТНЫЙ МЕТР
-        "Metre": "006",                  # МЕТР
-        "Kilogram": "166",               # КИЛОГРАММ
-        "Litre": "112",                  # ЛИТР
-        "Cubic Metre": "113",            # КУБИЧЕСКИЙ МЕТР
-        "Carat": "162",                  # МЕТРИЧЕСКИЙ КАРАТ
-        "Gram": "163",                   # ГРАММ
-        "In Hundreds": "797",            # СТО ШТУК
-        "In Thousands": "798",           # ТЫСЯЧА ШТУК
-        "Million Bq": "305",             # КЮРИ
-    }
     
     # Process all CSV files and create mapping
     codes_mapping = {}
@@ -105,10 +68,11 @@ def load_china_codes_mapping(codes_dir: Path) -> dict:
             for _, row in df.iterrows():
                 tnved_code = str(row['CODES']).zfill(8)  # Ensure 8 digits
                 unit_description = row['UNIT_2_DESCRIPTION']
+                unit_record = resolve_edizm_record(unit_description, common_edizm_map)
                 
                 codes_mapping[tnved_code] = {
-                    'EDIZM': unit_description,
-                    'EDIZM_ISO': english_to_iso_mapping.get(unit_description, '?')
+                    'EDIZM': unit_record.get('NAME') if unit_record else unit_description,
+                    'EDIZM_ISO': unit_record.get('KOD') if unit_record else '?'
                 }
                 
         except Exception as e:
@@ -128,7 +92,7 @@ def load_china_codes_mapping(codes_dir: Path) -> dict:
     logger.info(f"Successfully mapped units: {sorted(mapped_units)}")
     if unmapped_units:
         logger.warning(f"Unmapped units found: {sorted(unmapped_units)}")
-        logger.warning("Consider adding these to english_to_iso_mapping")
+        logger.warning("Consider adding these to COUNTRY_UNIT_ALIAS_RECORDS in core.normalization_rules")
     
     return codes_mapping
 
@@ -144,19 +108,24 @@ def process_and_merge_china_data(
     as a Parquet file.
     """
     
-    # 0. Load china codes and EDIZM mappings
+    # 0. Load China code and EDIZM mappings through the common EDIZM layer
+    processor_input = CountryProcessorInput.from_paths(
+        raw_data_dir,
+        output_file,
+        country_code="CN",
+        edizm_file=edizm_file,
+    )
+    project_root = processor_input.metadata_dir.parent if processor_input.metadata_dir else Path.cwd()
+    common_edizm_map = load_common_edizm_mapping(project_root)
+
     codes_mapping = {}
     if codes_dir and codes_dir.exists():
-        codes_mapping = load_china_codes_mapping(codes_dir)
-        
-    edizm_rus_mapping = {}
-    if edizm_file and edizm_file.exists():
-        edizm_rus_mapping = load_edizm_russian_mapping(edizm_file)
+        codes_mapping = load_china_codes_mapping(codes_dir, common_edizm_map)
     
     # 1. Find all raw data files generated by the collector
     logger.info("Searching for raw data files...")
-    import_dir = raw_data_dir / 'IMPORT'
-    export_dir = raw_data_dir / 'EXPORT'
+    import_dir = processor_input.raw_data_dir / 'IMPORT'
+    export_dir = processor_input.raw_data_dir / 'EXPORT'
     
     all_files = list(import_dir.glob('data*.csv')) + list(export_dir.glob('data*.csv'))
 
@@ -208,14 +177,9 @@ def process_and_merge_china_data(
                     lambda x: codes_mapping.get(str(x).zfill(8), {}).get('EDIZM_ISO', '?')
                 )
                 
-                # Get the Russian name from the EDIZM ISO mapping
-                if edizm_rus_mapping:
-                    df['EDIZM'] = df['EDIZM_ISO'].map(edizm_rus_mapping).fillna('?')
-                else:
-                    # Fallback to English name if Russian mapping is unavailable
-                    df['EDIZM'] = df['TNVED'].map(
-                        lambda x: codes_mapping.get(str(x).zfill(8), {}).get('EDIZM', '?')
-                    )
+                df['EDIZM'] = df['TNVED'].map(
+                    lambda x: codes_mapping.get(str(x).zfill(8), {}).get('EDIZM', '?')
+                )
 
             # Reorder columns to a standard format
             standard_columns = [
@@ -256,6 +220,12 @@ def process_and_merge_china_data(
             errors='coerce'
         )
 
+    final_df = finalize_country_output(
+        final_df,
+        country_code=processor_input.country_code,
+        sort_by=("PERIOD", "NAPR", "TNVED"),
+    )
+
     # 5. Check for missing months in the time series
     logger.info("Checking for gaps in the time series...")
     if 'PERIOD' in final_df.columns:
@@ -279,17 +249,9 @@ def process_and_merge_china_data(
         else:
             logger.info("No missing months found in the time series.")
 
-    # 6. Delete existing parquet file if it exists
-    if output_file.exists():
-        logger.info(f"Deleting existing file: {output_file}")
-        os.remove(output_file)
-
-    # 7. Save final DataFrame as Parquet
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    
-    logger.info(f"Saving merged data to {output_file}...")
+    # 6. Save final DataFrame as Parquet
     try:
-        final_df.to_parquet(output_file, index=False)
+        save_country_output(final_df, processor_input.output_file, logger=logger)
         logger.info("Processing complete.")
         
         # Summary statistics

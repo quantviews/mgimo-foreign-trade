@@ -10,55 +10,19 @@ Original file is located at
 import pandas as pd
 from pathlib import Path
 import os
+import sys
 import logging
-from typing import Dict
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from core.country_processor_contract import (
+    CountryProcessorInput,
+    finalize_country_output,
+    save_country_output,
+)
+from core.edizm import load_common_edizm_mapping, resolve_edizm_records
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-EDIZM_TO_ISO = {
-    "KGS": "166",   # КИЛОГРАММ
-    "KG": "166",    # КИЛОГРАММ
-    "T": "168",     # ТОННА
-    "TON": "168",   # ТОННА
-    "NOS": "796",   # ШТУКА
-    "NO": "796",    # ШТУКА
-    "PAIRS": "715", # ПАРА
-    "LTR": "112",   # ЛИТР
-    "L": "112",     # ЛИТР
-    "M2": "055",    # КВАДРАТНЫЙ МЕТР
-    "M3": "113",    # КУБИЧЕСКИЙ МЕТР
-    "M": "006",     # МЕТР
-    "U": "796",     # ШТУКА
-    "?": None
-}
-
-def load_edizm_russian_mapping(edizm_file: Path) -> Dict[str, str]:
-    """
-    Loads a mapping from EDIZM ISO codes to their Russian names from edizm.csv.
-
-    Args:
-        edizm_file: Path to the metadata/edizm.csv file.
-
-    Returns:
-        A dictionary mapping ISO codes (str) to Russian names (str).
-    """
-    if not edizm_file.exists():
-        logger.warning(f"EDIZM mapping file not found: {edizm_file}")
-        return {}
-
-    try:
-        # Specify dtype for KOD to treat it as a string
-        df = pd.read_csv(edizm_file, dtype={'KOD': str})
-        # Clean the KOD column by removing quotes and stripping whitespace
-        df['KOD'] = df['KOD'].str.replace('"', '').str.strip()
-        mapping = pd.Series(df.NAME.values, index=df.KOD).to_dict()
-        logger.info(f"Loaded Russian EDIZM mapping with {len(mapping)} entries.")
-        return mapping
-    except Exception as e:
-        logger.error(f"Failed to load or process EDIZM mapping file {edizm_file}: {e}")
-        return {}
 
 def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_file: Path):
     """
@@ -67,12 +31,20 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
     """
 
     logger.info("=== Начало обработки данных Индии ===")
-    
-    edizm_rus_mapping = load_edizm_russian_mapping(edizm_file)
 
-    all_files = sorted(raw_data_dir.glob("india_*.csv"))
+    processor_input = CountryProcessorInput.from_paths(
+        raw_data_dir,
+        output_file,
+        country_code="IN",
+        edizm_file=edizm_file,
+    )
+    
+    project_root = processor_input.metadata_dir.parent if processor_input.metadata_dir else Path.cwd()
+    common_edizm_map = load_common_edizm_mapping(project_root)
+
+    all_files = sorted(processor_input.raw_data_dir.glob("india_*.csv"))
     if not all_files:
-        logger.error(f"Не найдено файлов в {raw_data_dir}")
+        logger.error(f"Не найдено файлов в {processor_input.raw_data_dir}")
         return
 
     logger.info(f"Найдено {len(all_files)} файлов для объединения")
@@ -108,19 +80,19 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
                 if (file_year, file_month) >= (2026, 1):
                     df['STOIM'] = df['STOIM'] * 1000
 
-            # Map units to ISO and then to Russian names
+            # Map units through the common EDIZM normalization layer.
             if 'EDIZM' in df.columns:
                 original_edizm = df['EDIZM'].astype(str).str.strip().replace({'nan': '?', 'None': '?'})
             else:
                 original_edizm = pd.Series('?', index=df.index)
 
-            df['EDIZM_ISO'] = original_edizm.map(EDIZM_TO_ISO)
-
-            if edizm_rus_mapping:
-                df['EDIZM'] = df['EDIZM_ISO'].map(edizm_rus_mapping).fillna('?')
-            else:
-                # Fallback to original EDIZM if Russian mapping failed to load
-                df['EDIZM'] = original_edizm
+            edizm_records = resolve_edizm_records(original_edizm, common_edizm_map)
+            df['EDIZM_ISO'] = edizm_records.map(
+                lambda record: record.get('KOD') if isinstance(record, dict) else None
+            )
+            df['EDIZM'] = edizm_records.map(
+                lambda record: record.get('NAME') if isinstance(record, dict) else None
+            ).fillna(original_edizm)
 
             df_final = df[[
                 'NAPR', 'PERIOD', 'STRANA', 'TNVED',
@@ -141,7 +113,10 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
         logger.error("Не удалось обработать ни один файл.")
         return
 
-    final_df = pd.concat(dfs, ignore_index=True)
+    final_df = finalize_country_output(
+        pd.concat(dfs, ignore_index=True),
+        country_code=processor_input.country_code,
+    )
 
     # Сводка по месяцам — для проверки размерности (резкий скачок/провал = возможная ошибка масштаба)
     stoim_by_month = final_df.groupby(final_df['PERIOD'].dt.to_period('M'))['STOIM'].sum()
@@ -149,17 +124,7 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
     for period, total in stoim_by_month.items():
         logger.info(f"  {period}: {total:,.0f}")
 
-    final_df.drop_duplicates(inplace=True)
-    final_df.sort_values(by=['PERIOD', 'NAPR', 'TNVED'], inplace=True)
-
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-
-    logger.info(f"Сохранение объединённого набора в {output_file}")
-    try:
-        final_df.to_parquet(output_file, index=False)
-        logger.info(f"Успешно сохранено. Всего строк: {len(final_df)}")
-    except ImportError:
-        logger.error("Не установлен pyarrow. Установите: pip install pyarrow")
+    save_country_output(final_df, processor_input.output_file, logger=logger)
 
 def main():
     """

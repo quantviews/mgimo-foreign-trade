@@ -22,50 +22,65 @@ import load_fts_csv
 import china_processor
 import india_processor
 import turkey_processor
+from core.country_processor_contract import (
+    COUNTRY_OUTPUT_COLUMNS,
+    CountryProcessorInput,
+    assert_country_output_contract,
+    finalize_country_output,
+)
 
 
-REQUIRED_COLUMNS = frozenset({
-    "NAPR", "PERIOD", "STRANA", "TNVED",
-    "EDIZM", "EDIZM_ISO", "STOIM", "NETTO", "KOL",
-    "TNVED2", "TNVED4", "TNVED6",
-})
+REQUIRED_COLUMNS = frozenset(COUNTRY_OUTPUT_COLUMNS)
 
 
 def assert_output_contract(df: pd.DataFrame, *, expected_strana: str = None) -> None:
     """Shared output-contract assertions for all processor DataFrames."""
-    assert not df.empty, "Output DataFrame must not be empty"
+    assert_country_output_contract(df, expected_strana=expected_strana)
 
-    missing = REQUIRED_COLUMNS - set(df.columns)
-    assert not missing, f"Missing required columns: {missing}"
 
-    invalid_napr = set(df["NAPR"].dropna().unique()) - {"ИМ", "ЭК"}
-    assert not invalid_napr, f"Invalid NAPR values: {invalid_napr}"
+class TestCountryProcessorContractLayer:
+    """Tests for the shared country processor contract helpers."""
 
-    assert pd.api.types.is_datetime64_any_dtype(df["PERIOD"]), (
-        f"PERIOD must be datetime64, got {df['PERIOD'].dtype}"
-    )
+    def test_standard_input_from_legacy_paths(self, tmp_path):
+        edizm_file = tmp_path / "metadata" / "edizm.csv"
+        output = tmp_path / "out.parquet"
+        raw = tmp_path / "raw"
 
-    for col in ("STOIM", "NETTO", "KOL"):
-        assert pd.api.types.is_numeric_dtype(df[col]), (
-            f"{col} must be numeric, got {df[col].dtype}"
+        contract = CountryProcessorInput.from_paths(
+            raw,
+            output,
+            country_code="IN",
+            edizm_file=edizm_file,
         )
 
-    assert df["TNVED"].dtype == object, "TNVED must be string (object dtype)"
+        assert contract.raw_data_dir == raw
+        assert contract.output_file == output
+        assert contract.metadata_dir == edizm_file.parent
+        assert contract.country_code == "IN"
 
-    assert (df["TNVED2"] == df["TNVED"].str[:2]).all(), (
-        "TNVED2 is not consistent with the first 2 chars of TNVED"
-    )
-    assert (df["TNVED4"] == df["TNVED"].str[:4]).all(), (
-        "TNVED4 is not consistent with the first 4 chars of TNVED"
-    )
-    assert (df["TNVED6"] == df["TNVED"].str[:6]).all(), (
-        "TNVED6 is not consistent with the first 6 chars of TNVED"
-    )
+    def test_finalize_country_output_applies_shared_postprocessing(self):
+        raw = pd.DataFrame({
+            "NAPR": ["IMPORT"],
+            "PERIOD": ["2024-01"],
+            "STRANA": ["xx"],
+            "TNVED": ["01010100"],
+            "EDIZM": ["ШТУКА"],
+            "EDIZM_ISO": ["796"],
+            "STOIM": ["5.5"],
+            "NETTO": ["1"],
+            "KOL": ["2"],
+        })
 
-    if expected_strana is not None:
-        assert (df["STRANA"] == expected_strana).all(), (
-            f"Expected STRANA='{expected_strana}', got: {df['STRANA'].unique()}"
-        )
+        result = finalize_country_output(raw, country_code="CN")
+
+        assert list(result.columns) == list(COUNTRY_OUTPUT_COLUMNS)
+        assert result.loc[0, "NAPR"] == "ИМ"
+        assert result.loc[0, "STRANA"] == "CN"
+        assert result.loc[0, "TNVED2"] == "01"
+        assert result.loc[0, "TNVED4"] == "0101"
+        assert result.loc[0, "TNVED6"] == "010101"
+        assert result.loc[0, "STOIM"] == 5.5
+        assert_country_output_contract(result, expected_strana="CN")
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +149,7 @@ class TestIndiaProcessorContract:
     Input: india_*.csv files with Year and Month columns (PERIOD is constructed).
     STOIM: before 2026-01 source values are already in thousand USD; from
     2026-01 source values are in million USD and are multiplied by 1000.
-    EDIZM_ISO: mapped via EDIZM_TO_ISO dict (e.g. KGS→166, NOS→796).
+    EDIZM_ISO: mapped via common EDIZM normalization layer (e.g. KGS→166, NOS→796).
     """
 
     @pytest.fixture
@@ -145,8 +160,8 @@ class TestIndiaProcessorContract:
             "ЭК,IN,8704210000,87,8704,870421,12.0,8000.0,3.0,NOS,2024,1\n",
             encoding="utf-8",
         )
-        # Pass a non-existent edizm file → edizm_rus_mapping = {}
-        # → EDIZM stays as original raw value, EDIZM_ISO comes from EDIZM_TO_ISO dict
+        # Pass a non-existent edizm file to exercise fallback aliases from the
+        # common EDIZM normalization layer.
         missing_edizm = tmp_path / "edizm_missing.csv"
         output = tmp_path / "in_test.parquet"
         india_processor.process_and_merge_india_data(tmp_path, output, missing_edizm)
@@ -180,7 +195,7 @@ class TestIndiaProcessorContract:
         assert im_stoim == 5000.0, f"Expected 2026 STOIM 5.0 * 1000 = 5000.0, got {im_stoim}"
 
     def test_edizm_iso_mapped_from_dict(self, india_df):
-        """EDIZM_ISO is derived from EDIZM_TO_ISO: KGS→166, NOS→796."""
+        """EDIZM_ISO is derived from the common EDIZM layer: KGS→166, NOS→796."""
         im_iso = india_df.loc[india_df["NAPR"] == "ИМ", "EDIZM_ISO"].iloc[0]
         ek_iso = india_df.loc[india_df["NAPR"] == "ЭК", "EDIZM_ISO"].iloc[0]
         assert im_iso == "166", f"KGS should map to ISO 166, got {im_iso}"
@@ -199,20 +214,11 @@ class TestIndiaProcessorContract:
 class TestTurkeyProcessorContract:
     """Contract tests for turkey_processor.harmonize_df.
 
-    NOTE: The UNITS dict is defined inside the `if __name__ == '__main__':` block
-    in turkey_processor.py and is therefore unavailable when the module is imported.
-    The `turkey_df` fixture injects a minimal UNITS dict via monkeypatch to work
-    around this. The proper fix is to move UNITS to module level.
-
     Direction logic: Turkey's 'Export Dollar' → Russia's import (ИМ);
                      Turkey's 'Import Dollar' → Russia's export (ЭК).
     STOIM: European number format ('5.000' = 5000.0) is parsed to float.
+    EDIZM/EDIZM_ISO: mapped via common EDIZM normalization layer.
     """
-
-    _UNITS = {
-        "KG/ADET": ["796", "ШТУКА", "ШТ"],
-        "-": ["?", "?", "?"],
-    }
 
     # Minimal raw DataFrame as produced by build_for_year / table_clean.
     # Row 0: Export Dollar != '0' → NAPR='ИМ'
@@ -233,8 +239,7 @@ class TestTurkeyProcessorContract:
     }
 
     @pytest.fixture
-    def turkey_df(self, monkeypatch):
-        monkeypatch.setattr(turkey_processor, "UNITS", self._UNITS, raising=False)
+    def turkey_df(self):
         raw = pd.DataFrame(self._RAW_DATA)
         return turkey_processor.harmonize_df(raw, "2024")
 
@@ -254,18 +259,10 @@ class TestTurkeyProcessorContract:
         im_stoim = turkey_df.loc[turkey_df["NAPR"] == "ИМ", "STOIM"].iloc[0]
         assert im_stoim == 5000.0, f"Expected 5000.0, got {im_stoim}"
 
-    def test_units_dict_must_be_at_module_level(self):
-        """UNITS is currently in __main__ block and unavailable on import (known bug).
-        Once UNITS is moved to module level, remove the monkeypatch from turkey_df
-        fixture and delete this test.
-        """
-        import importlib
-        fresh = importlib.reload(turkey_processor)
-        # After a clean reload (without monkeypatch) UNITS should NOT be defined.
-        # If this test starts failing, UNITS was moved to module level — great, clean up.
-        assert not hasattr(fresh, "UNITS"), (
-            "UNITS is now at module level. Remove monkeypatch from turkey_df fixture."
-        )
+    def test_units_mapping_uses_common_layer(self, turkey_df):
+        assert set(turkey_df["EDIZM_ISO"].unique()) == {"796"}
+        assert set(turkey_df["EDIZM"].unique()) == {"ШТУКА"}
+        assert not hasattr(turkey_processor, "UNITS")
 
 
 # ---------------------------------------------------------------------------

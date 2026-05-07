@@ -3,13 +3,17 @@
 который затем гармонизируется в соответствии с моделью данных и сохраняется в виде parquet файла.
 """
 
-import re, os, argparse
+import re, os, argparse, sys
 from bs4 import BeautifulSoup
 from pathlib import Path
 from io import StringIO
 import pandas as pd
 import numpy as np
 from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from core.country_processor_contract import finalize_country_output
+from core.edizm import resolve_edizm_records
 
 
 def parse_arguments():
@@ -199,18 +203,18 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
 
     # Страна и строковые столбцы
     df["STRANA"] = "TR"
-    df["EDIZM_ISO"] = df["EDIZM"]
+    edizm_records = resolve_edizm_records(df["EDIZM"])
+    df["EDIZM_ISO"] = edizm_records.map(
+        lambda record: record.get("KOD") if isinstance(record, dict) and record.get("KOD") else "?"
+    )
+    df["EDIZM"] = edizm_records.map(
+        lambda record: record.get("NAME") if isinstance(record, dict) and record.get("NAME") else "?"
+    )
 
     # TNVED разбивка без многократного обращения к колонке
     df["TNVED4"] = df["TNVED"].str[:4]
     df["TNVED6"] = df["TNVED"].str[:6]
     df["TNVED2"] = df["TNVED"].str[:2]
-
-    # Маппинг EDIZM и EDIZM_ISO
-    edizm_map = {k: v[2] if len(v) > 2 else None for k, v in UNITS.items()}
-    edizm_iso_map = {k: v[0] if len(v) > 0 else None for k, v in UNITS.items()}
-    df["EDIZM"] = df["EDIZM"].map(edizm_map)
-    df["EDIZM_ISO"] = df["EDIZM_ISO"].map(edizm_iso_map)
 
     # Маски выборки: вместо index/loc — boolean index
     mask_in = df["Export\xa0Dollar"] != "0"
@@ -280,7 +284,7 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
         )
         result[col] = pd.to_numeric(clean_col, errors="coerce").fillna(0).astype(float)
 
-    return result
+    return finalize_country_output(result, country_code="TR", sort_by=("PERIOD",))
 
 
 def build_for_year(year):
@@ -415,37 +419,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # словарь который используется для конвертации единиц измерения при гармонизации данных
-    UNITS = {
-        "KG/ÇİFT": ["715", "ПАР", "ПАРА"],
-        "KG": ["?", "?", "?"],
-        "KG/METR E": ["006", "МЕТР", "М"],
-        "KG/1000A DET": ["798", "ТЫСЯЧА ШТУК", "1000 ШТ"],
-        "KG/KG P2O5": ["865", "КИЛОГРАММ ПЯТИОКИСИ ФОСФОРА", "КГ P2O5"],
-        "KG/ADET": ["796", "ШТУКА", "ШТ"],
-        "KG/M3": ["113", "КУБИЧЕСКИЙ МЕТР", "М3"],
-        "KG/KG K2O": ["852", "КИЛОГРАММ ОКСИДА КАЛИЯ", "КГ K2O"],
-        "KG/KG MET.AM.": ["?", "КИЛОГРАММ МЕТИЛАМИНА", "KG MET.AM"],
-        "KG/1000LI TRE": ["130", "1000 ЛИТРОВ", "1000 Л"],
-        "KG/CE-El": ["745", "ЭЛЕМЕНТ", "ЭЛЕМ"],
-        "KG/LİTRE": ["112", "ЛИТР", "Л"],
-        "KG/BAŞ": ["836", "ГОЛОВА", "ГОЛ"],
-        "KG/KARA T": ["162", "МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ", "КАР"],
-        "KG/100AD ET": ["797", "СТО ШТУК", "100 ШТ"],
-        "KG/KG\xa0N": ["861", "КИЛОГРАММ АЗОТА", "КГ N"],
-        "KG/M2": ["055", "КВАДРАТНЫЙ МЕТР", "М2"],
-        "KG/LT- ALK%100": ["831", "ЛИТР ЧИСТОГО (100%) СПИРТА", "Л 100% СПИРТА"],
-        "KG/KG H2O2": ["841", "КИЛОГРАММ ПЕРОКСИДА ВОДОРОДА", "КГ H2O2"],
-        "KG/GRAM": ["163", "ГРАММ", "Г"],
-        "KG/KG\xa0U": ["867", "КИЛОГРАММ УРАНА", "КГ U"],
-        "KG/1000M 3": ["114", "1000 КУБИЧЕСКИХ МЕТРОВ", "1000 М3"],
-        "KG/gi\xa0F/S": ["?", "?", "gi F/S"],
-        "-": ["?", "?", "?"],
-        "KG/CT-L": ["?", "?", "CT-L"],
-        "G.T/ADET": ["796", "ШТУКА", "ШТ"],
-        "KG/KG NET\xa0EDA": ["?", "?", "KG NET EDA"],
-        "KG/KG %90\xa0SDT": ["845", "КИЛОГРАММ СУХОГО НА 90 % ВЕЩЕСТВА", "КГ 90% С/В"],
-        "KG/KG KOH": ["859", "КИЛОГРАММ ГИДРОКСИДА КАЛИЯ", "КГ KOH"],
-        "KG/KG NaOH": ["863", "КИЛОГРАММ ГИДРОКСИДА НАТРИЯ", "КГ NAOH"],
-    }
     main()

@@ -17,6 +17,7 @@ import duckdb
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from merge_processed_data import (
+    apply_special_edizm_cases,
     validate_schema,
     generate_derived_columns,
     load_tnved_mapping,
@@ -24,6 +25,8 @@ from merge_processed_data import (
     load_common_edizm_mapping,
     save_to_duckdb,
     smoke_check_merged_dataset,
+    resolve_edizm_record,
+    standardize_edizm_columns,
     EXPECTED_SCHEMA
 )
 
@@ -199,6 +202,50 @@ class TestGenerateDerivedColumns:
 
         assert result.loc[0, 'TNVED'] == '0000000000'
         assert result.loc[1, 'TNVED'] == '0000000000'
+
+
+class TestNormalizationRules:
+    """Direct tests for centralized TNVED/EDIZM normalization rules."""
+
+    def test_standardize_edizm_normalizes_variants_before_mapping(self):
+        df = pd.DataFrame({'EDIZM': [' kg/net   eda ', 'm²', 'BQ']})
+        mapping = {
+            'KG NET EDA': {'KOD': '166', 'NAME': 'КИЛОГРАММ'},
+            'M2': {'KOD': '055', 'NAME': 'КВАДРАТНЫЙ МЕТР'},
+            'BQ': {'KOD': '323', 'NAME': 'БЕККЕРЕЛЬ'},
+        }
+
+        result = standardize_edizm_columns(df, mapping)
+
+        assert result['EDIZM'].tolist() == ['КИЛОГРАММ', 'КВАДРАТНЫЙ МЕТР', 'БЕККЕРЕЛЬ']
+        assert result['EDIZM_ISO'].tolist() == ['166', '055', '323']
+        assert 'EDIZM_upper' not in result.columns
+
+    def test_special_edizm_cases_handle_kg_tonne_and_becquerel(self):
+        df = pd.DataFrame({
+            'EDIZM': ['КИЛОГРАММ', 'ТОННА', 'ТОННА', 'БЕККЕРЕЛЬ'],
+            'EDIZM_ISO': ['166', '168', '168', '323'],
+            'KOL': [10.0, 2.0, 3.0, 999999999.0],
+            'NETTO': [100.0, None, 50.0, None],
+        })
+
+        result = apply_special_edizm_cases(df)
+
+        assert pd.isna(result.loc[0, 'KOL'])
+        assert pd.isna(result.loc[0, 'EDIZM'])
+        assert pd.isna(result.loc[0, 'EDIZM_ISO'])
+        assert result.loc[1, 'NETTO'] == 2000.0
+        assert pd.isna(result.loc[1, 'KOL'])
+        assert pd.isna(result.loc[2, 'KOL'])
+        assert result.loc[2, 'NETTO'] == 50.0
+        assert pd.isna(result.loc[3, 'KOL'])
+        assert result.loc[3, 'EDIZM'] == 'БЕККЕРЕЛЬ'
+
+    def test_resolve_country_processor_unit_aliases(self):
+        assert resolve_edizm_record('KGS')['KOD'] == '166'
+        assert resolve_edizm_record('NOS')['KOD'] == '796'
+        assert resolve_edizm_record('Number of item')['KOD'] == '796'
+        assert resolve_edizm_record('KG/ADET')['KOD'] == '796'
 
 
 class TestLoadTnvedMapping:
