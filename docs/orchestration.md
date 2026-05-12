@@ -7,7 +7,9 @@
 - `requirements.txt` — фиксирует Python-зависимости проекта, включая `prefect>=3.0,<4.0`.
 - `src/orchestration/flows.py` — Prefect flow `mgimo-full-refresh`, который пока запускает существующие CLI/R-команды.
 - `src/orchestration/checks.py` — SQL quality checks для итоговой DuckDB-базы.
+- run manifest — после успешного flow сохраняется JSON с параметрами запуска, версиями входных файлов, итоговой базой и метриками checks.
 - `--output-db-path` в `src/merge_processed_data.py` / `src/pipelines/merge_pipeline.py` — позволяет собирать базу не только в `db/unified_trade_data.duckdb`, но и в отдельный артефактный путь.
+- `--db-path` и `--output-dir` в `src/nowcast.R` и `src/fizob_queries.R` — R-скрипты больше не привязаны неявно к дефолтной DuckDB-базе.
 
 ## Текущий порядок выполнения
 
@@ -33,6 +35,14 @@ flowchart TD
 ```
 
 Важный нюанс: если `run_nowcast=True`, первый merge запускается без nowcast (`--no-nowcast`). Это дает R-скрипту nowcast чистую fact-only базу и не подмешивает старый `data_processed/nowcast/nowcast.parquet` из прошлого запуска. После пересчета nowcast и/или fizob flow делает повторный merge, чтобы свежие parquet-артефакты попали в итоговую DuckDB.
+
+## Логи и длительные шаги
+
+`run-command` стримит stdout/stderr дочерних Python/R-процессов в Prefect logs построчно. Поэтому после строки `Running: ... src/fizob_queries.R` в актуальной версии flow должны появляться сообщения вида `[fizob] ... | Reading fact rows...`, `[fizob] ... | Building complete monthly grid`, `[fizob] ... | Calculating fizob level TNVED2` и так далее.
+
+`src/fizob_queries.R` может выполняться заметно дольше nowcast: он читает fact-строки, строит полную месячную панель по `(STRANA, NAPR, TNVED)`, считает rolling/base-period показатели и несколько уровней агрегации `TNVED2/4/6`. Для базы с 2019 года это десятки миллионов строк промежуточной панели, поэтому несколько десятков минут не обязательно означают ошибку.
+
+Если после `Running: ... src/fizob_queries.R` больше 5-10 минут нет ни одной строки `[fizob]`, скорее всего запущен старый код flow или R еще не дошел до тела скрипта. В таком случае остановите запуск и перезапустите flow из текущей версии.
 
 ## Запуск
 
@@ -192,7 +202,34 @@ python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_re
 python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_refresh(output_db_path='db/unified_trade_data_candidate.duckdb')"
 ```
 
-Ограничение текущей версии: `--output-db-path` уже передается в merge, но `src/nowcast.R` и `src/fizob_queries.R` пока читают дефолтную `db/unified_trade_data.duckdb`. Поэтому полностью изолированный candidate-refresh с `run_nowcast=True` и `run_fizob=True` появится после параметризации R-скриптов аргументами `--db-path` и `--output-dir`.
+Если нужно пересчитать nowcast/fizob на candidate-базе, включите derived steps. Flow передаст `--db-path` в оба R-скрипта автоматически:
+
+```bash
+python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_refresh(output_db_path='db/unified_trade_data_candidate.duckdb', run_nowcast=True, run_fizob=True, require_fizob_quality=True, rscript='G:/R/R-4.5.1/bin/Rscript.exe')"
+```
+
+По умолчанию derived parquet все еще пишутся в рабочие пути `data_processed/nowcast/` и `data_processed/`, чтобы финальный merge мог сразу их подхватить. Если вы задаете кастомные `nowcast_output_dir` или `fizob_output_dir`, убедитесь, что последующий merge читает именно эти артефакты.
+
+## Прямой запуск R-скриптов
+
+Nowcast:
+
+```bash
+G:/R/R-4.5.1/bin/Rscript.exe src/nowcast.R --db-path db/unified_trade_data.duckdb --output-dir data_processed/nowcast
+```
+
+Fizob:
+
+```bash
+G:/R/R-4.5.1/bin/Rscript.exe src/fizob_queries.R --db-path db/unified_trade_data.duckdb --output-dir data_processed
+```
+
+Для candidate-базы:
+
+```bash
+G:/R/R-4.5.1/bin/Rscript.exe src/nowcast.R --db-path db/unified_trade_data_candidate.duckdb --output-dir data_processed/nowcast
+G:/R/R-4.5.1/bin/Rscript.exe src/fizob_queries.R --db-path db/unified_trade_data_candidate.duckdb --output-dir data_processed
+```
 
 ### 6. Проверить уже собранную DuckDB
 
@@ -220,8 +257,39 @@ python -c "from src.orchestration.checks import run_sql_quality_checks; print(ru
 - `run_outlier_detection=False` — запустить `src/outlier_detection.py`.
 - `start_year=2019` — передается в merge как `--start-year`.
 - `output_db_path=None` — передается в merge как `--output-db-path`; относительный путь считается от корня проекта. Если `None`, используется `db/unified_trade_data.duckdb`.
+- `nowcast_output_dir="data_processed/nowcast"` — передается в `src/nowcast.R` как `--output-dir`.
+- `fizob_output_dir="data_processed"` — передается в `src/fizob_queries.R` как `--output-dir`.
+- `write_manifest=True` — сохранить manifest успешного запуска.
+- `manifest_dir="data_processed/manifests"` — куда писать manifest. Flow создает timestamped JSON и обновляет `latest.json`.
 - `rscript="Rscript"` — команда запуска R.
 - `project_root=None` — корень проекта, по умолчанию определяется автоматически.
+
+## Run Manifest
+
+После успешного запуска flow сохраняет manifest в `data_processed/manifests/`:
+
+- `mgimo_full_refresh_YYYYMMDDTHHMMSSZ.json` — неизменяемый manifest конкретного запуска;
+- `latest.json` — копия последнего успешного manifest для быстрого просмотра.
+
+Manifest содержит:
+
+- параметры flow, включая `output_db_path`, `start_year`, флаги nowcast/fizob/checks и путь к `Rscript`;
+- git commit, branch и `git status --short` на момент записи manifest;
+- путь к итоговой DuckDB и ее версию: размер, `mtime_ns`, UTC-время изменения и fingerprint `size:mtime_ns`;
+- версии входных файлов: `data_processed/*.parquet`, nowcast parquet, `fizob_*.parquet`, `db/comtrade.db`;
+- метрики SQL checks, если `run_quality_checks=True`.
+
+Пример чтения последнего manifest:
+
+```bash
+python -c "import json; print(json.dumps(json.load(open('data_processed/manifests/latest.json', encoding='utf-8')), ensure_ascii=False, indent=2)[:4000])"
+```
+
+Если manifest не нужен для экспериментального локального запуска:
+
+```bash
+python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_refresh(write_manifest=False)"
+```
 
 ## SQL quality checks
 
@@ -251,7 +319,5 @@ print(metrics)
 
 Текущий слой уже фиксирует порядок и убирает ручную ошибку "забыли второй merge". Следующие полезные шаги:
 
-- параметризовать `src/nowcast.R` и `src/fizob_queries.R` аргументами `--db-path` и `--output-dir`, чтобы они работали с candidate-базой без неявной привязки к `db/unified_trade_data.duckdb`;
 - добавить publish-task: atomic upload DuckDB на сервер дашборда после успешных SQL checks;
-- сохранять manifest запуска: параметры, версии входных файлов, путь к итоговой базе, метрики checks;
 - позже перенести запись nowcast/fizob внутрь DuckDB builder, чтобы полностью убрать parquet-cycle.

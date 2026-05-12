@@ -1,16 +1,69 @@
-library(tidyverse)
-library(duckdb)
-library(dfms)
-library(arrow)
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(duckdb)
+  library(dfms)
+  library(arrow)
+})
+
+run_started_at <- Sys.time()
+
+fmt_n <- function(x) {
+  format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+
+log_step <- function(message) {
+  cat(sprintf("[nowcast] %s | %s\n", format(Sys.time(), "%H:%M:%S"), message))
+  flush.console()
+}
+
+parse_cli_args <- function(args) {
+  config <- list(
+    db_path = "db/unified_trade_data.duckdb",
+    output_dir = "data_processed/nowcast"
+  )
+
+  if ("--help" %in% args || "-h" %in% args) {
+    cat("Usage: Rscript src/nowcast.R [--db-path PATH] [--output-dir DIR]\n")
+    quit(status = 0)
+  }
+
+  i <- 1
+  while (i <= length(args)) {
+    arg <- args[[i]]
+    if (arg %in% c("--db-path", "--output-dir")) {
+      if (i == length(args)) {
+        stop(sprintf("Missing value for %s", arg), call. = FALSE)
+      }
+      value <- args[[i + 1]]
+      if (arg == "--db-path") {
+        config$db_path <- value
+      } else {
+        config$output_dir <- value
+      }
+      i <- i + 2
+    } else {
+      stop(sprintf("Unknown argument: %s", arg), call. = FALSE)
+    }
+  }
+
+  config
+}
+
+config <- parse_cli_args(commandArgs(trailingOnly = TRUE))
+dir.create(config$output_dir, recursive = TRUE, showWarnings = FALSE)
+output_path <- file.path(config$output_dir, "nowcast.parquet")
+
+log_step(sprintf("Using DuckDB: %s", config$db_path))
+log_step(sprintf("Output file: %s", output_path))
 
 con <- dbConnect(
   duckdb::duckdb(),
-  "db/unified_trade_data.duckdb",
+  config$db_path,
   read_only = TRUE
 )
 
-# dbDisconnect(con, shutdown = TRUE)
-dbGetQuery(con, "SHOW TABLES")
+tables <- dbGetQuery(con, "SHOW TABLES")
+log_step(sprintf("DuckDB tables: %s", paste(tables$name, collapse = ", ")))
 
 # -----------------------------------------
 # Forecast window setup:
@@ -19,15 +72,19 @@ dbGetQuery(con, "SHOW TABLES")
 # C) number of periods
 # -----------------------------------------
 
-dbGetQuery(con, "
+recent_country_periods <-
+  dbGetQuery(con, "
   SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA, TYPE
   FROM unified_trade_data"
-) %>%
+  ) %>%
   filter(TYPE == "fact") %>%
   reframe(last_period = max(PERIOD), .by = c(STRANA)) %>%
-  filter(last_period > max(last_period) %m-% months(11)) %>%
-  ggplot(aes(x = last_period)) +
-  geom_histogram()
+  filter(last_period > max(last_period) %m-% months(11))
+
+log_step(sprintf(
+  "Countries with data in last 12 months: %s",
+  fmt_n(nrow(recent_country_periods))
+))
 
 country_last_periods <-
   dbGetQuery(con, "
@@ -60,6 +117,13 @@ fc_to <-
 
 fc_periods <- interval(fc_from, fc_to) %/% months(1) + 1
 
+log_step(sprintf(
+  "Forecast window: %s to %s (%s month(s))",
+  fc_from,
+  fc_to,
+  fmt_n(fc_periods)
+))
+
 # ----------------------------------------------
 # Forecast on upper level (TNVED2 x NAPR)
 # ----------------------------------------------
@@ -76,6 +140,12 @@ df_raw <- dbGetQuery(con, "
   arrange(TNVED2, NAPR, PERIOD) %>%
   mutate(gr = paste0(TNVED2, "_", NAPR))
 
+log_step(sprintf(
+  "Upper-level fact panel: %s rows, %s groups",
+  fmt_n(nrow(df_raw)),
+  fmt_n(n_distinct(df_raw$gr))
+))
+
 df_var_1 <- df_raw %>%
   mutate(
     stoim = c(0, diff(log1p(stoim))) %>% as.numeric(),
@@ -83,10 +153,6 @@ df_var_1 <- df_raw %>%
   ) %>%
   filter(PERIOD > as_date("2019-01-01")) %>%
   select(PERIOD, gr, stoim)
-
-df_var_1 %>%
-  ggplot(aes(x = PERIOD, y = stoim, color = gr)) +
-  geom_line(show.legend = FALSE)
 
 train_dates <- seq(
   from = df_var_1 %>% pull(PERIOD) %>% first(),
@@ -105,29 +171,32 @@ df_var_1_train <-
   filter(PERIOD %in% train_dates) %>%
   select(-PERIOD)
 
-df_var_1_train %>%
+missing_by_group <- df_var_1_train %>%
   is.na() %>%
   colSums()
 
+log_step(sprintf(
+  "Training matrix: %s periods x %s groups; missing cells: %s across %s groups",
+  fmt_n(nrow(df_var_1_train)),
+  fmt_n(ncol(df_var_1_train)),
+  fmt_n(sum(missing_by_group)),
+  fmt_n(sum(missing_by_group > 0))
+))
+
 ic <- ICr(df_var_1_train)
-plot(ic)
-screeplot(ic)
+log_step(sprintf("Selected number of factors by IC: %s", fmt_n(ic$r.star[3])))
 
 n_var_lags <- vars::VARselect(ic$F_pca[, 1:ic$r.star[3]])
+selected_lags <- min(c(n_var_lags$selection %>% min(), 2))
+log_step(sprintf("Selected VAR lag order: %s", fmt_n(selected_lags)))
 
 model <- DFM(
   df_var_1_train,
   r = ic$r.star[3],
-  p = min(c(n_var_lags$selection %>% min(), 2))
+  p = selected_lags
 )
 
-plot(model, method = "all", type = "individual")
-
-fitted(model, orig.format = TRUE) %>%
-  mutate(PERIOD = train_dates) %>%
-  pivot_longer(-PERIOD) %>%
-  ggplot(aes(x = PERIOD, y = value, color = name)) +
-  geom_line(show.legend = FALSE)
+log_step("DFM model fitted")
 
 forecast_test <- predict(model, h = fc_periods)
 forecast_test <- forecast_test$X_fcst %>%
@@ -139,14 +208,10 @@ forecast_test <- forecast_test$X_fcst %>%
     values_to = "stoim"
   )
 
-df_var_1 %>%
-  filter(PERIOD %in% test_dates) %>%
-  mutate(type = "fact") %>%
-  bind_rows(forecast_test) %>%
-  filter(str_starts(gr, "1")) %>%
-  ggplot(aes(x = PERIOD, y = stoim, color = type)) +
-  geom_line() +
-  facet_wrap(~gr)
+log_step(sprintf(
+  "Upper-level forecast produced: %s rows",
+  fmt_n(nrow(forecast_test))
+))
 
 forecast_level <-
   forecast_test %>%
@@ -174,12 +239,12 @@ res_2 <-
   mutate(type = "fact") %>%
   bind_rows(forecast_level)
 
-res_2 %>%
-  mutate(gr = paste0(TNVED2, "_", NAPR)) %>%
-  filter(str_starts(TNVED2, "70")) %>%
-  ggplot(aes(x = PERIOD, y = STOIM, color = type)) +
-  geom_line() +
-  facet_wrap(~gr, scales = "free")
+log_step(sprintf(
+  "Upper-level output: %s rows (%s fact, %s pred)",
+  fmt_n(nrow(res_2)),
+  fmt_n(sum(res_2$type == "fact")),
+  fmt_n(sum(res_2$type == "pred"))
+))
 
 # --------------------------------------------------------
 # Decompose upper forecast to TNVED10 x STRANA weights
@@ -250,6 +315,13 @@ df_10 <-
     netto_fc = if_else(type == "pred", stoim_fc / price_mean, STOIM_ALL_2 / price_mean)
   )
 
+log_step(sprintf(
+  "TNVED10 decomposition panel: %s rows, %s countries, %s TNVED codes",
+  fmt_n(nrow(df_10)),
+  fmt_n(n_distinct(df_10$STRANA)),
+  fmt_n(n_distinct(df_10$TNVED))
+))
+
 df_10_tidy <-
   df_10 %>%
   mutate(netto_fc = pmax(NETTO, netto_fc, na.rm = TRUE)) %>%
@@ -274,12 +346,26 @@ df_10_complementary <-
   arrange(STRANA, TNVED, NAPR, PERIOD) %>%
   mutate(TYPE = "fact")
 
-write_parquet(
+nowcast_output <-
   df_10_tidy %>%
-    anti_join(
-      df_10_complementary,
-      by = c("STRANA", "NAPR", "TNVED", "PERIOD")
-    ) %>%
-    bind_rows(df_10_complementary),
-  "data_processed/nowcast/nowcast.parquet"
+  anti_join(
+    df_10_complementary,
+    by = c("STRANA", "NAPR", "TNVED", "PERIOD")
+  ) %>%
+  bind_rows(df_10_complementary)
+
+log_step(sprintf(
+  "Final nowcast dataset: %s rows (%s fact, %s pred)",
+  fmt_n(nrow(nowcast_output)),
+  fmt_n(sum(nowcast_output$TYPE == "fact")),
+  fmt_n(sum(nowcast_output$TYPE == "pred"))
+))
+
+write_parquet(
+  nowcast_output,
+  output_path
 )
+
+log_step(sprintf("Saved %s", output_path))
+dbDisconnect(con, shutdown = TRUE)
+log_step(sprintf("Done in %.1f minutes", as.numeric(difftime(Sys.time(), run_started_at, units = "mins"))))
