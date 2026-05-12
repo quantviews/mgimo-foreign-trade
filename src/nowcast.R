@@ -20,9 +20,10 @@ dbGetQuery(con, "SHOW TABLES")
 # -----------------------------------------
 
 dbGetQuery(con, "
-  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA
+  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA, TYPE
   FROM unified_trade_data"
 ) %>%
+  filter(TYPE == "fact") %>%
   reframe(last_period = max(PERIOD), .by = c(STRANA)) %>%
   filter(last_period > max(last_period) %m-% months(11)) %>%
   ggplot(aes(x = last_period)) +
@@ -30,9 +31,10 @@ dbGetQuery(con, "
 
 country_last_periods <-
   dbGetQuery(con, "
-  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA
+  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA, TYPE
   FROM unified_trade_data"
   ) %>%
+  filter(TYPE == "fact") %>%
   reframe(last_period = max(PERIOD), .by = c(STRANA))
 
 # Critical fix:
@@ -63,9 +65,10 @@ fc_periods <- interval(fc_from, fc_to) %/% months(1) + 1
 # ----------------------------------------------
 
 df_raw <- dbGetQuery(con, "
-  SELECT PERIOD, TNVED2, NAPR, STOIM
+  SELECT PERIOD, TNVED2, NAPR, STOIM, TYPE
   FROM unified_trade_data"
 ) %>%
+  filter(TYPE == "fact") %>%
   reframe(
     stoim = sum(STOIM, na.rm = TRUE),
     .by = c("PERIOD", "TNVED2", "NAPR")
@@ -184,16 +187,18 @@ res_2 %>%
 
 df_10 <-
   dbGetQuery(con, "
-  SELECT PERIOD, STRANA, TNVED2, TNVED, NAPR, STOIM, NETTO
+  SELECT PERIOD, STRANA, TNVED2, TNVED, NAPR, STOIM, NETTO, TYPE
   FROM unified_trade_data"
   ) %>%
+  filter(TYPE == "fact") %>%
   filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) %>%
   mutate(PERIOD = as_date(PERIOD)) %>%
   right_join(
     dbGetQuery(con, "
-  SELECT STRANA, NAPR, TNVED, PERIOD, STOIM, NETTO
+  SELECT STRANA, NAPR, TNVED, PERIOD, STOIM, NETTO, TYPE
   FROM unified_trade_data
                ") %>%
+      filter(TYPE == "fact") %>%
       filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) %>%
       distinct(STRANA, TNVED, NAPR) %>%
       cross_join(
@@ -256,18 +261,25 @@ df_10_tidy <-
     TYPE = type,
     STOIM = stoim_fc,
     NETTO = netto_fc
-  )
+  ) %>%
+  filter(!is.na(TYPE))
 
 df_10_complementary <-
   dbGetQuery(con, "
-  SELECT PERIOD, STRANA, TNVED, NAPR, STOIM, NETTO
+  SELECT PERIOD, STRANA, TNVED, NAPR, STOIM, NETTO, TYPE
   FROM unified_trade_data"
   ) %>%
+  filter(TYPE == "fact") %>%
   filter(PERIOD >= first(fc_from)) %>%
   arrange(STRANA, TNVED, NAPR, PERIOD) %>%
   mutate(TYPE = "fact")
 
 write_parquet(
-  bind_rows(df_10_tidy, df_10_complementary),
+  df_10_tidy %>%
+    anti_join(
+      df_10_complementary,
+      by = c("STRANA", "NAPR", "TNVED", "PERIOD")
+    ) %>%
+    bind_rows(df_10_complementary),
   "data_processed/nowcast/nowcast.parquet"
 )

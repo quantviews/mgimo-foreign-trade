@@ -4,7 +4,7 @@ library(dfms)
 
 con <- dbConnect(
   duckdb::duckdb(),
-  "~/MGIMO-FT/db/unified_trade_data.duckdb",
+  "db/unified_trade_data.duckdb",
   read_only = TRUE
 )
 
@@ -20,9 +20,10 @@ dbGetQuery(con, "SHOW TABLES")
 #-----------------------------------------
 
 dbGetQuery(con, "
-  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA
+  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA, TYPE
   FROM unified_trade_data"
 ) %>%
+  filter(TYPE == 'fact') %>%
   reframe(last_period = max(PERIOD),
           .by = c(STRANA)
           ) %>%
@@ -32,9 +33,10 @@ dbGetQuery(con, "
 
 fc_dates  <- 
 dbGetQuery(con, "
-  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA
+  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA, TYPE
   FROM unified_trade_data"
            ) %>%
+  filter(TYPE == 'fact') %>%
   reframe(last_period = max(PERIOD),
           .by = c(STRANA)
   ) %>%
@@ -62,9 +64,10 @@ fc_periods <- interval(fc_from, fc_to) %/% months(1) + 1
 # Табличка с сырыми данными. Она нам понадобится потом для join-а, поэтому пусть будет в памяти.
 
 df_raw <- dbGetQuery(con, "
-  SELECT PERIOD, TNVED2, NAPR, STOIM
+  SELECT PERIOD, TNVED2, NAPR, STOIM, TYPE
   FROM unified_trade_data"
 ) %>%
+  filter(TYPE == 'fact') %>%
   reframe(stoim = sum(STOIM, na.rm = T),
           .by = c('PERIOD', 'TNVED2', 'NAPR') 
   ) %>%
@@ -154,7 +157,7 @@ df_var_1 %>%
   filter(PERIOD %in% test_dates) %>%
   mutate(type = 'fact') %>%
   bind_rows(forecast_test) %>%
-  filter(str_starts(gr, '1')) %>% # здесь можно выбрать группы, для которых мы хотим показать результаты
+  filter(str_starts(gr, '5')) %>% # здесь можно выбрать группы, для которых мы хотим показать результаты
   ggplot(aes(x = PERIOD, y = stoim, color = type)) +
   geom_line() +
   facet_wrap(~ gr)
@@ -203,17 +206,19 @@ res_2 %>%
 df_10 <- 
   # БД для STOIM и NETTO на 10 коде
   dbGetQuery(con, "
-  SELECT PERIOD, STRANA, TNVED2, TNVED, NAPR, STOIM, NETTO
+  SELECT PERIOD, STRANA, TNVED2, TNVED, NAPR, STOIM, NETTO, TYPE
   FROM unified_trade_data"
   ) %>%
+  filter(TYPE == 'fact') %>%
   filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) %>% # Здесь я фильтровал базу данных, чтобы убрать группы, для которых все данные 0. Для Индии.
   mutate(PERIOD = as_date(PERIOD)) %>% # Перевожу в date
   # Заполняю пропуски без группировки - замена для group_by %>% complete. Минут на 5 быстрее
   right_join(
     dbGetQuery(con, "
-  SELECT STRANA, NAPR, TNVED, PERIOD, STOIM, NETTO
+  SELECT STRANA, NAPR, TNVED, PERIOD, STOIM, NETTO, TYPE
   FROM unified_trade_data
                ") %>%
+      filter(TYPE == 'fact') %>%
       filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) %>%
       distinct(STRANA, TNVED, NAPR) %>%
       cross_join(
@@ -277,16 +282,25 @@ df_10_tidy <-
          TYPE = type,
          STOIM = stoim_fc,
          NETTO = netto_fc
-  )
+  ) %>%
+  filter(!is.na(TYPE))
 
 df_10_complementary <-
   dbGetQuery(con, "
-  SELECT PERIOD, STRANA, TNVED, NAPR, STOIM, NETTO
+  SELECT PERIOD, STRANA, TNVED, NAPR, STOIM, NETTO, TYPE
   FROM unified_trade_data"
   ) %>%
+  filter(TYPE == 'fact') %>%
   filter(PERIOD >= first(fc_from)) %>%
   arrange(STRANA, TNVED, NAPR, PERIOD) %>%
   mutate(TYPE = 'fact')
 
-write_parquet(bind_rows(df_10_tidy, df_10_complementary),
-              '~/MGIMO-FT/data_processed/nowcast.parquet')
+# Сохранение результатов
+
+df_10_tidy %>%
+  anti_join(
+    df_10_complementary,
+    by = c("STRANA", "NAPR", "TNVED", "PERIOD")
+  ) %>%
+  bind_rows(df_10_complementary) %>%
+  write_parquet('data_processed/nowcast_new.parquet')
