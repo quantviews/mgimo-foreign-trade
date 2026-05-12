@@ -8,6 +8,7 @@ pipelines; Prefect owns sequencing, logs, retries, and run parameters.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,8 @@ except ImportError:  # pragma: no cover - supports running this file directly
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+NOWCAST_R_PACKAGES = ("tidyverse", "duckdb", "dfms", "arrow", "vars")
+FIZOB_R_PACKAGES = ("tidyverse", "slider", "duckdb")
 
 
 def _command_text(command: Sequence[str]) -> str:
@@ -50,6 +53,17 @@ def _build_merge_command(
     return command
 
 
+def _build_r_package_check_command(rscript: str, packages: Sequence[str]) -> list[str]:
+    """Build an R command that fails with a clear missing-package list."""
+    package_vector = ", ".join(f'"{package}"' for package in sorted(set(packages)))
+    expression = (
+        f"missing <- setdiff(c({package_vector}), rownames(installed.packages())); "
+        'if (length(missing)) stop("Missing R packages: ", '
+        'paste(missing, collapse = ", "), call. = FALSE)'
+    )
+    return [rscript, "-e", expression]
+
+
 def _resolve_db_path(project_root: str, output_db_path: str | None) -> str:
     """Resolve the DuckDB path that should be checked after merge."""
     root = Path(project_root)
@@ -59,6 +73,21 @@ def _resolve_db_path(project_root: str, output_db_path: str | None) -> str:
     if not path.is_absolute():
         path = root / path
     return str(path)
+
+
+def _resolve_executable(executable: str) -> str:
+    """Resolve an executable name to a runnable path when possible."""
+    path = Path(executable)
+    if path.parent != Path("."):
+        return str(path)
+
+    resolved = shutil.which(executable) or shutil.which(f"{executable}.exe")
+    if resolved is None:
+        raise FileNotFoundError(
+            f"Executable not found: {executable}. "
+            "Pass an absolute path or add it to PATH."
+        )
+    return resolved
 
 
 @task(name="run-command", retries=1, retry_delay_seconds=30)
@@ -73,12 +102,18 @@ def run_command(
     cwd = Path(project_root) if project_root else PROJECT_ROOT
 
     merged_env = os.environ.copy()
+    merged_env.setdefault("PYTHONIOENCODING", "utf-8")
     if env:
         merged_env.update({key: str(value) for key, value in env.items()})
 
-    logger.info("Running: %s", _command_text(command))
+    resolved_command = [
+        _resolve_executable(str(command[0])),
+        *[str(part) for part in command[1:]],
+    ]
+
+    logger.info("Running: %s", _command_text(resolved_command))
     completed = subprocess.run(
-        [str(part) for part in command],
+        resolved_command,
         cwd=cwd,
         env=merged_env,
         text=True,
@@ -91,12 +126,13 @@ def run_command(
     if completed.stdout:
         logger.info(completed.stdout.strip())
     if completed.stderr:
-        logger.warning(completed.stderr.strip())
+        log_stderr = logger.warning if completed.returncode != 0 else logger.info
+        log_stderr(completed.stderr.strip())
 
     if completed.returncode != 0:
         raise RuntimeError(
             f"Command failed with exit code {completed.returncode}: "
-            f"{_command_text(command)}"
+            f"{_command_text(resolved_command)}"
         )
 
 
@@ -112,9 +148,9 @@ def run_sql_quality_checks_task(db_path: str, *, require_fizob: bool = False) ->
 @flow(name="mgimo-full-refresh")
 def mgimo_full_refresh(
     *,
-    process_china: bool = True,
-    process_india: bool = True,
-    process_turkey: bool = True,
+    process_china: bool = False,
+    process_india: bool = False,
+    process_turkey: bool = False,
     include_comtrade: bool = True,
     include_nowcast_in_merge: bool = True,
     run_nowcast: bool = False,
@@ -129,13 +165,24 @@ def mgimo_full_refresh(
 ) -> None:
     """Run the current end-to-end refresh using existing scripts.
 
-    Country processing and merge are enabled by default. R-derived steps are
-    opt-in until their inputs/outputs are fully parameterized in follow-up
-    changes.
+    Merge and quality checks are enabled by default. Country processing and
+    R-derived steps are opt-in because they are heavier and should be explicit
+    in routine refreshes.
     """
     root = str(Path(project_root) if project_root else PROJECT_ROOT)
     python = sys.executable
     final_db_path = _resolve_db_path(root, output_db_path)
+
+    required_r_packages: set[str] = set()
+    if run_nowcast:
+        required_r_packages.update(NOWCAST_R_PACKAGES)
+    if run_fizob:
+        required_r_packages.update(FIZOB_R_PACKAGES)
+    if required_r_packages:
+        run_command(
+            _build_r_package_check_command(rscript, sorted(required_r_packages)),
+            project_root=root,
+        )
 
     if process_china:
         run_command([python, "src/collectors/china_processor.py"], project_root=root)

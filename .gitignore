@@ -123,6 +123,7 @@ __pycache__/
 
 # Local test data / generated artifacts
 *.parquet
+Rplots.pdf
 
 # OS / editor
 .DS_Store
