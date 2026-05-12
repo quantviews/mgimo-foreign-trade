@@ -1,0 +1,23 @@
+# Python dependencies for the MGIMO foreign trade data pipeline.
+#
+# R scripts still require their R package stack separately.
+
+# Orchestration
+prefect>=3.0,<4.0
+
+# Core data processing
+pandas>=2.2,<3.0
+numpy>=1.26,<3.0
+duckdb>=1.0,<2.0
+pyarrow>=15.0,<23.0
+
+# Collectors and HTML parsing
+requests>=2.31,<3.0
+beautifulsoup4>=4.12,<5.0
+lxml>=5.0,<7.0
+playwright>=1.45,<2.0
+selenium>=4.20,<5.0
+undetected-chromedriver>=3.5,<4.0
+
+# Tests
+pytest>=8.0,<10.0

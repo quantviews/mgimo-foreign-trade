@@ -10,20 +10,19 @@
 pytest -q
 ```
 
-Ожидаемый результат на 2026-05-07:
+Ожидаемый результат зависит от текущей ветки; для изменений orchestration/merge сейчас отдельно проверяются:
 
 ```text
-65 passed, 1 xfailed
+pytest -q tests/test_sql_quality_checks.py
+pytest -q tests/test_merge_processed_data.py -k "MergeCliPaths"
 ```
-
-`xfail` сейчас является осознанным контрактным разрывом: `load_fts_csv` пока не производит `EDIZM_ISO`, тогда как единая целевая схема уже ожидает эту колонку.
 
 ## Зависимости
 
-В проекте пока нет отдельного `requirements.txt` или `pyproject.toml` для Python-тестов. Минимальный набор зависимостей для текущего test suite:
+Python-зависимости проекта зафиксированы в `requirements.txt`, включая Prefect 3 и test dependencies:
 
 ```bash
-python -m pip install pytest pandas numpy duckdb pyarrow beautifulsoup4
+python -m pip install -r requirements.txt
 ```
 
 Зачем нужны пакеты:
@@ -33,6 +32,7 @@ python -m pip install pytest pandas numpy duckdb pyarrow beautifulsoup4
 - `duckdb` — проверка записи и чтения DuckDB.
 - `pyarrow` — чтение/запись Parquet в тестах процессоров.
 - `beautifulsoup4` — импортируется модулем `turkey_processor`.
+- `prefect` — orchestration-слой `src/orchestration/flows.py`.
 
 ## Структура
 
@@ -41,7 +41,8 @@ tests/
 ├── __init__.py
 ├── conftest.py
 ├── test_merge_processed_data.py
-└── test_processor_contracts.py
+├── test_processor_contracts.py
+└── test_sql_quality_checks.py
 ```
 
 `tests/conftest.py` задает уникальный `basetemp` внутри `.pytest_tmp/` для каждого запуска. Это нужно, чтобы локальный запуск на Windows не зависел от недоступного системного каталога `%TEMP%\pytest-of-*`.
@@ -100,6 +101,16 @@ pytest tests/ -v -s --pdb
 - `TestSaveToDuckDB` проверяет запись DataFrame в DuckDB, пустой ввод, чанкинг, overwrite, cleanup временных файлов и сохранность старой базы при ошибке записи.
 - `TestIntegration` проверяет связку: derived columns -> schema validation -> DuckDB save.
 - `TestSmokeCheckMergedDataset` проверяет smoke-check финального объединенного датасета.
+- `TestMergeCliPaths` проверяет CLI-аргумент `--output-db-path` и разрешение относительных/абсолютных путей DuckDB.
+
+### `test_sql_quality_checks.py`
+
+Проверяет read-only SQL quality gate из `src/orchestration/checks.py` на минимальных DuckDB-фикстурах:
+
+- валидная база проходит проверки;
+- невалидный `NAPR` валит checks;
+- пересечение `TYPE='pred'` с фактом по `(PERIOD, STRANA, TNVED, NAPR)` валит checks;
+- отсутствие обязательных таблиц валит checks.
 
 ### `test_processor_contracts.py`
 
@@ -200,6 +211,7 @@ HTML-отчет будет доступен в `htmlcov/index.html`.
 ## Смежная Документация
 
 - `docs/refactoring-plan.md` — исторический план технического рефакторинга от 2026-05-06; актуальное состояние проверяйте по коду, тестам и этой документации.
+- `docs/orchestration.md` — Prefect 3 flow, повторный merge после nowcast/fizob и SQL quality checks.
 - `docs/merge_processed_data-docs.md` — документация по объединению данных и DuckDB.
 - `docs/india-processor-docs.md` — детали обработки Индии, включая масштаб `STOIM`.
 - `docs/fts_csv_format.md` — формат CSV ФТС.

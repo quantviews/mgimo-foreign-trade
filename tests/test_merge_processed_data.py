@@ -29,6 +29,7 @@ from merge_processed_data import (
     standardize_edizm_columns,
     EXPECTED_SCHEMA
 )
+from pipelines.merge_pipeline import parse_merge_args, resolve_merge_paths
 
 
 class TestValidateSchema:
@@ -757,6 +758,34 @@ class TestSmokeCheckMergedDataset:
         })
         result = smoke_check_merged_dataset(df)
         assert result is False
+
+
+class TestMergeCliPaths:
+    """Tests for merge pipeline CLI path handling."""
+
+    def test_parse_output_db_path_arg(self):
+        args = parse_merge_args(['--output-db-path', 'runs/test/final.duckdb'])
+
+        assert args.output_db_path == 'runs/test/final.duckdb'
+
+    def test_resolve_output_db_path_default(self, tmp_path):
+        paths = resolve_merge_paths(project_root=tmp_path)
+
+        assert paths['output_db_path'] == tmp_path / 'db' / 'unified_trade_data.duckdb'
+
+    def test_resolve_relative_output_db_path_from_project_root(self, tmp_path):
+        paths = resolve_merge_paths(
+            project_root=tmp_path,
+            output_db_path='runs/test/final.duckdb',
+        )
+
+        assert paths['output_db_path'] == tmp_path / 'runs' / 'test' / 'final.duckdb'
+
+    def test_resolve_absolute_output_db_path(self, tmp_path):
+        output = tmp_path / 'custom' / 'final.duckdb'
+        paths = resolve_merge_paths(project_root=tmp_path, output_db_path=str(output))
+
+        assert paths['output_db_path'] == output
 
 
 if __name__ == "__main__":

@@ -28,13 +28,16 @@ dbGetQuery(con, "SHOW TABLES")
 
 # Шаг 1. df - это наша unified_trade_data.db со всеми нужными столбацми.
 period_min <- dbGetQuery(con, "SELECT MIN(PERIOD) AS min_period
-                                             FROM unified_trade_data") %>% pull(min_period) %>% lubridate::as_date() # "2019-01-01 UTC"
+                                             FROM unified_trade_data
+                                             WHERE TYPE = 'fact'") %>% pull(min_period) %>% lubridate::as_date() # "2019-01-01 UTC"
 period_max <- dbGetQuery(con, "SELECT MAX(PERIOD) AS max_period
-                                             FROM unified_trade_data") %>% pull(max_period) %>% lubridate::as_date()
+                                             FROM unified_trade_data
+                                             WHERE TYPE = 'fact'") %>% pull(max_period) %>% lubridate::as_date()
 
 df_raw <- dbGetQuery(con, "
   SELECT STRANA, NAPR, TNVED, PERIOD, EDIZM, STOIM, NETTO, KOL
   FROM unified_trade_data
+  WHERE TYPE = 'fact'
 ") %>%
   mutate(PERIOD = as_date(PERIOD))
 

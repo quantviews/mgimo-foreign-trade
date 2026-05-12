@@ -9,7 +9,7 @@ This script:
 4. Merges all datasets into one unified dataset
 5. Excludes countries specified in --exclude-countries argument
 6. start_year argument to filter data from this year onwards
-7. Optionally loads nowcast from data_processed/nowcast/nowcast.parquet (TYPE=pred; on by default, disable with --no-nowcast)
+7. Optionally loads nowcast from data_processed/nowcast/nowcast.parquet (TYPE=pred; on by default, disable with --no-nowcast). Any pred row whose (PERIOD, STRANA, TNVED, NAPR) key already exists in factual rows (national/comtrade) is dropped so nowcast fills only gaps.
 8. Saves the merged dataset to DuckDB format in db/unified_trade_data.duckdb
 """
 
@@ -17,6 +17,7 @@ import pandas as pd
 import duckdb
 from pathlib import Path
 import logging
+import re
 import argparse
 import json
 import gc
@@ -31,6 +32,7 @@ from core.normalization_rules import (
     add_tnved_columns,
     apply_special_edizm_cases,
     get_special_edizm_aliases,
+    normalize_tnved_code,
     standardize_edizm_columns,
 )
 
@@ -1316,6 +1318,15 @@ def parse_merge_args(argv: List[str] = None):
         help="List of ISO2 country codes to exclude from the merge (e.g., IN CN)."
     )
     parser.add_argument(
+        '--output-db-path',
+        type=str,
+        default=None,
+        help=(
+            "Path to the output DuckDB file. Relative paths are resolved from "
+            "the project root. Default: db/unified_trade_data.duckdb."
+        ),
+    )
+    parser.add_argument(
         '--no-nowcast',
         dest='include_nowcast',
         action='store_false',
@@ -1325,18 +1336,26 @@ def parse_merge_args(argv: List[str] = None):
     return parser.parse_args(argv)
 
 
-def resolve_merge_paths(project_root: Path = None) -> Dict[str, Path]:
+def resolve_merge_paths(project_root: Path = None, output_db_path: str = None) -> Dict[str, Path]:
     """Resolve project paths used by the merge pipeline."""
     if project_root is None:
         project_root = Path(__file__).resolve().parents[2]
     data_processed_dir = project_root / "data_processed"
     db_dir = project_root / "db"
     db_dir.mkdir(exist_ok=True)
+
+    if output_db_path is None:
+        resolved_output_db_path = db_dir / "unified_trade_data.duckdb"
+    else:
+        resolved_output_db_path = Path(output_db_path)
+        if not resolved_output_db_path.is_absolute():
+            resolved_output_db_path = project_root / resolved_output_db_path
+
     return {
         "project_root": project_root,
         "data_processed_dir": data_processed_dir,
         "db_dir": db_dir,
-        "output_db_path": db_dir / "unified_trade_data.duckdb",
+        "output_db_path": resolved_output_db_path,
         "comtrade_db_path": db_dir / "comtrade.db",
         "nowcast_path": data_processed_dir / "nowcast" / "nowcast.parquet",
     }
@@ -1470,6 +1489,71 @@ def append_comtrade_data(
     all_dataframes.append(comtrade_df)
 
 
+def _tnved_key_nowcast_overlap(value: object) -> str:
+    """Canonical TNVED for (fact vs pred) cell join; must match normalize_tnved_code in the pipeline."""
+    if pd.isna(value):
+        return ''
+    cleaned = re.sub(r"\.0$", "", str(value).strip()).strip()
+    if not cleaned or cleaned.lower() == "nan":
+        return ""
+    return normalize_tnved_code(cleaned)
+
+
+def drop_nowcast_rows_superseded_by_facts(
+    merged_df: pd.DataFrame, logger_instance: logging.Logger
+) -> pd.DataFrame:
+    """Remove TYPE=pred (nowcast) rows when the same trade cell already has factual data.
+
+    Join key: PERIOD (date), STRANA, TNVED (same normalization as normalized unified data:
+    normalize_tnved_code — right-pad/truncate to 10, not left zfill), NAPR.
+    """
+    if merged_df.empty or 'TYPE' not in merged_df.columns:
+        return merged_df
+
+    type_norm = merged_df['TYPE'].astype(str).str.strip().str.lower()
+    pred_mask = type_norm.eq('pred')
+    if not pred_mask.any():
+        return merged_df
+
+    kp = pd.to_datetime(merged_df['PERIOD'], errors='coerce').dt.normalize()
+    ks = merged_df['STRANA'].astype(str).str.strip().str.upper()
+    kt = merged_df['TNVED'].map(_tnved_key_nowcast_overlap)
+    kn = merged_df['NAPR'].astype(str).str.strip()
+
+    fact_mask = (~pred_mask) & kp.notna()
+    if not fact_mask.any():
+        logger_instance.info(
+            'No factual rows with valid PERIOD for nowcast supersession check; keeping all preds.'
+        )
+        return merged_df
+
+    fact_keys = (
+        pd.DataFrame({'_kp': kp[fact_mask], '_ks': ks[fact_mask], '_kt': kt[fact_mask], '_kn': kn[fact_mask]})
+        .drop_duplicates()
+    )
+
+    pred_keys = pd.DataFrame(
+        {
+            '_row': merged_df.index[pred_mask],
+            '_kp': kp[pred_mask].values,
+            '_ks': ks[pred_mask].values,
+            '_kt': kt[pred_mask].values,
+            '_kn': kn[pred_mask].values,
+        }
+    )
+    overlap = pred_keys.merge(fact_keys, on=['_kp', '_ks', '_kt', '_kn'], how='inner')
+    drop_n = len(overlap)
+    if drop_n == 0:
+        logger_instance.info('Nowcast supersession: 0 pred rows removed (no overlap with factual keys).')
+        return merged_df
+
+    logger_instance.info(
+        f'Dropped {drop_n:,} nowcast rows that duplicate factual '
+        '(PERIOD, STRANA, TNVED, NAPR) cells.'
+    )
+    return merged_df.drop(index=overlap['_row'])
+
+
 def append_nowcast_data(
     all_dataframes: List[pd.DataFrame],
     *,
@@ -1534,6 +1618,8 @@ def build_merged_dataframe(
     null_napr_rows = initial_rows - len(merged_df)
     if null_napr_rows > 0:
         logger.info(f"Removed {null_napr_rows:,} rows with NULL NAPR values")
+
+    merged_df = drop_nowcast_rows_superseded_by_facts(merged_df, logger)
 
     logger.info("Standardizing EDIZM column...")
     common_edizm_map = load_common_edizm_mapping(project_root)
@@ -1727,324 +1813,8 @@ def run_merge_pipeline(args, paths: Dict[str, Path]) -> None:
 def main(argv: List[str] = None):
     """CLI orchestration layer for the merge pipeline."""
     args = parse_merge_args(argv)
-    paths = resolve_merge_paths()
+    paths = resolve_merge_paths(output_db_path=args.output_db_path)
     run_merge_pipeline(args, paths)
-    project_root = Path(__file__).resolve().parents[2]
-    data_processed_dir = project_root / "data_processed"
-    db_dir = project_root / "db"
-    output_db_path = db_dir / "unified_trade_data.duckdb"
-    comtrade_db_path = db_dir / "comtrade.db"
-    nowcast_path = data_processed_dir / "nowcast" / "nowcast.parquet"
-    
-    # Ensure output directory exists
-    db_dir.mkdir(exist_ok=True)
-    
-    logger.info("Starting data merging process...")
-    
-    # Find all parquet files in data_processed
-    parquet_files = list(data_processed_dir.glob("*.parquet"))
-    logger.info(f"Found {len(parquet_files)} parquet files: {[f.name for f in parquet_files]}")
-    
-    excluded_countries_upper = [c.upper() for c in args.exclude_countries]
-
-    # Separate fizob files from regular data files
-    fizob_files = [f for f in parquet_files if f.name.startswith('fizob')]
-    regular_files = [f for f in parquet_files if not f.name.startswith('fizob')]
-    
-    logger.info(f"Found {len(fizob_files)} fizob files: {[f.name for f in fizob_files]}")
-    logger.info(f"Found {len(regular_files)} regular data files: {[f.name for f in regular_files]}")
-
-    # Load and validate national datasets (excluding fizob files)
-    national_datasets = {}
-    if regular_files:
-        for file_path in regular_files:
-            country_code = file_path.stem.replace('_full', '').upper()
-            if country_code in excluded_countries_upper:
-                logger.info(f"Skipping {file_path.name} as per --exclude-countries argument.")
-                continue
-
-            df = load_and_validate_file(file_path, start_year=args.start_year)
-            if df is not None:
-                df_processed = generate_derived_columns(df)
-                # Ensure STRANA is uppercase for consistency
-                if 'STRANA' in df_processed.columns:
-                    df_processed['STRANA'] = df_processed['STRANA'].str.upper()
-                national_datasets[country_code.lower()] = df_processed
-    else:
-        logger.warning("No regular national parquet files found in data_processed directory.")
-    
-    # Load fizob files and transform to unified fizob_index format
-    fizob_index_rows = []
-    if fizob_files:
-        logger.info("Loading fizob files for unified fizob_index table...")
-        for file_path in fizob_files:
-            file_stem = file_path.stem
-            df = load_and_validate_file(file_path, start_year=args.start_year)
-            if df is not None:
-                df_processed = generate_derived_columns(df)
-                if 'STRANA' in df_processed.columns:
-                    df_processed['STRANA'] = df_processed['STRANA'].str.upper()
-                df_unified = transform_fizob_to_unified(df_processed, file_stem)
-                if not df_unified.empty:
-                    fizob_index_rows.append(df_unified)
-                    logger.info(f"Loaded {file_stem}: {len(df_unified)} rows -> fizob_index")
-
-    all_dataframes = []
-    national_countries_iso = []
-
-    # Process national data
-    for source_name, df in national_datasets.items():
-        df['SOURCE'] = 'national'
-        if 'TYPE' not in df.columns:
-            df['TYPE'] = 'fact'
-        else:
-            df['TYPE'] = df['TYPE'].fillna('fact')
-        all_dataframes.append(df)
-        if 'STRANA' in df.columns and not df.empty:
-            # Get all unique country codes from this dataset and ensure uppercase
-            unique_countries = df['STRANA'].dropna().unique()
-            for country in unique_countries:
-                country_upper = country.upper()
-                if country_upper not in national_countries_iso:
-                    national_countries_iso.append(country_upper)
-    
-    # Process Comtrade data if flag is set
-    if args.include_comtrade:
-        if not comtrade_db_path.exists():
-            logger.error(f"Comtrade database not found at {comtrade_db_path}. Cannot include Comtrade data.")
-        else:
-            # Always exclude national data countries from Comtrade pull
-            # And also add any user-specified exclusions
-            countries_to_exclude_from_comtrade = list(set(national_countries_iso + excluded_countries_upper))
-            logger.info(f"Excluding countries from Comtrade data to avoid duplicates: {countries_to_exclude_from_comtrade}")
-
-            comtrade_df = load_and_transform_comtrade(
-                comtrade_db_path, 
-                project_root, 
-                exclude_countries=countries_to_exclude_from_comtrade,
-                start_year=args.start_year
-            )
-            if not comtrade_df.empty:
-                # Double-check: filter out any national countries that might have slipped through
-                initial_comtrade_rows = len(comtrade_df)
-                indices_to_drop = comtrade_df[comtrade_df['STRANA'].isin(national_countries_iso)].index
-                comtrade_df.drop(indices_to_drop, inplace=True)
-                filtered_rows = initial_comtrade_rows - len(comtrade_df)
-                if filtered_rows > 0:
-                    logger.info(f"Filtered {filtered_rows:,} duplicate rows from Comtrade data that matched national countries.")
-                
-                comtrade_df['SOURCE'] = 'comtrade'
-                comtrade_df['TYPE'] = 'fact'
-                all_dataframes.append(comtrade_df)
-
-    # Process nowcast data (pred only)
-    if args.include_nowcast:
-        if nowcast_path.exists():
-            logger.info(f"Loading nowcast data from {nowcast_path}")
-            nowcast_raw_df = pd.read_parquet(nowcast_path)
-            nowcast_df = transform_nowcast_to_unified(nowcast_raw_df, start_year=args.start_year)
-            if not nowcast_df.empty:
-                # Respect final exclusion list to keep behavior consistent with other sources.
-                if excluded_countries_upper:
-                    before_excl = len(nowcast_df)
-                    nowcast_df = nowcast_df[~nowcast_df['STRANA'].isin(excluded_countries_upper)].copy()
-                    excluded_count = before_excl - len(nowcast_df)
-                    if excluded_count > 0:
-                        logger.info(f"Excluded {excluded_count:,} nowcast rows by --exclude-countries filter.")
-
-                if not nowcast_df.empty:
-                    nowcast_df['SOURCE'] = 'nowcast'
-                    all_dataframes.append(nowcast_df)
-                    logger.info(f"Loaded nowcast rows (TYPE='pred'): {len(nowcast_df):,}")
-        else:
-            logger.info(f"Nowcast file not found, skipping: {nowcast_path}")
-    else:
-        logger.info("Nowcast disabled (--no-nowcast); not loading data_processed/nowcast/nowcast.parquet.")
-
-    if not all_dataframes:
-        logger.error("No data available to merge.")
-        return
-
-    # Merge all datasets
-    merged_df = pd.concat(all_dataframes, ignore_index=True)
-    
-    # Apply country exclusions to the final merged dataset
-    if excluded_countries_upper:
-        initial_rows = len(merged_df)
-        indices_to_drop = merged_df[merged_df['STRANA'].isin(excluded_countries_upper)].index
-        merged_df.drop(indices_to_drop, inplace=True)
-        excluded_rows = initial_rows - len(merged_df)
-        if excluded_rows > 0:
-            logger.info(f"Excluded {excluded_rows:,} rows for countries: {excluded_countries_upper}")
-    
-    merged_df = merged_df.sort_values(['PERIOD', 'STRANA', 'TNVED'])
-    
-    # Remove rows where NAPR is NULL
-    initial_rows = len(merged_df)
-    merged_df.dropna(subset=['NAPR'], inplace=True)
-    null_napr_rows = initial_rows - len(merged_df)
-    if null_napr_rows > 0:
-        logger.info(f"Removed {null_napr_rows:,} rows with NULL NAPR values")
-
-    # Standardize EDIZM column
-    logger.info("Standardizing EDIZM column...")
-    common_edizm_map = load_common_edizm_mapping(project_root)
-    if common_edizm_map:
-        merged_df = standardize_edizm_columns(merged_df, common_edizm_map, logger)
-    else:
-        logger.error("Could not standardize EDIZM values due to mapping load failure.")
-
-    merged_df = apply_special_edizm_cases(merged_df, logger)
-
-    # Note: Country names and TNVED names are now stored in separate reference tables
-    # and can be joined via the unified_trade_data_enriched view or directly in queries
-    logger.info("Reference tables (country names, TNVED names) will be created as separate tables in the database.")
-
-    # Smoke check: validate final merged dataset before committing to DuckDB.
-    # If any check fails, abort to protect the existing database from being overwritten
-    # with invalid or incomplete data.
-    if not smoke_check_merged_dataset(merged_df):
-        logger.error(
-            "Aborting save: smoke checks failed. "
-            "The existing DuckDB was NOT modified."
-        )
-        return
-
-    # Save to DuckDB
-    save_to_duckdb(merged_df, output_db_path)
-    
-    # Save unified fizob_index table
-    if fizob_index_rows:
-        logger.info("Saving unified fizob_index table...")
-        fizob_index_df = pd.concat(fizob_index_rows, ignore_index=True)
-        conn = duckdb.connect(str(output_db_path))
-        try:
-            chunk_size = 100000
-            first_chunk = fizob_index_df.iloc[:chunk_size]
-            conn.register('fizob_chunk_df', first_chunk)
-            conn.execute("""
-                CREATE OR REPLACE TABLE fizob_index AS 
-                SELECT STRANA, NAPR, CAST(PERIOD AS DATE) AS PERIOD, tn_level, tn_code, fizob, fizob_bp
-                FROM fizob_chunk_df
-            """)
-            conn.unregister('fizob_chunk_df')
-            logger.info(f"  ... created fizob_index and inserted first {len(first_chunk):,} rows")
-            
-            for i in range(chunk_size, len(fizob_index_df), chunk_size):
-                chunk = fizob_index_df.iloc[i:i + chunk_size]
-                conn.register('fizob_chunk_df', chunk)
-                conn.execute("""
-                    INSERT INTO fizob_index
-                    SELECT STRANA, NAPR, CAST(PERIOD AS DATE) AS PERIOD, tn_level, tn_code, fizob, fizob_bp
-                    FROM fizob_chunk_df
-                """)
-                conn.unregister('fizob_chunk_df')
-                logger.info(f"  ... inserted {i + len(chunk):,} / {len(fizob_index_df):,} rows")
-            
-            result = conn.execute("SELECT COUNT(*) FROM fizob_index").fetchone()
-            logger.info(f"  ... saved {result[0]:,} rows to fizob_index")
-            
-            conn.execute("""
-                CREATE OR REPLACE VIEW fizob_index_v AS
-                SELECT *,
-                       CASE WHEN fizob_bp = 0 THEN NULL ELSE fizob / fizob_bp END AS idx
-                FROM fizob_index
-            """)
-            logger.info("  ... created view fizob_index_v with computed idx column")
-            conn.close()
-        except Exception as e:
-            conn.close()
-            logger.error(f"Failed to save fizob_index: {e}")
-            raise
-    
-    # Save reference tables and create convenience view
-    conn = duckdb.connect(str(output_db_path))
-    try:
-        save_reference_tables(conn, project_root)
-        conn.close()
-    except Exception as e:
-        conn.close()
-        logger.error(f"Failed to create reference tables: {e}")
-        raise
-    
-    logger.info("Data merge completed. To process outliers, run: python src/outlier_detection.py")
-
-    # Display summary statistics
-    logger.info("=== MERGE SUMMARY ===")
-    logger.info(f"Total rows: {len(merged_df)}")
-    logger.info(f"Unique countries: {merged_df['STRANA'].nunique()}")
-    logger.info(f"Date range: {merged_df['PERIOD'].min()} to {merged_df['PERIOD'].max()}")
-    
-    logger.info("Rows by source:")
-    source_counts = merged_df['SOURCE'].value_counts()
-    for source, count in source_counts.items():
-        logger.info(f"  {source}: {count:,} rows")
-
-    # Sanity-check for fact/pred coverage after merge
-    logger.info("=== SANITY CHECK: FACT VS PRED ===")
-    if 'TYPE' in merged_df.columns:
-        merged_df['TYPE'] = merged_df['TYPE'].fillna('fact')
-        type_counts = merged_df['TYPE'].value_counts(dropna=False)
-        total_rows = len(merged_df)
-        for type_value, count in type_counts.items():
-            share = (count / total_rows * 100) if total_rows > 0 else 0
-            logger.info(f"  TYPE={type_value}: {count:,} rows ({share:.2f}%)")
-
-        pred_df = merged_df[merged_df['TYPE'] == 'pred'].copy()
-        if pred_df.empty:
-            logger.info("  No TYPE='pred' rows found in merged dataset.")
-        else:
-            min_pred_period = pred_df['PERIOD'].min()
-            max_pred_period = pred_df['PERIOD'].max()
-            logger.info(f"  Pred date range: {min_pred_period} to {max_pred_period}")
-
-            # Months where pred exists and corresponding row counts
-            pred_month_counts = (
-                pred_df
-                .groupby(pred_df['PERIOD'].dt.to_period('M'))
-                .size()
-                .sort_index()
-            )
-            logger.info("  Pred rows by month:")
-            for period_month, count in pred_month_counts.items():
-                logger.info(f"    {period_month}: {count:,}")
-
-            # Countries covered by pred and their row counts
-            pred_country_counts = (
-                pred_df.groupby('STRANA')
-                .size()
-                .sort_values(ascending=False)
-            )
-            logger.info("  Pred rows by country:")
-            for country, count in pred_country_counts.items():
-                logger.info(f"    {country}: {count:,}")
-
-            # Country-month matrix (compact) for pred coverage
-            pred_country_month = (
-                pred_df.assign(PERIOD_MONTH=pred_df['PERIOD'].dt.to_period('M').astype(str))
-                .groupby(['STRANA', 'PERIOD_MONTH'])
-                .size()
-                .reset_index(name='count')
-                .sort_values(['STRANA', 'PERIOD_MONTH'])
-            )
-            logger.info("  Pred coverage by country and month:")
-            for _, row in pred_country_month.iterrows():
-                logger.info(f"    {row['STRANA']} | {row['PERIOD_MONTH']}: {row['count']:,}")
-    else:
-        logger.warning("TYPE column not found: sanity-check for fact/pred skipped.")
-        
-    logger.info("Rows by country:")
-    country_counts = merged_df.groupby('SOURCE')['STRANA'].value_counts()
-    logger.info(str(country_counts))
-    
-    # Show EDIZM counts by country
-    logger.info("EDIZM counts by country:")
-    edizm_counts = merged_df.groupby(['STRANA', 'EDIZM']).size().reset_index(name='count')
-    edizm_counts = edizm_counts.sort_values(['STRANA', 'count'], ascending=[True, False])
-    for strana, group in edizm_counts.groupby('STRANA'):
-        logger.info(f"  Country: {strana}")
-        for _, row in group.head(5).iterrows(): # Log top 5 EDIZM for each country
-            logger.info(f"    - {row['EDIZM']}: {row['count']:,} rows")
 
 if __name__ == "__main__":
     main()
