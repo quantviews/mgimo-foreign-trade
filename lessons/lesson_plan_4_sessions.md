@@ -481,7 +481,7 @@ if 'SOURCE' in df_new.columns:
 ### Документация проекта:
 - `docs/data_model.md` - модель данных
 - `docs/merge_processed_data-docs.md` - описание процесса обработки данных
-- `project_architecture.md` - архитектура проекта
+- `docs/orchestration.md` - архитектура запуска и обновления пайплайна
 
 ### Дополнительные ресурсы:
 - Документация DuckDB: https://duckdb.org/docs/

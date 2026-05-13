@@ -53,7 +53,7 @@
     "href": "lesson_plan_4_sessions.html#материалы-для-подготовки-к-занятиям",
     "title": "",
     "section": "Материалы для подготовки к занятиям",
-    "text": "Материалы для подготовки к занятиям\nНеобходимое ПО:\n\nPython 3.8+\nБиблиотеки: pandas, duckdb\nБраузер для работы с Superset (если дашборд развернут)\n\nДокументация проекта:\n\ndocs/data_model.md - модель данных\ndocs/merge_processed_data-docs.md - описание процесса обработки данных\nproject_architecture.md - архитектура проекта\n\nДополнительные ресурсы:\n\nДокументация DuckDB: https://duckdb.org/docs/\nДокументация Apache Superset: https://superset.apache.org/docs/\nUN Comtrade: https://comtradeplus.un.org/"
+    "text": "Материалы для подготовки к занятиям\nНеобходимое ПО:\n\nPython 3.8+\nБиблиотеки: pandas, duckdb\nБраузер для работы с Superset (если дашборд развернут)\n\nДокументация проекта:\n\ndocs/data_model.md - модель данных\ndocs/merge_processed_data-docs.md - описание процесса обработки данных\ndocs/orchestration.md - архитектура запуска и обновления пайплайна\n\nДополнительные ресурсы:\n\nДокументация DuckDB: https://duckdb.org/docs/\nДокументация Apache Superset: https://superset.apache.org/docs/\nUN Comtrade: https://comtradeplus.un.org/"
   },
   {
     "objectID": "lesson_plan_4_sessions.html#рекомендации-по-проведению-занятий",
