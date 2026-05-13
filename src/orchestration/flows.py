@@ -42,6 +42,7 @@ def _build_merge_command(
     *,
     include_comtrade: bool,
     include_nowcast: bool,
+    include_fizob: bool,
     start_year: int | None,
     output_db_path: str | None,
 ) -> list[str]:
@@ -51,6 +52,8 @@ def _build_merge_command(
         command.append("--include-comtrade")
     if not include_nowcast:
         command.append("--no-nowcast")
+    if not include_fizob:
+        command.append("--no-fizob")
     if start_year is not None:
         command.extend(["--start-year", str(start_year)])
     if output_db_path is not None:
@@ -436,11 +439,13 @@ def mgimo_full_refresh(
     # When nowcast is recomputed, build a fact-only base first so the R script
     # does not depend on a stale nowcast parquet from a previous run.
     initial_include_nowcast = include_nowcast_in_merge and not run_nowcast
+    initial_include_fizob = not run_fizob
     run_command(
         _build_merge_command(
             python,
             include_comtrade=include_comtrade,
             include_nowcast=initial_include_nowcast,
+            include_fizob=initial_include_fizob,
             start_year=start_year,
             output_db_path=output_db_path,
         ),
@@ -485,6 +490,7 @@ def mgimo_full_refresh(
                 python,
                 include_comtrade=include_comtrade,
                 include_nowcast=include_nowcast_in_merge,
+                include_fizob=True,
                 start_year=start_year,
                 output_db_path=output_db_path,
             ),

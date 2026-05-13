@@ -10,7 +10,8 @@ This script:
 5. Excludes countries specified in --exclude-countries argument
 6. start_year argument to filter data from this year onwards
 7. Optionally loads nowcast from data_processed/nowcast/nowcast.parquet (TYPE=pred; on by default, disable with --no-nowcast). Any pred row whose (PERIOD, STRANA, TNVED, NAPR) key already exists in factual rows (national/comtrade) is dropped so nowcast fills only gaps.
-8. Saves the merged dataset to DuckDB format in db/unified_trade_data.duckdb
+8. Optionally loads fizob parquet files into fizob_index (on by default, disable with --no-fizob).
+9. Saves the merged dataset to DuckDB format in db/unified_trade_data.duckdb
 """
 
 import pandas as pd
@@ -1332,7 +1333,13 @@ def parse_merge_args(argv: List[str] = None):
         action='store_false',
         help="Do not load nowcast from data_processed/nowcast/nowcast.parquet (TYPE=pred rows).",
     )
-    parser.set_defaults(include_nowcast=True)
+    parser.add_argument(
+        '--no-fizob',
+        dest='include_fizob',
+        action='store_false',
+        help="Do not load fizob_*.parquet files into the fizob_index table.",
+    )
+    parser.set_defaults(include_nowcast=True, include_fizob=True)
     return parser.parse_args(argv)
 
 
@@ -1768,7 +1775,11 @@ def run_merge_pipeline(args, paths: Dict[str, Path]) -> None:
         excluded_countries_upper,
         start_year=args.start_year,
     )
-    fizob_index_rows = load_fizob_index_rows(fizob_files, start_year=args.start_year)
+    if args.include_fizob:
+        fizob_index_rows = load_fizob_index_rows(fizob_files, start_year=args.start_year)
+    else:
+        logger.info("Fizob disabled (--no-fizob); not loading fizob_*.parquet into fizob_index.")
+        fizob_index_rows = []
 
     all_dataframes = []
     national_countries_iso = append_national_data(all_dataframes, national_datasets)

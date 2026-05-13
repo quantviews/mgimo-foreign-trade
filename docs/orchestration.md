@@ -9,6 +9,7 @@
 - `src/orchestration/checks.py` — SQL quality checks для итоговой DuckDB-базы.
 - run manifest — после успешного flow сохраняется JSON с параметрами запуска, версиями входных файлов, итоговой базой и метриками checks.
 - `--output-db-path` в `src/merge_processed_data.py` / `src/pipelines/merge_pipeline.py` — позволяет собирать базу не только в `db/unified_trade_data.duckdb`, но и в отдельный артефактный путь.
+- `--no-fizob` в `src/merge_processed_data.py` / `src/pipelines/merge_pipeline.py` — позволяет собрать DuckDB без загрузки `fizob_*.parquet` в `fizob_index`.
 - `--db-path` и `--output-dir` в `src/nowcast.R` и `src/fizob_queries.R` — R-скрипты больше не привязаны неявно к дефолтной DuckDB-базе.
 
 ## Текущий порядок выполнения
@@ -34,13 +35,13 @@ flowchart TD
     K --> L
 ```
 
-Важный нюанс: если `run_nowcast=True`, первый merge запускается без nowcast (`--no-nowcast`). Это дает R-скрипту nowcast чистую fact-only базу и не подмешивает старый `data_processed/nowcast/nowcast.parquet` из прошлого запуска. После пересчета nowcast и/или fizob flow делает повторный merge, чтобы свежие parquet-артефакты попали в итоговую DuckDB.
+Важный нюанс: если `run_nowcast=True`, первый merge запускается без nowcast (`--no-nowcast`). Это дает R-скрипту nowcast чистую fact-only базу и не подмешивает старый `data_processed/nowcast/nowcast.parquet` из прошлого запуска. Если `run_fizob=True`, первый merge также запускается без fizob (`--no-fizob`), потому что старый `fizob_index` все равно будет заменен свежим расчетом. После пересчета nowcast и/или fizob flow делает повторный merge, чтобы свежие parquet-артефакты попали в итоговую DuckDB.
 
 ## Логи и длительные шаги
 
 `run-command` стримит stdout/stderr дочерних Python/R-процессов в Prefect logs построчно. Поэтому после строки `Running: ... src/fizob_queries.R` в актуальной версии flow должны появляться сообщения вида `[fizob] ... | Reading fact rows...`, `[fizob] ... | Building complete monthly grid`, `[fizob] ... | Calculating fizob level TNVED2` и так далее.
 
-`src/fizob_queries.R` может выполняться заметно дольше nowcast: он читает fact-строки, строит полную месячную панель по `(STRANA, NAPR, TNVED)`, считает rolling/base-period показатели и несколько уровней агрегации `TNVED2/4/6`. Для базы с 2019 года это десятки миллионов строк промежуточной панели, поэтому несколько десятков минут не обязательно означают ошибку.
+`src/fizob_queries.R` может выполняться заметно дольше nowcast: он читает только fact-строки (`TYPE = 'fact'`), строит полную месячную панель по `(STRANA, NAPR, TNVED)`, считает rolling/base-period показатели и несколько уровней агрегации `TNVED2/4/6`. Физобъемы намеренно не считаются по nowcast/pred строкам. Полная месячная сетка, shares и агрегаты `TNVED2/4/6`/`ALL` считаются в DuckDB temp tables; rolling-показатели пока остаются в R через `slider`. Для базы с 2019 года это все равно десятки миллионов строк промежуточной панели, поэтому несколько десятков минут не обязательно означают ошибку.
 
 Если после `Running: ... src/fizob_queries.R` больше 5-10 минут нет ни одной строки `[fizob]`, скорее всего запущен старый код flow или R еще не дошел до тела скрипта. В таком случае остановите запуск и перезапустите flow из текущей версии.
 
@@ -154,7 +155,7 @@ python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_re
 
 Что произойдет:
 
-1. первый merge соберет fact-only базу для R-шагов;
+1. первый merge соберет fact-only базу для R-шагов, без старых nowcast/fizob derived-артефактов;
 2. `src/nowcast.R` пересчитает `data_processed/nowcast/nowcast.parquet`;
 3. `src/fizob_queries.R` пересчитает fizob parquet по строкам `TYPE = 'fact'`;
 4. второй merge соберет финальную DuckDB уже с новым nowcast и fizob;
