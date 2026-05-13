@@ -61,6 +61,22 @@ log_table <- function(name, data) {
   log_step(sprintf("%s: rows=%s cols=%s", name, fmt_n(nrow(data)), ncol(data)))
 }
 
+sql_date <- function(value) {
+  sprintf("DATE '%s'", as.character(value))
+}
+
+cleanup_objects <- function(...) {
+  objects <- c(...)
+  existing <- objects[objects %in% ls(envir = .GlobalEnv)]
+  if (length(existing) == 0) {
+    return(invisible(NULL))
+  }
+
+  rm(list = existing, envir = .GlobalEnv)
+  invisible(gc())
+  log_step(sprintf("Released objects: %s", paste(existing, collapse = ", ")))
+}
+
 log_step("Starting fizob calculation")
 log_step(sprintf("Connecting to %s", config$db_path))
 log_step(sprintf("Output directory: %s", config$output_dir))
@@ -98,82 +114,112 @@ period_max <- dbGetQuery(con, "SELECT MAX(PERIOD) AS max_period
                                              WHERE TYPE = 'fact'") %>% pull(max_period) %>% lubridate::as_date()
 log_step(sprintf("Fact period range: %s to %s", period_min, period_max))
 
-log_step("Reading fact rows from unified_trade_data")
-df_raw <- dbGetQuery(con, "
-  SELECT STRANA, NAPR, TNVED, PERIOD, EDIZM, STOIM, NETTO, KOL
+log_step("Building complete monthly grid in DuckDB")
+invisible(dbExecute(con, sprintf("
+  CREATE OR REPLACE TEMP TABLE fizob_fact AS
+  SELECT
+    STRANA,
+    NAPR,
+    TNVED,
+    CAST(PERIOD AS DATE) AS PERIOD,
+    EDIZM,
+    STOIM,
+    NETTO,
+    KOL
   FROM unified_trade_data
   WHERE TYPE = 'fact'
+")))
+
+invisible(dbExecute(con, "
+  CREATE OR REPLACE TEMP TABLE fizob_keys AS
+  SELECT STRANA, TNVED, NAPR
+  FROM fizob_fact
+  GROUP BY STRANA, TNVED, NAPR
+  HAVING BOOL_OR(STOIM > 0)
+"))
+
+invisible(dbExecute(con, sprintf("
+  CREATE OR REPLACE TEMP TABLE fizob_months AS
+  SELECT CAST(period_value AS DATE) AS PERIOD
+  FROM generate_series(%s, %s, INTERVAL 1 MONTH) AS months(period_value)
+", sql_date(period_min), sql_date(period_max))))
+
+invisible(dbExecute(con, "
+  CREATE OR REPLACE TEMP TABLE fizob_key_meta AS
+  SELECT
+    k.STRANA,
+    k.TNVED,
+    k.NAPR,
+    ARG_MIN(f.EDIZM, f.PERIOD) FILTER (WHERE f.EDIZM IS NOT NULL) AS EDIZM,
+    COUNT(DISTINCT f.EDIZM) FILTER (WHERE f.EDIZM IS NOT NULL) AS n_edizm,
+    BOOL_OR(COALESCE(f.NETTO, 0) > 0 AND COALESCE(f.KOL, 0) = 0) AS use_netto,
+    DATE_TRUNC('year', MIN(f.PERIOD) FILTER (WHERE f.STOIM > 0)) AS first_year_entry
+  FROM fizob_keys k
+  LEFT JOIN fizob_fact f
+    ON k.STRANA = f.STRANA
+   AND k.TNVED = f.TNVED
+   AND k.NAPR = f.NAPR
+  GROUP BY k.STRANA, k.TNVED, k.NAPR
+"))
+
+grid_metrics <- dbGetQuery(con, "
+  SELECT
+    (SELECT COUNT(*) FROM fizob_fact) AS fact_rows,
+    (SELECT COUNT(*) FROM fizob_keys) AS nonzero_series,
+    (SELECT COUNT(*) FROM fizob_keys) * (SELECT COUNT(*) FROM fizob_months) AS complete_grid_rows
+")
+log_step(sprintf(
+  "DuckDB grid inputs: fact rows=%s non-zero series=%s complete grid rows=%s",
+  fmt_n(grid_metrics$fact_rows),
+  fmt_n(grid_metrics$nonzero_series),
+  fmt_n(grid_metrics$complete_grid_rows)
+))
+
+df <- dbGetQuery(con, "
+  SELECT
+    k.STRANA,
+    k.NAPR,
+    k.TNVED,
+    m.PERIOD,
+    meta.EDIZM,
+    COALESCE(f.STOIM, 0) AS STOIM,
+    COALESCE(f.NETTO, 0) AS NETTO,
+    COALESCE(f.KOL, 0) AS KOL,
+    CASE
+      WHEN meta.EDIZM IN ('?', 'NA')
+        OR meta.EDIZM IS NULL
+        OR meta.n_edizm > 1
+        OR meta.use_netto
+      THEN 'netto'
+      ELSE 'kol'
+    END AS fo_constr,
+    meta.first_year_entry
+  FROM fizob_keys k
+  CROSS JOIN fizob_months m
+  LEFT JOIN fizob_fact f
+    ON k.STRANA = f.STRANA
+   AND k.TNVED = f.TNVED
+   AND k.NAPR = f.NAPR
+   AND m.PERIOD = f.PERIOD
+  LEFT JOIN fizob_key_meta meta
+    ON k.STRANA = meta.STRANA
+   AND k.TNVED = meta.TNVED
+   AND k.NAPR = meta.NAPR
+  ORDER BY k.STRANA, k.TNVED, k.NAPR, m.PERIOD
 ") %>%
-  mutate(PERIOD = as_date(PERIOD))
-log_table("df_raw", df_raw)
-
-log_step("Filtering non-zero trade series")
-df_nonzero <- df_raw %>%
-  filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) # Здесь я фильтровал базу данных, чтобы убрать группы, для которых все данные 0. Для Индии.
-log_table("df_nonzero", df_nonzero)
-
-log_step("Building complete monthly grid")
-df <- df_nonzero %>%
-  # Заполняю пропуски без группировки - замена для group_by %>% complete. Минут на 5 быстрее
-  right_join(
-    df_nonzero %>%
-      distinct(STRANA, TNVED, NAPR) %>%
-      cross_join(
-        data.frame(
-          PERIOD = seq.Date(period_min, period_max, by = "month")
-        )
-      ),
-    by = c('STRANA', 'NAPR', 'TNVED', 'PERIOD')
-  ) %>%
-  mutate(EDIZM = first(EDIZM[!is.na(EDIZM)]),
-         .by = c(STRANA, NAPR, TNVED)) %>%
   mutate(
-    STOIM = coalesce(STOIM, 0),
-    KOL   = coalesce(KOL, 0),
-    NETTO = coalesce(NETTO, 0)
-  ) %>%
-  arrange(STRANA, TNVED, NAPR, PERIOD)
-log_table("df_complete_grid", df)
-
-# Единицы измерения
-
-log_step("Choosing physical-volume construction: KOL vs NETTO")
-edizm_table <- 
-  df %>%
-  group_by(STRANA, TNVED, NAPR) %>%
-  reframe(
-    unique_edizms = paste(unique(EDIZM), collapse = ", "),
-    n_edizm = n_distinct(EDIZM),
-    use_netto = any(NETTO > 0 & KOL == 0) # добавил дополнительное условие для проблемных рядов.
-  ) %>%
-  mutate(fo_constr = if_else(
-    unique_edizms %in% c('?', 'NA', NA) | n_edizm > 1 | use_netto,
-    'netto',
-    'kol'
+    PERIOD = as_date(PERIOD),
+    first_year_entry = as_date(first_year_entry)
   )
-  ) %>%
-  select(STRANA, TNVED, NAPR, fo_constr)
-log_table("edizm_table", edizm_table)
+log_table("df_complete_grid", df)
 
 # df_complete = df + значения за базовый период
 
 log_step("Calculating prices, rolling windows and base-period values")
 df_complete <-
   df %>%
-  # Добавляем единицы измерения
-  left_join(
-    edizm_table,
-    by = c('STRANA', 'TNVED', 'NAPR')
-  ) %>%
   # Делаем цену: она нужна для заполнений случаев, если есть только STOIM, а KOL и NETTO == 0.
   mutate(price = if_else(fo_constr == 'netto', STOIM / NETTO, STOIM / KOL)) %>%
-  # Добавляем столбец с датой базисного года для физобъёмов
-  left_join(df %>%
-              filter(STOIM > 0) %>%
-              group_by(STRANA, TNVED, NAPR) %>%
-              reframe(first_year_entry = min(PERIOD) %>% floor_date(unit = 'years')),
-            by = c('STRANA', 'TNVED', 'NAPR')
-  ) %>%
   group_by(STRANA, TNVED, NAPR) %>%
   arrange(PERIOD) %>%
   # На самом деле, окно 13 мес.
@@ -237,238 +283,250 @@ df_complete <-
   ungroup() %>%
   select(-last_entry)
 log_table("df_complete", df_complete)
+cleanup_objects("df")
   
-# Таблица с физобъёмами на нижних уровнях (по обычным TNVED)
+# Таблицы с физобъёмами на нижних уровнях считаются в DuckDB:
+# shares, TNVED2/4/6, total и ALL-агрегаты не материализуются в R.
 
-log_step("Building TNVED2/4/6 shares")
-data_fo <- 
-  df_complete %>%
-  mutate(TNVED2 = substr(TNVED, start = 1, stop = 2),
-         TNVED4 = substr(TNVED, start = 1, stop = 4),
-         TNVED6 = substr(TNVED, start = 1, stop = 6)
-  ) %>%
-  arrange(STRANA, NAPR, TNVED, PERIOD) %>%
-  # Эта часть может быть написана лаконичнее, но я написал группировку/разгруппировку в явном виде.
-  group_by(STRANA, NAPR, TNVED2, PERIOD) %>%
-  mutate(share_TNVED2 = stoim_12 / sum(stoim_12, na.rm = T)) %>%
-  ungroup() %>%
-  group_by(STRANA, NAPR, TNVED4, PERIOD) %>%
-  mutate(share_TNVED4 = stoim_12 / sum(stoim_12, na.rm = T)) %>%
-  ungroup() %>%
-  group_by(STRANA, NAPR, TNVED6, PERIOD) %>%
-  mutate(share_TNVED6 = stoim_12 / sum(stoim_12, na.rm = T)) %>%
-  ungroup() %>%
-  mutate(across(
-    c(share_TNVED2, share_TNVED4, share_TNVED6),
-    ~ .x %>%
-      coalesce(0) 
+query_fizob_level <- function(con, level) {
+  code_col <- paste0("TNVED", level)
+  fizob_col <- paste0("fizob", level)
+  price_col <- paste0("price", level)
+  fizob_bp_col <- paste0("fizob", level, "_bp")
+  price_bp_col <- paste0("price", level, "_bp")
+  share_col <- paste0("share_TNVED", level)
+
+  dbGetQuery(con, sprintf("
+    WITH agg AS (
+      SELECT
+        STRANA,
+        NAPR,
+        %1$s,
+        PERIOD,
+        SUM((CASE WHEN fo_constr = 'netto' THEN netto_12 ELSE kol_12 END) * %6$s) AS raw_fizob,
+        SUM(price_12 * %6$s) AS raw_price,
+        MIN(first_year_entry) AS bp
+      FROM data_fo
+      GROUP BY STRANA, NAPR, %1$s, PERIOD
+    ),
+    norm AS (
+      SELECT
+        *,
+        AVG(raw_fizob) FILTER (
+          WHERE PERIOD >= bp AND PERIOD <= bp + INTERVAL 11 MONTH
+        ) OVER (PARTITION BY STRANA, NAPR, %1$s) AS raw_fizob_bp,
+        AVG(raw_price) FILTER (
+          WHERE PERIOD >= bp AND PERIOD <= bp + INTERVAL 11 MONTH AND raw_price > 0
+        ) OVER (PARTITION BY STRANA, NAPR, %1$s) AS raw_price_bp
+      FROM agg
+    )
+    SELECT
+      STRANA,
+      NAPR,
+      %1$s,
+      PERIOD,
+      raw_fizob / raw_fizob_bp AS %2$s,
+      raw_price / raw_price_bp AS %3$s,
+      bp,
+      raw_fizob_bp AS %4$s,
+      raw_price_bp AS %5$s
+    FROM norm
+    ORDER BY STRANA, NAPR, %1$s, PERIOD
+  ", code_col, fizob_col, price_col, fizob_bp_col, price_bp_col, share_col))
+}
+
+query_fizob_all_level <- function(con, level) {
+  code_col <- paste0("TNVED", level)
+  fizob_col <- paste0("fizob", level)
+  price_col <- paste0("price", level)
+  fizob_bp_col <- paste0("fizob", level, "_bp")
+  price_bp_col <- paste0("price", level, "_bp")
+  share_col <- paste0("share_TNVED", level)
+
+  dbGetQuery(con, sprintf("
+    WITH agg AS (
+      SELECT
+        NAPR,
+        %1$s,
+        PERIOD,
+        SUM(netto_12 * %6$s) AS raw_fizob,
+        SUM(price_12 * %6$s) AS raw_price,
+        MIN(first_year_entry) AS bp
+      FROM data_fo_all
+      GROUP BY NAPR, %1$s, PERIOD
+    ),
+    norm AS (
+      SELECT
+        *,
+        AVG(raw_fizob) FILTER (
+          WHERE PERIOD >= bp AND PERIOD <= bp + INTERVAL 11 MONTH
+        ) OVER (PARTITION BY NAPR, %1$s) AS raw_fizob_bp,
+        AVG(raw_price) FILTER (
+          WHERE PERIOD >= bp AND PERIOD <= bp + INTERVAL 11 MONTH AND raw_price > 0
+        ) OVER (PARTITION BY NAPR, %1$s) AS raw_price_bp
+      FROM agg
+    )
+    SELECT
+      'ALL' AS STRANA,
+      NAPR,
+      %1$s,
+      PERIOD,
+      raw_fizob / raw_fizob_bp AS %2$s,
+      raw_price / raw_price_bp AS %3$s,
+      bp,
+      raw_fizob_bp AS %4$s,
+      raw_price_bp AS %5$s
+    FROM norm
+    ORDER BY NAPR, %1$s, PERIOD
+  ", code_col, fizob_col, price_col, fizob_bp_col, price_bp_col, share_col))
+}
+
+log_step("Registering df_complete in DuckDB")
+duckdb_register(con, "df_complete_r", df_complete)
+
+log_step("Building TNVED2/4/6 shares in DuckDB")
+invisible(dbExecute(con, "
+  CREATE OR REPLACE TEMP TABLE data_fo AS
+  WITH base AS (
+    SELECT
+      *,
+      SUBSTR(TNVED, 1, 2) AS TNVED2,
+      SUBSTR(TNVED, 1, 4) AS TNVED4,
+      SUBSTR(TNVED, 1, 6) AS TNVED6
+    FROM df_complete_r
+  ),
+  denominators AS (
+    SELECT
+      *,
+      SUM(stoim_12) OVER (
+        PARTITION BY STRANA, NAPR, TNVED2, PERIOD
+      ) AS sum_stoim_TNVED2,
+      SUM(stoim_12) OVER (
+        PARTITION BY STRANA, NAPR, TNVED4, PERIOD
+      ) AS sum_stoim_TNVED4,
+      SUM(stoim_12) OVER (
+        PARTITION BY STRANA, NAPR, TNVED6, PERIOD
+      ) AS sum_stoim_TNVED6
+    FROM base
   )
+  SELECT
+    *,
+    CASE WHEN sum_stoim_TNVED2 = 0 THEN 0 ELSE stoim_12 / sum_stoim_TNVED2 END AS share_TNVED2,
+    CASE WHEN sum_stoim_TNVED4 = 0 THEN 0 ELSE stoim_12 / sum_stoim_TNVED4 END AS share_TNVED4,
+    CASE WHEN sum_stoim_TNVED6 = 0 THEN 0 ELSE stoim_12 / sum_stoim_TNVED6 END AS share_TNVED6
+  FROM denominators
+"))
+
+data_fo_rows <- dbGetQuery(con, "SELECT COUNT(*) AS rows FROM data_fo")$rows
+log_step(sprintf("data_fo DuckDB temp table: rows=%s", fmt_n(data_fo_rows)))
+
+share_check_rows <- dbGetQuery(con, "
+  SELECT COUNT(*) AS rows
+  FROM (
+    SELECT STRANA, TNVED4, NAPR, PERIOD, SUM(share_TNVED4) AS sum_share
+    FROM data_fo
+    GROUP BY STRANA, TNVED4, NAPR, PERIOD
+    HAVING SUM(share_TNVED4) > 1.000000001
   )
-log_table("data_fo", data_fo)
+")$rows
+log_step(sprintf("Share check violations: %s", fmt_n(share_check_rows)))
 
-# Проверка, что всё верно.
-
-share_check <- data_fo %>%
-  group_by(STRANA, TNVED4, NAPR, PERIOD) %>%
-  reframe(sum_share = sum(share_TNVED4)) %>% 
-  filter(sum_share > 1.000000001)
-log_step(sprintf("Share check violations: %s", fmt_n(nrow(share_check))))
-
-#---------------------------------------------------------------
-# Далее формируются 3 таблицы с физобъёмами для 2, 4 и 6 знака -
-# --------------------------------------------------------------
-
-#------------------------------
-# Посчитаем для второго знака -
-#------------------------------
-
-log_step("Calculating fizob level TNVED2")
-fo_2 <-
-  data_fo %>%
-  # Для удобства я делаю готовые переменные для физобъёмов
-  mutate(fo_unit = if_else(fo_constr == 'netto', netto_12, kol_12),
-         fo_unit_bp = if_else(fo_constr == 'netto', NETTO_bp, KOL_bp)
-  ) %>%
-  # Группировка включает период, это важно
-  group_by(STRANA, NAPR, TNVED2, PERIOD) %>%
-  # Тут помимо взвешенной суммы мы делаем переменную - базовый период для физобъёма на высоком знаке.
-  reframe(fizob2 = sum(fo_unit * share_TNVED2),
-          price2 = sum(price_12 * share_TNVED2),
-          bp = min(first_year_entry)
-  ) %>%
-  # Считаем значение физобъёма в базовый период. Тут группировка по трём признакам
-  mutate(fizob2_bp = mean(fizob2[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
-         price2_bp = mean(price2[PERIOD >= bp & PERIOD <= bp %m+% months(11) & price2 > 0], na.rm = TRUE),
-         .by = c(STRANA, NAPR, TNVED2)
-  ) %>%
-  # Значения физобъёмов, делённые на среднее значения в базовый год. Тут группировка уже не нужна.
-  mutate(fizob2 = fizob2 / fizob2_bp,
-         price2 = price2 / price2_bp)
+log_step("Calculating fizob level TNVED2 in DuckDB")
+fo_2 <- query_fizob_level(con, 2)
 log_table("fo_2", fo_2)
 
-#------------------------------------
-# Для 4 знака -----------------------
-#------------------------------------
-
-log_step("Calculating fizob level TNVED4")
-fo_4 <-
-  data_fo %>%
-  mutate(fo_unit = if_else(fo_constr == 'netto', netto_12, kol_12),
-         fo_unit_bp = if_else(fo_constr == 'netto', NETTO_bp, KOL_bp)
-  ) %>%
-  group_by(STRANA, NAPR, TNVED4, PERIOD) %>% # меняется группировка тут
-  reframe(fizob4 = sum(fo_unit * share_TNVED4), # и доли тут
-          price4 = sum(price_12 * share_TNVED4),
-          bp = min(first_year_entry)
-  ) %>%
-  mutate(fizob4_bp = mean(fizob4[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
-         price4_bp = mean(price4[PERIOD >= bp & PERIOD <= bp %m+% months(11) & price4 > 0], na.rm = TRUE),
-         .by = c(STRANA, NAPR, TNVED4) # !
-  ) %>%
-  mutate(fizob4 = fizob4 / fizob4_bp,
-         price4 = price4 / price4_bp) #!
+log_step("Calculating fizob level TNVED4 in DuckDB")
+fo_4 <- query_fizob_level(con, 4)
 log_table("fo_4", fo_4)
 
-#-------------------------------------
-# Для 6 знака ------------------------
-#-------------------------------------
-
-log_step("Calculating fizob level TNVED6")
-fo_6 <-
-  data_fo %>%
-  mutate(fo_unit = if_else(fo_constr == 'netto', netto_12, kol_12),
-         fo_unit_bp = if_else(fo_constr == 'netto', NETTO_bp, KOL_bp)
-  ) %>%
-  group_by(STRANA, NAPR, TNVED6, PERIOD) %>% # меняется группировка тут
-  reframe(fizob6 = sum(fo_unit * share_TNVED6), # и доли тут
-          price6 = sum(price_12 * share_TNVED6),
-          bp = min(first_year_entry)
-  ) %>%
-  mutate(fizob6_bp = mean(fizob6[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
-         price6_bp = mean(price6[PERIOD >= bp & PERIOD <= bp %m+% months(11) & price6 > 0], na.rm = TRUE),
-         .by = c(STRANA, NAPR, TNVED6) # !
-  ) %>%
-  mutate(fizob6 = fizob6 / fizob6_bp,
-         price6 = price6 / price6_bp) #!
+log_step("Calculating fizob level TNVED6 in DuckDB")
+fo_6 <- query_fizob_level(con, 6)
 log_table("fo_6", fo_6)
 
-#-----------------------------------
-# Физоб по странам -----------------
-#-----------------------------------
-
-log_step("Calculating total fizob by country and direction")
-fo_tot <- 
-  data_fo %>%
-  mutate(fo_unit = if_else(fo_constr == 'netto', netto_12, kol_12),
-         fo_unit_bp = if_else(fo_constr == 'netto', NETTO_bp, KOL_bp)
-  ) %>%
-  # Группировка не включает TNVED
-  group_by(STRANA, NAPR, PERIOD) %>%
-  reframe(fizob = sum(fo_unit),
-          bp = min(first_year_entry)
-  ) %>%
-  mutate(fizob_bp = mean(fizob[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
-         .by = c(STRANA, NAPR)
-  ) %>%
-  mutate(fizob = fizob / fizob_bp)
+log_step("Calculating total fizob by country and direction in DuckDB")
+fo_tot <- dbGetQuery(con, "
+  WITH agg AS (
+    SELECT
+      STRANA,
+      NAPR,
+      PERIOD,
+      SUM(CASE WHEN fo_constr = 'netto' THEN netto_12 ELSE kol_12 END) AS raw_fizob,
+      MIN(first_year_entry) AS bp
+    FROM data_fo
+    GROUP BY STRANA, NAPR, PERIOD
+  ),
+  norm AS (
+    SELECT
+      *,
+      AVG(raw_fizob) FILTER (
+        WHERE PERIOD >= bp AND PERIOD <= bp + INTERVAL 11 MONTH
+      ) OVER (PARTITION BY STRANA, NAPR) AS raw_fizob_bp
+    FROM agg
+  )
+  SELECT
+    STRANA,
+    NAPR,
+    PERIOD,
+    raw_fizob / raw_fizob_bp AS fizob,
+    bp,
+    raw_fizob_bp AS fizob_bp
+  FROM norm
+  ORDER BY STRANA, NAPR, PERIOD
+")
 log_table("fo_tot", fo_tot)
 
-###################
-# Таблицы # ALL ###
-###################
-
-log_step("Building ALL-country aggregate shares")
-data_fo_all <- 
-  df_complete %>%
-  mutate(TNVED2 = substr(TNVED, start = 1, stop = 2),
-         TNVED4 = substr(TNVED, start = 1, stop = 4),
-         TNVED6 = substr(TNVED, start = 1, stop = 6)
-  ) %>%
-  arrange(STRANA, NAPR, TNVED, PERIOD) %>%
-  group_by(NAPR, TNVED2, PERIOD) %>%
-  mutate(share_TNVED2 = stoim_12 / sum(stoim_12, na.rm = T)) %>%
-  ungroup() %>%
-  group_by(NAPR, TNVED4, PERIOD) %>%
-  mutate(share_TNVED4 = stoim_12 / sum(stoim_12, na.rm = T)) %>%
-  ungroup() %>%
-  group_by(NAPR, TNVED6, PERIOD) %>%
-  mutate(share_TNVED6 = stoim_12 / sum(stoim_12, na.rm = T)) %>%
-  ungroup() %>%
-  mutate(across(
-    c(share_TNVED2, share_TNVED4, share_TNVED6),
-    ~ .x %>%
-      coalesce(0) 
+log_step("Building ALL-country aggregate shares in DuckDB")
+invisible(dbExecute(con, "
+  CREATE OR REPLACE TEMP TABLE data_fo_all AS
+  WITH base AS (
+    SELECT
+      *,
+      SUBSTR(TNVED, 1, 2) AS TNVED2,
+      SUBSTR(TNVED, 1, 4) AS TNVED4,
+      SUBSTR(TNVED, 1, 6) AS TNVED6
+    FROM df_complete_r
+  ),
+  denominators AS (
+    SELECT
+      *,
+      SUM(stoim_12) OVER (
+        PARTITION BY NAPR, TNVED2, PERIOD
+      ) AS sum_stoim_TNVED2,
+      SUM(stoim_12) OVER (
+        PARTITION BY NAPR, TNVED4, PERIOD
+      ) AS sum_stoim_TNVED4,
+      SUM(stoim_12) OVER (
+        PARTITION BY NAPR, TNVED6, PERIOD
+      ) AS sum_stoim_TNVED6
+    FROM base
   )
-  )
-log_table("data_fo_all", data_fo_all)
+  SELECT
+    *,
+    CASE WHEN sum_stoim_TNVED2 = 0 THEN 0 ELSE stoim_12 / sum_stoim_TNVED2 END AS share_TNVED2,
+    CASE WHEN sum_stoim_TNVED4 = 0 THEN 0 ELSE stoim_12 / sum_stoim_TNVED4 END AS share_TNVED4,
+    CASE WHEN sum_stoim_TNVED6 = 0 THEN 0 ELSE stoim_12 / sum_stoim_TNVED6 END AS share_TNVED6
+  FROM denominators
+"))
 
-# 2 знак
+data_fo_all_rows <- dbGetQuery(con, "SELECT COUNT(*) AS rows FROM data_fo_all")$rows
+log_step(sprintf("data_fo_all DuckDB temp table: rows=%s", fmt_n(data_fo_all_rows)))
 
-log_step("Calculating ALL-country fizob level TNVED2")
-fo_2_gr <-
-  data_fo_all %>%
-  group_by(NAPR, TNVED2, PERIOD) %>%
-  reframe(fizob2 = sum(netto_12 * share_TNVED2), # Здесь не NETTO, а netto_12
-          price2 = sum(price_12 * share_TNVED2),
-          bp = min(first_year_entry)
-  ) %>%
-  # Считаем значение физобъёма в базовый период. Тут группировка по трём признакам
-  mutate(fizob2_bp = mean(fizob2[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
-         price2_bp = mean(price2[PERIOD >= bp & PERIOD <= bp %m+% months(11) & price2 > 0], na.rm = TRUE),
-         .by = c(NAPR, TNVED2)
-  ) %>%
-  # Значения физобъёмов, делённые на среднее значения в базовый год. Тут группировка уже не нужна.
-  mutate(fizob2 = fizob2 / fizob2_bp,
-         price2 = price2 / price2_bp,
-         STRANA = 'ALL'
-  )
+log_step("Calculating ALL-country fizob level TNVED2 in DuckDB")
+fo_2_gr <- query_fizob_all_level(con, 2)
 log_table("fo_2_gr", fo_2_gr)
 
-# 4 знак
-
-log_step("Calculating ALL-country fizob level TNVED4")
-fo_4_gr <-
-  data_fo_all %>%
-  group_by(NAPR, TNVED4, PERIOD) %>%
-  reframe(fizob4 = sum(netto_12 * share_TNVED4), # то же самое
-          price4 = sum(price_12 * share_TNVED4),
-          bp = min(first_year_entry)
-  ) %>%
-  # Считаем значение физобъёма в базовый период. Тут группировка по трём признакам
-  mutate(fizob4_bp = mean(fizob4[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
-         price4_bp = mean(price4[PERIOD >= bp & PERIOD <= bp %m+% months(11) & price4 > 0], na.rm = TRUE),
-         .by = c(NAPR, TNVED4)
-  ) %>%
-  # Значения физобъёмов, делённые на среднее значения в базовый год. Тут группировка уже не нужна.
-  mutate(fizob4 = fizob4 / fizob4_bp,
-         price4 = price4 / price4_bp,
-         STRANA = 'ALL'
-  )
+log_step("Calculating ALL-country fizob level TNVED4 in DuckDB")
+fo_4_gr <- query_fizob_all_level(con, 4)
 log_table("fo_4_gr", fo_4_gr)
 
-# 6 знак
-
-log_step("Calculating ALL-country fizob level TNVED6")
-fo_6_gr <-
-  data_fo_all %>%
-  group_by(NAPR, TNVED6, PERIOD) %>%
-  reframe(fizob6 = sum(netto_12 * share_TNVED6), # и тут тоже не NETTO
-          price6 = sum(price_12 * share_TNVED6),
-          bp = min(first_year_entry)
-  ) %>%
-  # Считаем значение физобъёма в базовый период. Тут группировка по трём признакам
-  mutate(fizob6_bp = mean(fizob6[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
-         price6_bp = mean(price6[PERIOD >= bp & PERIOD <= bp %m+% months(11) & price6 > 0], na.rm = TRUE),
-         .by = c(NAPR, TNVED6)
-  ) %>%
-  # Значения физобъёмов, делённые на среднее значения в базовый год. Тут группировка уже не нужна.
-  mutate(fizob6 = fizob6 / fizob6_bp,
-         price6 = price6 / price6_bp,
-         STRANA = 'ALL'
-  )
+log_step("Calculating ALL-country fizob level TNVED6 in DuckDB")
+fo_6_gr <- query_fizob_all_level(con, 6)
 log_table("fo_6_gr", fo_6_gr)
 
-# Добавляем таблицы ALL как строки
+try(duckdb_unregister(con, "df_complete_r"), silent = TRUE)
+invisible(dbExecute(con, "DROP TABLE IF EXISTS data_fo"))
+invisible(dbExecute(con, "DROP TABLE IF EXISTS data_fo_all"))
+cleanup_objects("df_complete")
 
 fo_2 <- bind_rows(fo_2, fo_2_gr)
 fo_4 <- bind_rows(fo_4, fo_4_gr)
@@ -476,6 +534,7 @@ fo_6 <- bind_rows(fo_6, fo_6_gr)
 log_table("fo_2_final", fo_2)
 log_table("fo_4_final", fo_4)
 log_table("fo_6_final", fo_6)
+cleanup_objects("fo_2_gr", "fo_4_gr", "fo_6_gr")
 
 #------------------------------------------
 # Сохранение результатов в parquet файлах -
@@ -492,12 +551,16 @@ write_fizob_parquet <- function(data, path) {
 
 # zstd даёт заметно меньше размер файла, чем snappy по умолчанию
 write_fizob_parquet(fo_2, file.path(config$output_dir, 'fizob_2.parquet'))
+cleanup_objects("fo_2")
 write_fizob_parquet(fo_4, file.path(config$output_dir, 'fizob_4.parquet'))
+cleanup_objects("fo_4")
 write_fizob_parquet(fo_6, file.path(config$output_dir, 'fizob_6.parquet'))
+cleanup_objects("fo_6")
 write_fizob_parquet(
   fo_tot %>% mutate(TNVED2 = '0'),
   file.path(config$output_dir, 'fizob_total.parquet')
 )
+cleanup_objects("fo_tot")
 
 elapsed_seconds <- as.numeric(difftime(Sys.time(), run_started_at, units = "secs"))
 log_step(sprintf("Finished fizob calculation in %.1f seconds", elapsed_seconds))
