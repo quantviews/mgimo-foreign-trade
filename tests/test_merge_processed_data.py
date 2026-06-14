@@ -246,6 +246,7 @@ class TestNormalizationRules:
         assert resolve_edizm_record('KGS')['KOD'] == '166'
         assert resolve_edizm_record('NOS')['KOD'] == '796'
         assert resolve_edizm_record('Number of item')['KOD'] == '796'
+        assert resolve_edizm_record('Number of items')['KOD'] == '796'
         assert resolve_edizm_record('KG/ADET')['KOD'] == '796'
 
 

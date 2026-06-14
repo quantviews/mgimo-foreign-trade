@@ -38,6 +38,7 @@ COUNTRY_UNIT_ALIAS_RECORDS = {
 
     # China unit descriptions
     "NUMBER OF ITEM": {"KOD": "796", "NAME": "ШТУКА"},
+    "NUMBER OF ITEMS": {"KOD": "796", "NAME": "ШТУКА"},
     "PIECE": {"KOD": "796", "NAME": "ШТУКА"},
     "PAIR": {"KOD": "715", "NAME": "ПАРА"},
     "SQUARE METRE": {"KOD": "055", "NAME": "КВАДРАТНЫЙ МЕТР"},

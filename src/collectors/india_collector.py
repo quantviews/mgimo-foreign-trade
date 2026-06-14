@@ -305,6 +305,15 @@ def post_process_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def has_published_trade_data(df: pd.DataFrame) -> bool:
+    """True when the month has non-zero USD value or quantity (not a MEIDB zero placeholder)."""
+    if df.empty:
+        return False
+    stoim = pd.to_numeric(df["STOIM"], errors="coerce").fillna(0)
+    kol = pd.to_numeric(df["KOL"], errors="coerce").fillna(0)
+    return stoim.sum() != 0 or kol.sum() != 0
+
+
 def save_india_data(df: pd.DataFrame, year: int, month: int, output_dir: Optional[Path] = None) -> None:
     """
     Сохраняет все данные Индии (импорт и экспорт вместе)
@@ -380,6 +389,13 @@ def main():
         combined_data = get_all_trade_data(year, month, DEFAULT_COUNTRY_CODE)
 
         if not combined_data.empty:
+            if not has_published_trade_data(combined_data):
+                logging.warning(
+                    f"Пропуск {year}-{month:02d}: STOIM.sum() и KOL.sum() равны 0 "
+                    f"(месяц, вероятно, ещё не опубликован на MEIDB)."
+                )
+                continue
+
             logging.info(f"Данные успешно получены: {combined_data['Year'].iloc[0]}_{combined_data['Month'].iloc[0]:02d}")
             logging.info(combined_data.head())
 
