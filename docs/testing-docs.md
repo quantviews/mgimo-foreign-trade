@@ -106,7 +106,7 @@ pytest tests/ -v -s --pdb
 - `TestNormalizationRules` напрямую проверяет единый модуль правил `src/core/normalization_rules.py`: нормализацию `EDIZM`, country processor aliases и специальные кейсы `KG`, `TONNE`, `BQ`/`БЕККЕРЕЛЬ`.
 - `TestLoadTnvedMapping` проверяет загрузку справочников ТН ВЭД из CSV/JSON и нормализацию названий.
 - `TestLoadStranaMapping` проверяет загрузку стран и регистронезависимые ключи.
-- `TestLoadCommonEdizmMapping` проверяет единицы измерения и алиасы вроде `KG`/`КГ`.
+- `TestLoadCommonEdizmMapping` проверяет единицы измерения и алиасы вроде `KG`/`КГ`, `Number of items` → ISO `796`.
 - `TestSaveToDuckDB` проверяет запись DataFrame в DuckDB, пустой ввод, чанкинг, overwrite, cleanup временных файлов и сохранность старой базы при ошибке записи.
 - `TestIntegration` проверяет связку: derived columns -> schema validation -> DuckDB save.
 - `TestSmokeCheckMergedDataset` проверяет smoke-check финального объединенного датасета.

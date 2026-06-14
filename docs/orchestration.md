@@ -56,7 +56,14 @@ flowchart TD
 python -m pip install -r requirements.txt
 ```
 
-R-зависимости для `run_nowcast=True` и `run_fizob=True`:
+R-зависимости (flow проверяет их перед запуском соответствующих шагов):
+
+| Шаг | Пакеты |
+|-----|--------|
+| `run_nowcast=True` | `tidyverse`, `duckdb`, `dfms`, `arrow`, `vars` |
+| `run_fizob=True` | `tidyverse`, `slider`, `duckdb` |
+
+Для полного refresh с nowcast и fizob установите объединение обоих наборов:
 
 ```r
 install.packages(c("tidyverse", "duckdb", "dfms", "arrow", "vars", "slider"))
