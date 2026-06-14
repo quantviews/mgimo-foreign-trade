@@ -1,8 +1,8 @@
 # План рефакторинга
 
-Актуализировано: 2026-05-07.
+Актуализировано: 2026-06-14.
 
-> Статус: исторический рабочий план. Итерации стабилизации и основного Python-рефакторинга уже частично выполнены: `save_to_duckdb()` адаптирован под Windows/YandexDisk, правило масштаба Индии зафиксировано тестами, текущий прогон Python-тестов зеленый (`65 passed, 1 xfailed`), добавлен `.github/workflows/python-tests.yml`, а `merge_processed_data.py` сокращен до совместимого orchestration-wrapper. Актуальное состояние смотрите в коде, `docs/testing-docs.md`, `docs/merge_processed_data-docs.md` и `docs/country-collector-guide.md`.
+> Статус: исторический рабочий план. Итерации 1–2 в основном выполнены: `save_to_duckdb()` адаптирован под Windows/YandexDisk, правило масштаба Индии зафиксировано тестами, Python-тесты зелёные (`88 passed, 1 xfailed`), добавлен `.github/workflows/python-tests.yml`, `merge_processed_data.py` сокращён до orchestration-wrapper, nowcast-ingest вынесен в `src/pipelines/nowcast_ingest.py` с тестами (`tests/test_nowcast_ingest.py`). Расчёт nowcast остаётся в `src/nowcast.R`. Актуальное состояние — в коде, `docs/testing-docs.md`, `docs/merge_processed_data-docs.md` и `docs/country-collector-guide.md`.
 
 ## Цель
 
@@ -129,7 +129,12 @@
    - стандартный выходной DataFrame;
    - единые post-processing шаги.
 5. Сократить объем `main()` в `merge_processed_data.py` до orchestration-слоя.
-6. Вынести работу с nowcast из merge-скрипта в отдельный модуль, чтобы связь Python merge и R nowcast была явной.
+6. Вынести Python-ingest nowcast из merge-скрипта в отдельный модуль (`src/pipelines/nowcast_ingest.py`), чтобы связь R-расчёта (`src/nowcast.R`) и merge была явной.
+
+### Уже сделано (дополнение к итерации 2)
+
+7. `src/pipelines/nowcast_ingest.py` — `transform_nowcast_to_unified()`, `append_nowcast_data()`, `drop_nowcast_rows_superseded_by_facts()`.
+8. `tests/test_nowcast_ingest.py` — unit-тесты ingest-слоя.
 
 ### Что не делать в этой итерации
 
@@ -142,14 +147,14 @@
 - Основная доменная логика сосредоточена в повторно используемых модулях.
 - Изменение правил TNVED и EDIZM происходит в одном месте.
 - Процессоры стран становятся тоньше и предсказуемее.
-- Nowcast становится явной частью пайплайна, а не скрытым дополнительным файлом.
+- Nowcast становится явной частью пайплайна: расчёт в R, ingest в Python-модуле.
 
 ### Критерии готовности
 
 - `merge_processed_data.py` сокращен до orchestration-уровня.
-- Повторяющаяся логика TNVED и EDIZM удалена из отдельных процессоров.
+- Повторяющаяся логика TNVED и EDIZM удалена из отдельных процессоров (частично: Китай ещё использует codes CSV для EDIZM).
 - Тесты покрывают общий доменный слой, а не только большой интеграционный скрипт.
-- Есть отдельные тесты на `transform_nowcast_to_unified()`.
+- Есть отдельные тесты на `transform_nowcast_to_unified()` в `tests/test_nowcast_ingest.py`.
 
 ## Итерация 3. Интеграция R-пайплайна и эксплуатационная зрелость
 
@@ -238,11 +243,11 @@
 
 ## Быстрые победы
 
-1. Починить `save_to_duckdb()` на Windows/YandexDisk.
-2. Согласовать тест и код по масштабу `STOIM` для Индии.
-3. Добавить отдельный Python CI workflow.
-4. Зафиксировать `load_fts_csv` и `EDIZM_ISO` как явный контрактный разрыв или закрыть его.
-5. Добавить тест на `transform_nowcast_to_unified()`.
+1. Починить `save_to_duckdb()` на Windows/YandexDisk. ✅
+2. Согласовать тест и код по масштабу `STOIM` для Индии. ✅
+3. Добавить отдельный Python CI workflow. ✅
+4. Зафиксировать `load_fts_csv` и `EDIZM_ISO` как явный контрактный разрыв или закрыть его. ⚠️ (`xfail`)
+5. Добавить тест на `transform_nowcast_to_unified()`. ✅ (`tests/test_nowcast_ingest.py`)
 
 ## Главные риски рефакторинга
 

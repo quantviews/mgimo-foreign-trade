@@ -11,10 +11,11 @@
 - `--output-db-path` в `src/merge_processed_data.py` / `src/pipelines/merge_pipeline.py` — позволяет собирать базу не только в `db/unified_trade_data.duckdb`, но и в отдельный артефактный путь.
 - `--no-fizob` в `src/merge_processed_data.py` / `src/pipelines/merge_pipeline.py` — позволяет собрать DuckDB без загрузки `fizob_*.parquet` в `fizob_index`.
 - `--db-path` и `--output-dir` в `src/nowcast.R` и `src/fizob_queries.R` — R-скрипты больше не привязаны неявно к дефолтной DuckDB-базе.
+- `src/pipelines/nowcast_ingest.py` — Python-ingest R-nowcast: читает `data_processed/nowcast/nowcast.parquet`, приводит `TYPE='pred'` к unified-схеме и подмешивает в merge (с отсечением pred там, где уже есть fact).
 
 ## Текущий порядок выполнения
 
-Prefect flow намеренно тонкий: бизнес-логика остается в существующих processors, merge pipeline, `nowcast.R` и `fizob_queries.R`. Prefect отвечает за порядок, логи, retry и параметры запуска.
+Prefect flow намеренно тонкий: бизнес-логика остается в существующих processors, merge pipeline, `nowcast.R`, `nowcast_ingest.py` и `fizob_queries.R`. Prefect отвечает за порядок, логи, retry и параметры запуска.
 
 ```mermaid
 flowchart TD

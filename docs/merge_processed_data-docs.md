@@ -12,6 +12,11 @@
 
 `src/merge_processed_data.py` теперь является совместимой CLI-оберткой: старый запуск `python src/merge_processed_data.py` сохраняется, но основная логика находится в `src/pipelines/merge_pipeline.py`.
 
+Nowcast разделён на два явных слоя:
+
+1. **Расчёт (R):** `src/nowcast.R` читает fact-only DuckDB и пишет `data_processed/nowcast/nowcast.parquet`.
+2. **Ingest (Python):** `src/pipelines/nowcast_ingest.py` читает этот parquet, приводит строки `TYPE='pred'` к unified-схеме и подмешивает их в merge; при конфликте с фактом pred отбрасывается.
+
 Фактический `main()` в pipeline сокращен до orchestration-слоя:
 
 1.  `parse_merge_args()` — разбирает CLI-аргументы.
@@ -23,8 +28,9 @@
 *   `discover_processed_files()` — поиск regular/fizob parquet-файлов.
 *   `load_national_datasets()` — загрузка и валидация национальных parquet.
 *   `load_fizob_index_rows()` — подготовка строк для `fizob_index`.
-*   `append_national_data()`, `append_comtrade_data()`, `append_nowcast_data()` — добавление источников.
-*   `build_merged_dataframe()` — финальное объединение: после удаления строк с пустым `NAPR` вызывается `drop_nowcast_rows_superseded_by_facts()` (nowcast только там, где нет факта по тому же ключу), затем нормализация `EDIZM` и спецправила `KG`/`TONNE`/`BQ`.
+*   `append_national_data()`, `append_comtrade_data()` — добавление источников.
+*   `append_nowcast_data()` — загрузка R-parquet через `src/pipelines/nowcast_ingest.py`.
+*   `build_merged_dataframe()` — финальное объединение: после удаления строк с пустым `NAPR` вызывается `drop_nowcast_rows_superseded_by_facts()` из `nowcast_ingest.py` (nowcast только там, где нет факта по тому же ключу), затем нормализация `EDIZM` и спецправила `KG`/`TONNE`/`BQ`.
 *   `save_fizob_index()` — сохранение физобъемов в DuckDB.
 *   `create_reference_tables()` — справочные таблицы и enriched view.
 *   `log_merge_summary()` — финальная диагностика.
@@ -34,6 +40,7 @@
 *   `src/core/normalization_rules.py` — нормализация `TNVED`, генерация `TNVED2/4/6/8`, нормализация `EDIZM`, alias-правила страновых processors и спецкейсы единиц.
 *   `src/core/country_processor_contract.py` — единый контракт страновых processors: стандартные входы, обязательный выходной DataFrame и post-processing.
 *   `src/core/duckdb_writer.py`, `src/core/schema.py`, `src/core/tnved.py`, `src/core/edizm.py`, `src/core/reference_tables.py` — публичные тематические фасады для core-логики.
+*   `src/pipelines/nowcast_ingest.py` — Python-ingest R-nowcast: `transform_nowcast_to_unified()`, `append_nowcast_data()`, `drop_nowcast_rows_superseded_by_facts()`.
 
 ## Оркестрация полного refresh
 
@@ -79,9 +86,10 @@
         *   `TNVED` нормализуется через общий слой `normalization_rules.py`; затем генерируются производные колонки `TNVED2`, `TNVED4`, `TNVED6`, `TNVED8`. Ведущие нули **не удаляются**.
 
 3a. **Интеграция Nowcast (по умолчанию включена)**:
-    *   Если **не** указан флаг `--no-nowcast`, скрипт при наличии файла `data_processed/nowcast/nowcast.parquet` загружает из него только строки с `TYPE = 'pred'` и приводит их к общей схеме (как у национальных данных: производные `TNVED*`, `STOIM`/`NETTO` и т.д.).
+    *   Расчёт прогноза выполняется отдельно в `src/nowcast.R` (см. `docs/orchestration.md`). Merge читает результат через `src/pipelines/nowcast_ingest.py`.
+    *   Если **не** указан флаг `--no-nowcast`, при наличии файла `data_processed/nowcast/nowcast.parquet` ingest загружает из него только строки с `TYPE = 'pred'` и приводит их к общей схеме (производные `TNVED*`, `STOIM`/`NETTO` и т.д.).
     *   В итоговой таблице для этих строк задаётся `SOURCE = 'nowcast'`, колонка `TYPE` остаётся `'pred'`. Для национальных и Comtrade-строк по умолчанию `TYPE = 'fact'`.
-    *   **Приоритет факта перед nowcast:** после объединения всех источников и удаления строк с пустым `NAPR`, функция `drop_nowcast_rows_superseded_by_facts()` удаляет каждую строку `TYPE='pred'`, если уже существует **фактическая** строка (любое значение `TYPE`, кроме `pred`) с тем же ключом **`(PERIOD, STRANA, TNVED в нормализованном виде из 10 знаков, NAPR)`**. Таким образом nowcast дополняет базу только там, где национальных/Comtrade данных по этой ячейке ещё нет; двойной учёт факта и прогноза для одной и той же комбинации исключается. В лог пишется число удалённых pred-строк.
+    *   **Приоритет факта перед nowcast:** после объединения всех источников и удаления строк с пустым `NAPR`, `drop_nowcast_rows_superseded_by_facts()` из `nowcast_ingest.py` удаляет каждую строку `TYPE='pred'`, если уже существует **фактическая** строка (любое значение `TYPE`, кроме `pred`) с тем же ключом **`(PERIOD, STRANA, TNVED в нормализованном виде из 10 знаков, NAPR)`**. Таким образом nowcast дополняет базу только там, где национальных/Comtrade данных по этой ячейке ещё нет; двойной учёт факта и прогноза для одной и той же комбинации исключается. В лог пишется число удалённых pred-строк.
     *   Фильтр `--start-year` и `--exclude-countries` применяются и к nowcast так же, как к остальным источникам.
     *   Чтобы **не** включать nowcast в merge (например, для чисто фактической базы), запускайте с `--no-nowcast`.
 
@@ -93,7 +101,7 @@
     *   Все подготовленные наборы данных (национальные, при необходимости Comtrade и nowcast) объединяются в один DataFrame.
     *   В каждую запись добавляется колонка `SOURCE`, указывающая на источник (`national`, `comtrade` или `nowcast`). Колонка `TYPE` различает факт (`fact`) и прогноз (`pred` для nowcast).
     *   Удаляются все строки, в которых отсутствует значение в колонке `NAPR` (направление торговли).
-    *   Выполняется отсечение nowcast там, где ключ `(PERIOD, STRANA, TNVED, NAPR)` уже покрыт фактом (см. п. 3a и `drop_nowcast_rows_superseded_by_facts` в `merge_pipeline.py`).
+    *   Выполняется отсечение nowcast там, где ключ `(PERIOD, STRANA, TNVED, NAPR)` уже покрыт фактом (см. п. 3a и `drop_nowcast_rows_superseded_by_facts()` в `src/pipelines/nowcast_ingest.py`).
 
 6.  **Стандартизация единиц измерения (EDIZM)**:
     *   Скрипт использует `metadata/edizm.csv` для приведения всех значений в колонке `EDIZM` к единому стандарту (например, 'kg', 'Kilogram', 'КИЛОГРАММ' будут приведены к одному общему виду).

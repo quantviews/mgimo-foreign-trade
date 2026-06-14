@@ -35,8 +35,8 @@ from pipelines.merge_pipeline import (
     load_and_transform_comtrade,
     main,
     transform_fizob_to_unified,
-    transform_nowcast_to_unified,
 )
+from pipelines.nowcast_ingest import transform_nowcast_to_unified
 
 __all__ = [
     "EXPECTED_SCHEMA",

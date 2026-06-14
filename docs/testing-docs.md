@@ -10,10 +10,17 @@
 pytest -q
 ```
 
-Ожидаемый результат зависит от текущей ветки; для изменений orchestration/merge сейчас отдельно проверяются:
+Ожидаемый результат на текущей ветке:
+
+```text
+88 passed, 1 xfailed
+```
+
+Дополнительно для изменений orchestration/merge:
 
 ```text
 pytest -q tests/test_sql_quality_checks.py
+pytest -q tests/test_nowcast_ingest.py
 pytest -q tests/test_merge_processed_data.py -k "MergeCliPaths"
 ```
 
@@ -41,6 +48,7 @@ tests/
 ├── __init__.py
 ├── conftest.py
 ├── test_merge_processed_data.py
+├── test_nowcast_ingest.py
 ├── test_processor_contracts.py
 └── test_sql_quality_checks.py
 ```
@@ -67,6 +75,7 @@ pytest tests/ -v
 
 ```bash
 pytest tests/test_merge_processed_data.py -q
+pytest tests/test_nowcast_ingest.py -q
 pytest tests/test_processor_contracts.py -q
 ```
 
@@ -102,6 +111,14 @@ pytest tests/ -v -s --pdb
 - `TestIntegration` проверяет связку: derived columns -> schema validation -> DuckDB save.
 - `TestSmokeCheckMergedDataset` проверяет smoke-check финального объединенного датасета.
 - `TestMergeCliPaths` проверяет CLI-аргумент `--output-db-path` и разрешение относительных/абсолютных путей DuckDB.
+
+### `test_nowcast_ingest.py`
+
+Проверяет Python-ingest R-nowcast из `src/pipelines/nowcast_ingest.py`:
+
+- `TestTransformNowcastToUnified` — только `TYPE='pred'`, unified-колонки, производные `TNVED*`, фильтр `--start-year`, пустой ввод при отсутствии колонок.
+- `TestDropNowcastRowsSupersededByFacts` — pred удаляется при совпадении ключа `(PERIOD, STRANA, TNVED, NAPR)` с fact; нормализация `TNVED` при сравнении.
+- `TestAppendNowcastData` — чтение parquet, `SOURCE='nowcast'`, `--exclude-countries`, флаги `--no-nowcast` и отсутствующий файл.
 
 ### `test_sql_quality_checks.py`
 
@@ -177,6 +194,7 @@ Quarto publish workflow остается отдельно в `.github/workflows/
 Рекомендации:
 
 - Добавляйте unit/smoke-тесты merge-логики в `tests/test_merge_processed_data.py`.
+- Добавляйте тесты nowcast-ingest в `tests/test_nowcast_ingest.py`.
 - Добавляйте контрактные проверки процессоров стран в `tests/test_processor_contracts.py`.
 - Используйте `tmp_path` для файловых фикстур.
 - Не используйте реальные `data_raw/`, `data_processed/`, `db/` в тестах, если можно собрать минимальную фикстуру на лету.

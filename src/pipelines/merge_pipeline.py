@@ -18,7 +18,6 @@ import pandas as pd
 import duckdb
 from pathlib import Path
 import logging
-import re
 import argparse
 import json
 import gc
@@ -33,8 +32,12 @@ from core.normalization_rules import (
     add_tnved_columns,
     apply_special_edizm_cases,
     get_special_edizm_aliases,
-    normalize_tnved_code,
     standardize_edizm_columns,
+)
+from pipelines.nowcast_ingest import (
+    append_nowcast_data,
+    drop_nowcast_rows_superseded_by_facts,
+    transform_nowcast_to_unified,
 )
 
 # Configure logging
@@ -257,59 +260,6 @@ def generate_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
     return add_tnved_columns(df)
-
-
-def transform_nowcast_to_unified(df: pd.DataFrame, start_year: int = None) -> pd.DataFrame:
-    """
-    Transform nowcast parquet to unified schema and keep only TYPE='pred' rows.
-    """
-    required_cols = {'STRANA', 'PERIOD', 'TNVED', 'NAPR', 'TYPE', 'STOIM', 'NETTO'}
-    missing_cols = required_cols - set(df.columns)
-    if missing_cols:
-        logger.warning(f"Nowcast file is missing required columns: {missing_cols}. Skipping nowcast.")
-        return pd.DataFrame()
-
-    nowcast_df = df.copy()
-    nowcast_df['TYPE'] = nowcast_df['TYPE'].astype(str).str.strip().str.lower()
-    nowcast_df = nowcast_df[nowcast_df['TYPE'] == 'pred'].copy()
-
-    if nowcast_df.empty:
-        logger.info("Nowcast file has no rows with TYPE='pred'.")
-        return pd.DataFrame()
-
-    nowcast_df['PERIOD'] = pd.to_datetime(nowcast_df['PERIOD'], errors='coerce').dt.normalize()
-    nowcast_df.dropna(subset=['PERIOD'], inplace=True)
-
-    if start_year:
-        initial_rows = len(nowcast_df)
-        nowcast_df = nowcast_df[nowcast_df['PERIOD'].dt.year >= start_year].copy()
-        if len(nowcast_df) < initial_rows:
-            logger.info(
-                f"Filtered nowcast by start_year >= {start_year}. "
-                f"Kept {len(nowcast_df)} of {initial_rows} rows."
-            )
-
-    if nowcast_df.empty:
-        logger.info("Nowcast is empty after filtering.")
-        return pd.DataFrame()
-
-    nowcast_df = generate_derived_columns(nowcast_df)
-    nowcast_df['STRANA'] = nowcast_df['STRANA'].astype(str).str.upper()
-    nowcast_df['NAPR'] = nowcast_df['NAPR'].astype(str).str.strip()
-
-    # Bring nowcast rows to unified structure.
-    nowcast_df['EDIZM'] = None
-    nowcast_df['EDIZM_ISO'] = None
-    nowcast_df['KOL'] = None
-    nowcast_df['STOIM'] = pd.to_numeric(nowcast_df['STOIM'], errors='coerce')
-    nowcast_df['NETTO'] = pd.to_numeric(nowcast_df['NETTO'], errors='coerce')
-
-    unified_cols = list(EXPECTED_SCHEMA.keys()) + ['TYPE']
-    for col in unified_cols:
-        if col not in nowcast_df.columns:
-            nowcast_df[col] = None
-
-    return nowcast_df[unified_cols]
 
 
 def transform_fizob_to_unified(df: pd.DataFrame, file_stem: str) -> pd.DataFrame:
@@ -1494,107 +1444,6 @@ def append_comtrade_data(
     comtrade_df['SOURCE'] = 'comtrade'
     comtrade_df['TYPE'] = 'fact'
     all_dataframes.append(comtrade_df)
-
-
-def _tnved_key_nowcast_overlap(value: object) -> str:
-    """Canonical TNVED for (fact vs pred) cell join; must match normalize_tnved_code in the pipeline."""
-    if pd.isna(value):
-        return ''
-    cleaned = re.sub(r"\.0$", "", str(value).strip()).strip()
-    if not cleaned or cleaned.lower() == "nan":
-        return ""
-    return normalize_tnved_code(cleaned)
-
-
-def drop_nowcast_rows_superseded_by_facts(
-    merged_df: pd.DataFrame, logger_instance: logging.Logger
-) -> pd.DataFrame:
-    """Remove TYPE=pred (nowcast) rows when the same trade cell already has factual data.
-
-    Join key: PERIOD (date), STRANA, TNVED (same normalization as normalized unified data:
-    normalize_tnved_code — right-pad/truncate to 10, not left zfill), NAPR.
-    """
-    if merged_df.empty or 'TYPE' not in merged_df.columns:
-        return merged_df
-
-    type_norm = merged_df['TYPE'].astype(str).str.strip().str.lower()
-    pred_mask = type_norm.eq('pred')
-    if not pred_mask.any():
-        return merged_df
-
-    kp = pd.to_datetime(merged_df['PERIOD'], errors='coerce').dt.normalize()
-    ks = merged_df['STRANA'].astype(str).str.strip().str.upper()
-    kt = merged_df['TNVED'].map(_tnved_key_nowcast_overlap)
-    kn = merged_df['NAPR'].astype(str).str.strip()
-
-    fact_mask = (~pred_mask) & kp.notna()
-    if not fact_mask.any():
-        logger_instance.info(
-            'No factual rows with valid PERIOD for nowcast supersession check; keeping all preds.'
-        )
-        return merged_df
-
-    fact_keys = (
-        pd.DataFrame({'_kp': kp[fact_mask], '_ks': ks[fact_mask], '_kt': kt[fact_mask], '_kn': kn[fact_mask]})
-        .drop_duplicates()
-    )
-
-    pred_keys = pd.DataFrame(
-        {
-            '_row': merged_df.index[pred_mask],
-            '_kp': kp[pred_mask].values,
-            '_ks': ks[pred_mask].values,
-            '_kt': kt[pred_mask].values,
-            '_kn': kn[pred_mask].values,
-        }
-    )
-    overlap = pred_keys.merge(fact_keys, on=['_kp', '_ks', '_kt', '_kn'], how='inner')
-    drop_n = len(overlap)
-    if drop_n == 0:
-        logger_instance.info('Nowcast supersession: 0 pred rows removed (no overlap with factual keys).')
-        return merged_df
-
-    logger_instance.info(
-        f'Dropped {drop_n:,} nowcast rows that duplicate factual '
-        '(PERIOD, STRANA, TNVED, NAPR) cells.'
-    )
-    return merged_df.drop(index=overlap['_row'])
-
-
-def append_nowcast_data(
-    all_dataframes: List[pd.DataFrame],
-    *,
-    include_nowcast: bool,
-    nowcast_path: Path,
-    excluded_countries_upper: List[str],
-    start_year: int = None,
-) -> None:
-    """Optionally append nowcast pred rows."""
-    if not include_nowcast:
-        logger.info("Nowcast disabled (--no-nowcast); not loading data_processed/nowcast/nowcast.parquet.")
-        return
-
-    if not nowcast_path.exists():
-        logger.info(f"Nowcast file not found, skipping: {nowcast_path}")
-        return
-
-    logger.info(f"Loading nowcast data from {nowcast_path}")
-    nowcast_raw_df = pd.read_parquet(nowcast_path)
-    nowcast_df = transform_nowcast_to_unified(nowcast_raw_df, start_year=start_year)
-    if nowcast_df.empty:
-        return
-
-    if excluded_countries_upper:
-        before_excl = len(nowcast_df)
-        nowcast_df = nowcast_df[~nowcast_df['STRANA'].isin(excluded_countries_upper)].copy()
-        excluded_count = before_excl - len(nowcast_df)
-        if excluded_count > 0:
-            logger.info(f"Excluded {excluded_count:,} nowcast rows by --exclude-countries filter.")
-
-    if not nowcast_df.empty:
-        nowcast_df['SOURCE'] = 'nowcast'
-        all_dataframes.append(nowcast_df)
-        logger.info(f"Loaded nowcast rows (TYPE='pred'): {len(nowcast_df):,}")
 
 
 def build_merged_dataframe(
