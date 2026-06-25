@@ -4,7 +4,6 @@ project:
   render:
     - site/index.qmd
     - site/technical.qmd
-    - site/bulletin.qmd
     - site/bulletin_comparison.qmd
     - other/intro-presentation.qmd
     - other/foreign-trade-slide-2026.qmd
