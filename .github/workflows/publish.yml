@@ -70,6 +70,7 @@ jobs:
             any::sysfonts
             any::jsonlite
             any::scales
+            any::svglite
 
       - name: Verify bulletin data snapshots
         run: |
