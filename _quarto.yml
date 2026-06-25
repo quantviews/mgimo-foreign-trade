@@ -5,6 +5,7 @@ project:
     - site/index.qmd
     - site/technical.qmd
     - site/bulletin.qmd
+    - site/bulletin_comparison.qmd
     - other/intro-presentation.qmd
     - other/foreign-trade-slide-2026.qmd
     - lessons/lesson_01_intro.qmd
@@ -12,23 +13,16 @@ project:
     - lessons/lesson_03_duckdb.qmd
     - lessons/lesson_04_superset.qmd
 
-profiles:
-  ci:
-    execute:
-      eval: false
-
 website:
-  title: "mgimo-foreign-trade"
+  title: "Национальная торговая статистика"
   navbar:
     left:
-      - text: ""
+      - text: "Главная"
         href: site/index.qmd
-      - text: "📄 О проекте"
-        menu:
-          - text: "Как это работает"
-            href: site/technical.qmd
-          - text: "Бюллетень"
-            href: site/bulletin.qmd
+      - text: "Техническая документация"
+        href: site/technical.qmd
+      - text: "Бюллетень (ежемесячный)"
+        href: site/bulletin_comparison.qmd
       - text: "Вводная презентация"
         href: other/intro-presentation.qmd
       - text: "Занятия"
@@ -47,5 +41,5 @@ format:
     theme:
       - cosmo
       - site/styles/mgimo.scss
-    toc: true
+    toc: false
     lang: ru
