@@ -85,6 +85,14 @@ def create_quality_test_db(path: Path, *, invalid_napr: bool = False, pred_overl
         )
         conn.execute(
             """
+            CREATE TABLE hs4_reference AS
+            SELECT '0101'::VARCHAR AS TNVED4,
+                   'Лошади'::VARCHAR AS TNVED4_NAME_SHORT,
+                   'ЛОШАДИ'::VARCHAR AS TNVED4_NAME_FULL
+            """
+        )
+        conn.execute(
+            """
             CREATE VIEW unified_trade_data_enriched AS
             SELECT * FROM unified_trade_data
             """

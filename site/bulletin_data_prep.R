@@ -159,9 +159,12 @@ data_oilgas <- dbGetQuery(
   reframe(NETTO = sum(NETTO, na.rm = TRUE) / 1e6, .by = c(PERIOD, STRANA, good)) %>%
   filter(PERIOD >= ymd("2020-01-01"))
 
-hs4_json <- file.path(data_dir, "hs4_labels.json")
+hs4_json <- file.path(repo_root, "metadata", "hs4_labels.json")
 if (!file.exists(hs4_json)) {
-  stop("Missing ", hs4_json)
+  hs4_json <- file.path(repo_root, "site", "data", "hs4_labels.json")
+}
+if (!file.exists(hs4_json)) {
+  stop("Missing hs4_labels.json in metadata/ or site/data/")
 }
 hs4_labels <- fromJSON(hs4_json, flatten = TRUE) %>% as_tibble()
 

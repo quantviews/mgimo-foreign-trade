@@ -22,14 +22,20 @@ from merge_processed_data import (
     generate_derived_columns,
     load_tnved_mapping,
     load_strana_mapping,
+    load_hs4_labels,
     load_common_edizm_mapping,
     save_to_duckdb,
+    save_reference_tables,
     smoke_check_merged_dataset,
     resolve_edizm_record,
     standardize_edizm_columns,
     EXPECTED_SCHEMA
 )
-from pipelines.merge_pipeline import parse_merge_args, resolve_merge_paths
+from pipelines.merge_pipeline import (
+    build_unified_trade_data_enriched_view_sql,
+    parse_merge_args,
+    resolve_merge_paths,
+)
 
 
 class TestValidateSchema:
@@ -49,7 +55,8 @@ class TestValidateSchema:
             'KOL': [10.0, 20.0],
             'TNVED2': ['01', '02'],
             'TNVED4': ['0101', '0202'],
-            'TNVED6': ['010101', '020202']
+            'TNVED6': ['010101', '020202'],
+            'TNVED8': ['01010100', '02020200'],
         })
         assert validate_schema(df, 'test.parquet') == True
     
@@ -76,7 +83,8 @@ class TestValidateSchema:
             'KOL': [10.0, 20.0],
             'TNVED2': ['01', '02'],
             'TNVED4': ['0101', '0202'],
-            'TNVED6': ['010101', '020202']
+            'TNVED6': ['010101', '020202'],
+            'TNVED8': ['01010100', '02020200'],
         })
         assert validate_schema(df, 'test.parquet') == False
     
@@ -94,7 +102,8 @@ class TestValidateSchema:
             'KOL': [10.0, 20.0],
             'TNVED2': ['01', '02'],
             'TNVED4': ['0101', '0202'],
-            'TNVED6': ['010101', '020202']
+            'TNVED6': ['010101', '020202'],
+            'TNVED8': ['01010100', '02020200'],
         })
         assert validate_schema(df, 'test.parquet') == False
     
@@ -112,7 +121,8 @@ class TestValidateSchema:
             'KOL': [10.0, 20.0],
             'TNVED2': ['01', '02'],
             'TNVED4': ['0101', '0202'],
-            'TNVED6': ['010101', '020202']
+            'TNVED6': ['010101', '020202'],
+            'TNVED8': ['01010100', '02020200'],
         })
         assert validate_schema(df, 'test.parquet') == False
 
@@ -471,6 +481,7 @@ class TestSaveToDuckDB:
             'TNVED2':   ['01', '02'],
             'TNVED4':   ['0101', '0202'],
             'TNVED6':   ['010101', '020202'],
+            'TNVED8':   ['01010100', '02020200'],
         })
 
     def test_save_to_duckdb(self, tmp_path):
@@ -487,7 +498,8 @@ class TestSaveToDuckDB:
             'KOL': [10.0, 20.0],
             'TNVED2': ['01', '02'],
             'TNVED4': ['0101', '0202'],
-            'TNVED6': ['010101', '020202']
+            'TNVED6': ['010101', '020202'],
+            'TNVED8': ['01010100', '02020200'],
         })
         
         output_path = tmp_path / "test_db.duckdb"
@@ -533,7 +545,8 @@ class TestSaveToDuckDB:
             'KOL': [10.0] * 150000,
             'TNVED2': ['01'] * 150000,
             'TNVED4': ['0101'] * 150000,
-            'TNVED6': ['010101'] * 150000
+            'TNVED6': ['010101'] * 150000,
+            'TNVED8': ['01010100'] * 150000,
         })
 
         output_path = tmp_path / "test_db.duckdb"
@@ -705,6 +718,7 @@ class TestSmokeCheckMergedDataset:
             'TNVED2':   ['01', '87'],
             'TNVED4':   ['0101', '8704'],
             'TNVED6':   ['010101', '870421'],
+            'TNVED8':   ['01010100', '87042100'],
         })
 
     def test_passes_on_valid_data(self, valid_merged_df):
@@ -787,6 +801,99 @@ class TestMergeCliPaths:
         paths = resolve_merge_paths(project_root=tmp_path, output_db_path=str(output))
 
         assert paths['output_db_path'] == output
+
+
+class TestLoadHs4Labels:
+    """Tests for load_hs4_labels and hs4_reference integration."""
+
+    def test_load_hs4_labels_from_metadata_json(self, tmp_path):
+        metadata_dir = tmp_path / "metadata"
+        metadata_dir.mkdir()
+        labels_file = metadata_dir / "hs4_labels.json"
+        labels_file.write_text(
+            json.dumps(
+                [
+                    {
+                        "hs4": "2709",
+                        "name_ru_short": "Нефть сырая",
+                        "name_ru_full": "НЕФТЬ СЫРАЯ",
+                    },
+                    {
+                        "hs4": "101",
+                        "name_ru_short": "Лошади",
+                        "name_ru_full": "ЛОШАДИ",
+                    },
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        labels = load_hs4_labels(tmp_path)
+
+        assert len(labels) == 2
+        assert labels.loc[labels["TNVED4"] == "2709", "TNVED4_NAME_SHORT"].iloc[0] == "Нефть сырая"
+        assert labels.loc[labels["TNVED4"] == "0101", "TNVED4_NAME_SHORT"].iloc[0] == "Лошади"
+
+    def test_save_reference_tables_creates_hs4_reference_and_enriched_columns(self, tmp_path):
+        metadata_dir = tmp_path / "metadata"
+        metadata_dir.mkdir()
+        (metadata_dir / "hs4_labels.json").write_text(
+            json.dumps(
+                [
+                    {
+                        "hs4": "0101",
+                        "name_ru_short": "Лошади",
+                        "name_ru_full": "ЛОШАДИ",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (metadata_dir / "tnved.csv").write_text(
+            "KOD,NAME,level\n0101,ЛОШАДИ,4\n",
+            encoding="utf-8",
+        )
+        (metadata_dir / "STRANA.csv").write_text(
+            "KOD\tNAME\nCN\tКИТАЙ\n",
+            encoding="utf-8",
+        )
+
+        db_path = tmp_path / "refs.duckdb"
+        conn = duckdb.connect(str(db_path))
+        try:
+            conn.execute(
+                """
+                CREATE TABLE unified_trade_data AS
+                SELECT
+                    'ИМ'::VARCHAR AS NAPR,
+                    DATE '2024-01-01' AS PERIOD,
+                    'CN'::VARCHAR AS STRANA,
+                    '0101010000'::VARCHAR AS TNVED,
+                    '0101'::VARCHAR AS TNVED4,
+                    '010101'::VARCHAR AS TNVED6,
+                    '01010100'::VARCHAR AS TNVED8,
+                    '01'::VARCHAR AS TNVED2,
+                    1.0::DOUBLE AS STOIM,
+                    1.0::DOUBLE AS NETTO,
+                    1.0::DOUBLE AS KOL,
+                    'national'::VARCHAR AS SOURCE,
+                    'fact'::VARCHAR AS TYPE
+                """
+            )
+            save_reference_tables(conn, tmp_path)
+            hs4_count = conn.execute("SELECT COUNT(*) FROM hs4_reference").fetchone()[0]
+            enriched = conn.execute(
+                """
+                SELECT TNVED4_NAME, TNVED4_NAME_SHORT, TNVED4_NAME_FULL
+                FROM unified_trade_data_enriched
+                """
+            ).fetchdf()
+        finally:
+            conn.close()
+
+        assert hs4_count == 1
+        assert enriched.iloc[0]["TNVED4_NAME_SHORT"] == "Лошади"
+        assert "TNVED4_NAME_SHORT" in build_unified_trade_data_enriched_view_sql()
 
 
 if __name__ == "__main__":

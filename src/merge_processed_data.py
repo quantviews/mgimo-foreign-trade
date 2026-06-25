@@ -20,6 +20,7 @@ from core.normalization_rules import (
     standardize_edizm_columns,
 )
 from core.reference_tables import (
+    load_hs4_labels,
     load_partner_mapping,
     load_strana_mapping,
     save_reference_tables,
@@ -48,6 +49,7 @@ __all__ = [
     "load_and_validate_file",
     "load_common_edizm_mapping",
     "load_edizm_mapping",
+    "load_hs4_labels",
     "load_partner_mapping",
     "load_strana_mapping",
     "load_tnved_mapping",

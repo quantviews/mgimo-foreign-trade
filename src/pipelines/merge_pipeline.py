@@ -60,6 +60,7 @@ EXPECTED_SCHEMA = {
     'KOL': 'float64',           # DECIMAL - количество в дополнительной единице
     'TNVED4': 'object',         # VARCHAR - первые 4 знака TNVED
     'TNVED6': 'object',         # VARCHAR - первые 6 знаков TNVED
+    'TNVED8': 'object',         # VARCHAR - первые 8 знаков TNVED
     'TNVED2': 'object'          # VARCHAR - первые 2 знака TNVED
 }
 
@@ -233,7 +234,7 @@ def load_and_validate_file(file_path: Path, start_year: int = None) -> pd.DataFr
 
         # Skip schema validation for fizob files (they have a different schema)
         if not file_path.name.startswith('fizob_'):
-            # Validate schema
+            df = generate_derived_columns(df)
             if not validate_schema(df, file_path.name):
                 logger.error(f"Schema validation failed for {file_path.name}")
                 return None
@@ -526,6 +527,108 @@ def save_to_duckdb(df: pd.DataFrame, output_path: Path, table_name: str = 'unifi
         logger.error(f"Failed to save to DuckDB: {e}")
         raise
 
+def _hs4_labels_paths(project_root: Path) -> List[Path]:
+    """Candidate paths for curated HS4 short labels (metadata is canonical)."""
+    return [
+        project_root / "metadata" / "hs4_labels.json",
+        project_root / "site" / "data" / "hs4_labels.json",
+    ]
+
+
+def load_hs4_labels(project_root: Path) -> pd.DataFrame:
+    """
+    Load curated HS4/TNVED4 short labels for charts and dashboards.
+
+    Returns columns: TNVED4, TNVED4_NAME_SHORT, TNVED4_NAME_FULL.
+    """
+    empty = pd.DataFrame(
+        columns=["TNVED4", "TNVED4_NAME_SHORT", "TNVED4_NAME_FULL"]
+    )
+    for path in _hs4_labels_paths(project_root):
+        if not path.exists():
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                records = json.load(handle)
+            if not records:
+                logger.warning(f"HS4 labels file is empty: {path}")
+                return empty
+
+            raw = pd.DataFrame(records)
+            code_col = "hs4" if "hs4" in raw.columns else "tnved4"
+            if code_col not in raw.columns:
+                logger.error(f"HS4 labels file missing hs4/tnved4 column: {path}")
+                return empty
+
+            name_short_col = "name_ru_short" if "name_ru_short" in raw.columns else None
+            if name_short_col is None:
+                logger.error(f"HS4 labels file missing name_ru_short column: {path}")
+                return empty
+
+            name_full_col = (
+                "name_ru_full"
+                if "name_ru_full" in raw.columns
+                else name_short_col
+            )
+
+            labels = pd.DataFrame(
+                {
+                    "TNVED4": (
+                        raw[code_col]
+                        .astype(str)
+                        .str.strip()
+                        .str.replace(r"\D", "", regex=True)
+                        .str.zfill(4)
+                        .str[:4]
+                    ),
+                    "TNVED4_NAME_SHORT": raw[name_short_col].astype(str).str.strip(),
+                    "TNVED4_NAME_FULL": raw[name_full_col].astype(str).str.strip(),
+                }
+            )
+            labels = labels[labels["TNVED4"].str.len() == 4]
+            labels = labels.drop_duplicates(subset=["TNVED4"], keep="first")
+            logger.info(f"Loaded {len(labels)} HS4 labels from {path}")
+            return labels
+        except Exception as exc:
+            logger.error(f"Failed to load HS4 labels from {path}: {exc}")
+            return empty
+
+    logger.warning(
+        "HS4 labels file not found; hs4_reference will be created empty"
+    )
+    return empty
+
+
+def build_unified_trade_data_enriched_view_sql() -> str:
+    """SQL for the enriched trade view (shared by merge and DB slice utilities)."""
+    return """
+        CREATE OR REPLACE VIEW unified_trade_data_enriched AS
+        SELECT
+            t.*,
+            c.STRANA_NAME AS COUNTRY_NAME,
+            t2.TNVED_NAME AS TNVED2_NAME,
+            t4.TNVED_NAME AS TNVED4_NAME,
+            h.TNVED4_NAME_SHORT AS TNVED4_NAME_SHORT,
+            h.TNVED4_NAME_FULL AS TNVED4_NAME_FULL,
+            t6.TNVED_NAME AS TNVED6_NAME,
+            t8.TNVED_NAME AS TNVED8_NAME,
+            COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
+            COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
+            DENSE_RANK() OVER (
+                PARTITION BY t.STRANA, t.TNVED, t.NAPR
+                ORDER BY t.PERIOD DESC
+            ) AS period_rank
+        FROM unified_trade_data t
+        LEFT JOIN country_reference c ON t.STRANA = c.STRANA
+        LEFT JOIN tnved_reference t2 ON t.TNVED2 = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
+        LEFT JOIN tnved_reference t4 ON t.TNVED4 = t4.TNVED_CODE AND t4.TNVED_LEVEL = 4
+        LEFT JOIN hs4_reference h ON t.TNVED4 = h.TNVED4
+        LEFT JOIN tnved_reference t6 ON t.TNVED6 = t6.TNVED_CODE AND t6.TNVED_LEVEL = 6
+        LEFT JOIN tnved_reference t8 ON t.TNVED8 = t8.TNVED_CODE AND t8.TNVED_LEVEL = 8
+        LEFT JOIN tnved_reference t10 ON t.TNVED = t10.TNVED_CODE AND t10.TNVED_LEVEL = 10
+    """
+
+
 def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
     """
     Save reference tables (TNVED names, country names) as separate tables in DuckDB.
@@ -634,32 +737,22 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
         
         # Create index for faster joins
         conn.execute("CREATE INDEX idx_country_ref_strana ON country_reference(STRANA)")
-    
+
+    hs4_df = load_hs4_labels(project_root)
+    conn.register("hs4_ref_df", hs4_df)
+    conn.execute("""
+        CREATE TABLE hs4_reference AS
+        SELECT DISTINCT TNVED4, TNVED4_NAME_SHORT, TNVED4_NAME_FULL
+        FROM hs4_ref_df
+        ORDER BY TNVED4
+    """)
+    conn.unregister("hs4_ref_df")
+    logger.info(f"  ... created hs4_reference table with {len(hs4_df)} rows")
+    conn.execute("CREATE INDEX idx_hs4_ref_tnved4 ON hs4_reference(TNVED4)")
+
     # Create convenience view that joins main table with reference tables
     logger.info("Creating convenience view with joined reference data...")
-    conn.execute("""
-        CREATE OR REPLACE VIEW unified_trade_data_enriched AS
-        SELECT 
-            t.*,
-            c.STRANA_NAME AS COUNTRY_NAME,
-            t2.TNVED_NAME AS TNVED2_NAME,
-            t4.TNVED_NAME AS TNVED4_NAME,
-            t6.TNVED_NAME AS TNVED6_NAME,
-            t8.TNVED_NAME AS TNVED8_NAME,
-            COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
-            COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
-            DENSE_RANK() OVER (
-                PARTITION BY t.STRANA, t.TNVED, t.NAPR
-                ORDER BY t.PERIOD DESC
-            ) AS period_rank
-        FROM unified_trade_data t
-        LEFT JOIN country_reference c ON t.STRANA = c.STRANA
-        LEFT JOIN tnved_reference t2 ON t.TNVED2 = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
-        LEFT JOIN tnved_reference t4 ON t.TNVED4 = t4.TNVED_CODE AND t4.TNVED_LEVEL = 4
-        LEFT JOIN tnved_reference t6 ON t.TNVED6 = t6.TNVED_CODE AND t6.TNVED_LEVEL = 6
-        LEFT JOIN tnved_reference t8 ON t.TNVED8 = t8.TNVED_CODE AND t8.TNVED_LEVEL = 8
-        LEFT JOIN tnved_reference t10 ON t.TNVED = t10.TNVED_CODE AND t10.TNVED_LEVEL = 10
-    """)
+    conn.execute(build_unified_trade_data_enriched_view_sql())
     logger.info("  ... created unified_trade_data_enriched view")
 
 def load_partner_mapping(project_root: Path) -> Dict[int, str]:
@@ -1484,6 +1577,7 @@ def build_merged_dataframe(
     else:
         logger.error("Could not standardize EDIZM values due to mapping load failure.")
 
+    merged_df = add_tnved_columns(merged_df)
     return apply_special_edizm_cases(merged_df, logger)
 
 

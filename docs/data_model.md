@@ -41,6 +41,10 @@
 - Таблица `country_reference` — справочник стран:
   - `STRANA` (`VARCHAR`, ISO2)
   - `STRANA_NAME` (`VARCHAR`)
+- Таблица `hs4_reference` — короткие подписи товарных групп HS4/TNVED4 (из `metadata/hs4_labels.json`):
+  - `TNVED4` (`VARCHAR`)
+  - `TNVED4_NAME_SHORT` (`VARCHAR`) — краткое название для графиков
+  - `TNVED4_NAME_FULL` (`VARCHAR`) — полное русское название
 - View `unified_trade_data_enriched` — join `unified_trade_data` со справочниками + вычисляемый `period_rank`.
 - Таблица `fizob_index` (если есть входные `fizob_*` parquet):
   - `STRANA` (`VARCHAR`)

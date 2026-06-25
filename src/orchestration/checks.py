@@ -29,6 +29,7 @@ REQUIRED_TABLES = (
     "unified_trade_data_enriched",
     "country_reference",
     "tnved_reference",
+    "hs4_reference",
 )
 OPTIONAL_FIZOB_TABLES = ("fizob_index", "fizob_index_v")
 ALLOWED_NAPR = ("ИМ", "ЭК")
