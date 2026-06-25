@@ -6,6 +6,8 @@ format:
     theme: default
     fontsize: 18px
     slide-number: true
+execute:
+  eval: false
 ---
 
 ## План занятия (80 мин)

@@ -9,6 +9,7 @@ format:
     chalkboard: false
     css: styles.css
 execute:
+  eval: false
   echo: true
 ---
 
