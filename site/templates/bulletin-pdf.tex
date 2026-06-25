@@ -1,0 +1,200 @@
+% Бюллетень — печатная версия, A4 альбомная, консалтинговый стиль
+\documentclass[
+  $if(fontsize)$$fontsize$,$endif$
+  $if(papersize)$$papersize$paper,$endif$
+  $for(classoption)$$classoption$$sep$,$endfor$
+]{$documentclass$}
+
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{setspace}
+\usepackage{caption}
+\usepackage{calc}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage[most]{tcolorbox}
+
+\definecolor{mgimoblue}{HTML}{003D7A}
+\definecolor{mgimored}{HTML}{E74C3C}
+\definecolor{mgimogreen}{HTML}{27AE60}
+\definecolor{mgimotext}{HTML}{2C3E50}
+\definecolor{mgimomuted}{HTML}{5D6D7E}
+\definecolor{mgimolight}{HTML}{F4F7FB}
+\definecolor{mgimocard}{HTML}{FFFFFF}
+\definecolor{mgimoline}{HTML}{D7E2F0}
+\definecolor{mgimoaccent}{HTML}{E8F0FA}
+
+$if(geometry)$
+\usepackage[$for(geometry)$$geometry$$sep$,$endfor$]{geometry}
+$else$
+\usepackage[landscape,margin=14mm]{geometry}
+$endif$
+
+$if(mainfont)$
+\usepackage{fontspec}
+\defaultfontfeatures{Scale=MatchLowercase}
+\defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\setmainfont{$mainfont$}
+$if(sansfont)$
+\setsansfont{$sansfont$}
+$endif$
+$if(monofont)$
+\setmonofont{$monofont$}
+$endif$
+$endif$
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=mgimoblue,
+  urlcolor=mgimoblue,
+  citecolor=mgimoblue,
+  pdfborder={0 0 0}
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\setstretch{1.05}
+\setlength{\emergencystretch}{2em}
+\captionsetup{font=footnotesize,labelfont={bf,color=mgimoblue},textfont={color=mgimomuted},skip=4pt}
+
+\providecommand{\tightlist}{\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}}
+\providecommand{\pandocbounded}[1]{#1}
+
+\setlist[itemize]{leftmargin=1.1em, itemsep=2pt, topsep=2pt, label=\textcolor{mgimoblue}{\textbullet}}
+
+\titleformat{\section}{\Large\sffamily\bfseries\color{mgimoblue}}{}{0pt}{}
+\titleformat{\subsection}{\large\sffamily\bfseries\color{mgimoblue}}{}{0pt}{}
+\titleformat{\subsubsection}{\normalsize\sffamily\bfseries\color{mgimoblue}}{}{0pt}{}
+\titlespacing*{\section}{0pt}{8pt}{6pt}
+\titlespacing*{\subsection}{0pt}{6pt}{4pt}
+\titlespacing*{\subsubsection}{0pt}{4pt}{3pt}
+
+\newcommand{\bulletinbanner}{%
+  \noindent
+  \begin{tcolorbox}[
+    enhanced,
+    colback=mgimoblue,
+    colframe=mgimoblue,
+    boxrule=0pt,
+    arc=0pt,
+    left=10pt, right=10pt, top=8pt, bottom=8pt
+  ]
+  \begin{minipage}[c]{0.68\textwidth}
+    {\color{white}\sffamily\bfseries\fontsize{16}{18}\selectfont $title$}\\[3pt]
+    {\color{white!85}\small\sffamily $if(subtitle)$$subtitle$$endif$}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.28\textwidth}
+    \raggedleft
+    {\color{white!90}\small\sffamily Ежемесячный аналитический выпуск}\\[2pt]
+    {\color{white}\footnotesize\sffamily $if(date)$$date$$endif$}
+  \end{minipage}
+  \end{tcolorbox}
+  \vspace{2pt}
+  \noindent\textcolor{mgimored}{\rule{0.22\textwidth}{2.5pt}}\hfill\textcolor{mgimoline}{\rule{0.76\textwidth}{0.6pt}}
+  \vspace{4pt}
+}
+
+\newenvironment{bulletinintro}{%
+  \begin{tcolorbox}[
+    enhanced,
+    colback=mgimolight,
+    colframe=mgimoline,
+    boxrule=0.6pt,
+    arc=2pt,
+    left=8pt, right=8pt, top=5pt, bottom=5pt,
+    borderline west={2.5pt}{0pt}{mgimoblue}
+  ]
+  \small\sffamily\color{mgimotext}
+}{%
+  \end{tcolorbox}
+  \vspace{4pt}
+}
+
+\newtcolorbox{sectionbar}{%
+  enhanced,
+  colback=mgimoaccent,
+  colframe=mgimoline,
+  boxrule=0.4pt,
+  arc=2pt,
+  left=8pt, right=8pt, top=5pt, bottom=5pt,
+  borderline west={3pt}{0pt}{mgimoblue},
+  fontupper=\sffamily,
+  coltext=mgimoblue
+}
+
+% Заголовки панелей — размеры здесь: #1 = номер, #2 = текст
+\newtcolorbox{chartpanel}[2]{%
+  enhanced,
+  colback=mgimocard,
+  colframe=mgimoline,
+  boxrule=0.7pt,
+  arc=3pt,
+  left=5pt, right=5pt, top=3pt, bottom=4pt,
+  title={%
+    \raisebox{-0.12cm}{\colorbox{mgimoblue}{\parbox[c][0.48cm][c]{0.48cm}{\centering\color{white}\sffamily\bfseries\footnotesize #1}}}\hspace{4pt}%
+    {\sffamily\bfseries\normalsize\color{mgimoblue}#2}%
+  },
+  fonttitle=\sffamily,
+  coltitle=mgimoblue
+}
+
+% Заголовок insight-бокса — размер здесь: \small в title
+\newtcolorbox{insightbox}[1]{%
+  enhanced,
+  colback=white,
+  colframe=mgimoline,
+  boxrule=0.5pt,
+  arc=2pt,
+  left=6pt, right=6pt, top=2pt, bottom=3pt,
+  borderline west={2pt}{0pt}{mgimored},
+  title={\sffamily\bfseries\small\color{mgimored}#1},
+  fonttitle=\sffamily,
+  coltitle=mgimored,
+  fontupper=\footnotesize
+}
+
+% tcolorbox внутри minipage[t]: без \vspace{0pt} верхи колонок не совпадают
+\newcommand{\bulletincol}[1]{%
+  \begin{minipage}[t]{0.485\textwidth}\vspace{0pt}#1\end{minipage}%
+}
+
+\newcommand{\bulletincols}[2]{%
+  \noindent\bulletincol{#1}\hfill\bulletincol{#2}\par
+}
+
+% Слабый запрет разрыва между графиками и выводами на стр. 1
+\newenvironment{bulletinpageone}{%
+  \nopagebreak[4]%
+}{%
+  \nopagebreak[4]%
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\sffamily\color{mgimomuted}Национальная торговая статистика · МГИМО}
+\fancyhead[R]{\small\sffamily\color{mgimomuted}$if(date)$$date$$endif$}
+\fancyfoot[L]{\footnotesize\sffamily\color{mgimomuted}$title$}
+\fancyfoot[R]{\small\sffamily\color{mgimoblue}\bfseries стр. \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{mgimoline}\leaders\hrule height \headrulewidth\hfill}}
+
+\fancypagestyle{plain}{%
+  \fancyhf{}
+  \fancyfoot[L]{\footnotesize\sffamily\color{mgimomuted}$title$}
+  \fancyfoot[R]{\small\sffamily\color{mgimoblue}\bfseries стр. \thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+\begin{document}
+\bulletinbanner
+$body$
+\end{document}

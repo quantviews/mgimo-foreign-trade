@@ -1,0 +1,120 @@
+---
+title: "Бюллетень: динамика и структура внешней торговли"
+subtitle: "Ежемесячный выпуск — печатная версия"
+date: last-modified
+format:
+  pdf:
+    template: templates/bulletin-pdf.tex
+    documentclass: scrartcl
+    classoption:
+      - DIV=12
+      - numbers=noenddot
+    papersize: a4
+    fontsize: 10pt
+    pdf-engine: xelatex
+    mainfont: "Arial"
+    sansfont: "Arial"
+    monofont: "Courier New"
+    geometry:
+      - landscape
+      - top=12mm
+      - bottom=10mm
+      - left=13mm
+      - right=13mm
+    toc: false
+    number-sections: false
+    keep-tex: false
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| include: false
+knitr::opts_knit$set(root.dir = normalizePath(".."))
+bulletin_output <- "pdf"
+source("bulletin_comparison_shared.R")
+source("bulletin_comparison_pdf_plots.R")
+
+report_month <- stri_datetime_format(
+  max(bulletin_fo$PERIOD),
+  format = "LLLL yyyy",
+  locale = "ru"
+)
+
+save_chart <- function(plot, name, width, height) {
+  path <- file.path("pdf_figures", paste0(name, ".png"))
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  ggsave(path, plot = plot, width = width, height = height, dpi = 300, bg = "white")
+  normalizePath(path, winslash = "/", mustWork = FALSE)
+}
+
+fig_fizob <- save_chart(pl_fizob_pdf, "01-fizob", 5.35, 3.05)
+fig_oilgas <- save_chart(pl_oilgas_pdf, "02-oilgas", 5.35, 3.05)
+fig_export <- save_chart(plot_export_pdf, "03-export", 5.35, 5.35)
+fig_import <- save_chart(plot_import_pdf, "04-import", 5.35, 5.35)
+```
+
+\begin{bulletinintro}
+\textbf{Данные за `r report_month`.}
+\end{bulletinintro}
+
+\begin{bulletinpageone}
+\vspace{0pt}
+\bulletincols{%
+\begin{chartpanel}{01}{Физические объёмы: экспорт и импорт, \% г/г}
+\includegraphics[width=\linewidth]{`r fig_fizob`}
+\end{chartpanel}
+}{%
+\begin{chartpanel}{02}{Экспорт нефти, нефтепродуктов и газа по странам, млн т}
+\includegraphics[width=\linewidth]{`r fig_oilgas`}
+\end{chartpanel}
+}
+
+\vspace{4pt}
+\nopagebreak[4]
+\bulletincols{%
+\begin{insightbox}{Главное · физобъёмы}
+\begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
+\item Торговля с \textbf{Турцией} продолжает сокращаться; отрицательная динамика — с ноября 2023 г.
+\item Экспорт в \textbf{Индию} снизился на 12,5\% — в основном из‑за нефти и нефтепродуктов.
+\item Импорт из \textbf{Китая} за год +12\%, экспорт лишь +2\%.
+\end{itemize}
+\end{insightbox}
+}{%
+\begin{insightbox}{Главное · нефтегаз}
+\begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
+\item Экспорт нефти и нефтепродуктов концентрируется на \textbf{Китае} и \textbf{Индии}.
+\item Структура поставок по странам различается между нефтью, нефтепродуктами и газом.
+\item Ключевой вопрос: сохранится ли текущая география потоков в 2026 г.?
+\end{itemize}
+\end{insightbox}
+}
+\end{bulletinpageone}
+
+```{=latex}
+\clearpage
+```
+
+\begin{sectionbar}
+{\bfseries Структура по товарам (ТН ВЭД-4)}\\
+\small Изменение объёмов торговли: май 2025–апрель 2026 \textit{vs} май 2024–апрель 2025;\\
+\textcolor{mgimogreen}{\textbf{зелёный}} — рост, \textcolor{mgimored}{\textbf{красный}} — снижение.
+\end{sectionbar}
+
+\vspace{3pt}
+\bulletincols{%
+\begin{chartpanel}{03}{Экспорт — топ-18 товарных позиций, млрд \$}
+\includegraphics[width=\linewidth]{`r fig_export`}
+\end{chartpanel}
+}{%
+\begin{chartpanel}{04}{Импорт — топ-18 товарных позиций, млрд \$}
+\includegraphics[width=\linewidth]{`r fig_import`}
+\end{chartpanel}
+}
+
+\vspace{4pt}
+\footnotesize\sffamily\color{mgimomuted}
+Источник: расчёты на приведённых к единой классификации данных национальной и международной статистики.
+Национальная торговая статистика · МГИМО.

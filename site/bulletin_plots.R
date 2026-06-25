@@ -1,3 +1,4 @@
+library(tidyverse)
 # Графики бюллетеня: снимок CSV или агрегат из fizob_2.parquet или fizob_total.parquet
 
 # МГИМО цветовая палитра
@@ -28,15 +29,15 @@ strana_labels <- c(
 
 #' Снимок уже агрегированных рядов (колонки: period, strana, napr, idx)
 read_bulletin_csv <- function(path) {
-  readr::read_csv(path, show_col_types = FALSE) |>
+  readr::read_csv(path, show_col_types = FALSE) %>%
     dplyr::mutate(
       STRANA = toupper(as.character(.data$strana)),
       NAPR = as.character(.data$napr),
       PERIOD = as.Date(.data$period),
       idx = as.numeric(.data$idx)
-    ) |>
-    dplyr::select("STRANA", "NAPR", "PERIOD", "idx") |>
-    dplyr::filter(.data$STRANA %in% names(strana_labels)) |>
+    ) %>%
+    dplyr::select("STRANA", "NAPR", "PERIOD", "idx") %>%
+    dplyr::filter(.data$STRANA %in% names(strana_labels)) %>%
     dplyr::mutate(
       series = strana_labels[.data$STRANA],
       series = forcats::fct_relevel(
@@ -53,15 +54,13 @@ read_fizob2_parquet <- function(path) {
 }
 
 aggregate_fizob2_bulletin <- function(df) {
-  df |>
-    dplyr::mutate(STRANA = toupper(as.character(STRANA))) |>
-    dplyr::filter(STRANA %in% names(strana_labels)) |>
-    dplyr::group_by(STRANA, NAPR, PERIOD) |>
-    dplyr::summarize(
+  df %>%
+    filter(STRANA %in% names(strana_labels)) |>
+    reframe(
       idx = mean(.data$fizob2, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
+      .by = c(STRANA, NAPR, PERIOD)
+    ) %>%
+    mutate(
       series = strana_labels[.data$STRANA],
       series = forcats::fct_relevel(
         factor(.data$series),

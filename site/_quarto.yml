@@ -5,6 +5,7 @@ project:
     - index.qmd
     - technical.qmd
     - bulletin.qmd
+    - bulletin_comparison.qmd
 
 website:
   title: "Национальная торговая статистика"
@@ -14,8 +15,8 @@ website:
         href: index.qmd
       - text: "Техническая документация"
         href: technical.qmd
-      - text: "Бюллетень"
-        href: bulletin.qmd
+      - text: "Бюллетень (ежемесячный)"
+        href: bulletin_comparison.qmd
 
 format:
   html:

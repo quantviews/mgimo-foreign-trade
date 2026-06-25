@@ -1,0 +1,521 @@
+---
+title: "Бюллетень: динамика и структура внешней торговли"
+subtitle: "Ежемесячный выпуск"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-title: ""
+    toc-depth: 2
+    toc-location: left
+    code-fold: true
+    fig-align: center
+    include-in-header:
+      - text: |
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+          <style>
+            body, .quarto-title-banner, main#quarto-document-content {
+              font-family: "Source Sans Pro", sans-serif;
+            }
+          </style>
+---
+
+```{r}
+#| include: false
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 11,
+  fig.height = 7
+)
+
+library(tidyverse)
+library(duckdb)
+library(arrow)
+library(forecast)
+library(plotly)
+library(ggbreak)
+library(stringi)
+library(showtext)
+library(sysfonts)
+font_add_google("Source Sans 3", "ssp")   # в showtextdb нет "Source Sans Pro"
+showtext_auto()
+
+mgimo_colors <- c(
+  primary    = "#003d7a",    # МГИМО синий основной
+  secondary  = "#e74c3c",    # Красный акцент
+  accent1    = "#27ae60",    # Зелёный для позитива
+  accent2    = "#3498db",    # Голубой
+  accent3    = "#f39c12",    # Оранжевый
+  text       = "#2c3e50",    # Тёмный серо-голубой
+  light_bg   = "#f8f9fa"     # Светлый фон
+)
+
+country_colors <- c(
+  "Китай"    = "#D73027",  # красный (флаг)
+  "Индия"    = "#F4A261",  # шафрановый (верхняя полоса флага)
+  "Япония"   = "#CC79A7",  # приглушённый малиновый вместо красного
+  "Турция"   = "#7B3294",  # бордово-фиолетовый, а не ещё один красный
+  "Венгрия"  = "#1B9E77",  # зелёный (флаг)
+  "Словакия" = "#377EB8",  # синий (флаг)
+  "Прочие"   = "grey80"   # серый
+)
+
+site_bg <- mgimo_colors[["light_bg"]]
+
+theme_groups <- function() {
+  theme_minimal(base_size = 18, base_family = 'ssp') +
+    theme(
+      panel.grid.minor = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = "none",
+      panel.background = element_rect(fill = site_bg, colour = NA),
+      plot.background = element_rect(fill = site_bg, colour = NA),
+      panel.border = element_rect(colour = NA, fill = NA),
+      axis.title.x = element_text(size = 16, color = 'grey40', family = 'ssp')
+    )
+}
+
+# ggbreak вшивает panel.background и сетку в #FFFFFF поверх темы
+patch_ggbreak_svg <- function(path, bg = site_bg) {
+  bg <- toupper(bg)
+  svg <- readLines(path, warn = FALSE, encoding = "UTF-8")
+  svg <- gsub("#FFFFFF", bg, svg, fixed = TRUE)
+  svg <- gsub("#EBEBEB", bg, svg, fixed = TRUE)
+  svg <- gsub(
+    'font-family: "[^"]+"',
+    'font-family: "Source Sans Pro"',
+    svg,
+    perl = TRUE
+  )
+  writeLines(svg, path, useBytes = TRUE)
+}
+
+fix_stacked_area_hover <- function(p, data,
+                                   x = "Year", y = "Value", fill = "Category",
+                                   facet = NULL,
+                                   date_format = "%Y-%m") {
+  `%||%` <- function(a, b) if (is.null(a)) b else a
+
+  # ggplotly(Date): trace$x в днях с 1970-01-01; POSIXt — иногда в сек/мс
+  as_trace_time <- function(d, xs) {
+    xs <- xs[is.finite(xs)]
+    if (inherits(d, "POSIXt")) {
+      num <- as.numeric(d)
+      if (length(xs) && max(abs(xs)) > 1e10) num * 1000 else num
+    } else if (inherits(d, "Date")) {
+      as.numeric(d)
+    } else {
+      as.numeric(d)
+    }
+  }
+
+  facet_map <- list()
+  if (!is.null(facet)) {
+    ann <- p$x$layout$annotations %||% list()
+    panels <- vapply(ann, function(a) a$text %||% "", character(1))
+    panels <- panels[nzchar(panels) & !panels %in% c(x, y)]
+    for (i in seq_along(panels)) {
+      facet_map[[paste0("x", if (i > 1) i else "")]] <- panels[i]
+    }
+  }
+
+  for (i in seq_along(p$x$data)) {
+    tr <- p$x$data[[i]]
+    nm <- tr$name %||% ""
+    if (!nzchar(nm)) next
+
+    sub <- data[data[[fill]] == nm, , drop = FALSE]
+    if (!is.null(facet)) {
+      panel <- facet_map[[tr$xaxis %||% "x"]]
+      if (!is.null(panel)) sub <- sub[sub[[facet]] == panel, , drop = FALSE]
+    }
+    if (!nrow(sub)) next
+
+    xs <- tr$x
+    is_date <- inherits(sub[[x]], "Date") || inherits(sub[[x]], "POSIXt")
+    x_match <- as_trace_time(sub[[x]], xs)
+
+    if (is_date) {
+      labels <- character(length(xs))
+      vals <- numeric(length(xs))
+      for (k in seq_along(xs)) {
+        j <- which.min(abs(x_match - xs[k]))
+        labels[k] <- format(sub[[x]][j], date_format)
+        vals[k] <- sub[[y]][j]
+      }
+      p$x$data[[i]]$customdata <- cbind(labels, vals)
+      p$x$data[[i]]$hovertemplate <- paste0(
+        "<b>", nm, "</b><br>",
+        "Дата: %{customdata[0]}<br>",
+        "Экспорт, млн т: %{customdata[1]:.2f}",
+        "<extra></extra>"
+      )
+    } else {
+      vals <- vapply(xs, function(xv) {
+        row <- sub[abs(sub[[x]] - xv) < 0.01, , drop = FALSE]
+        if (!nrow(row)) NA_real_ else row[[y]][1]
+      }, numeric(1))
+      p$x$data[[i]]$customdata <- vals
+      p$x$data[[i]]$hovertemplate <- paste0(
+        "<b>", nm, "</b><br>",
+        "Year: %{x:.0f}<br>",
+        "Value: %{customdata:.2f}",
+        "<extra></extra>"
+      )
+    }
+
+    p$x$data[[i]]$text <- NULL
+  }
+
+  p
+}
+
+# Интерактивные графики
+
+bulletin_fo <- arrow::read_parquet('data/bulletin_fo.parquet')
+tab_stoim_oil <- arrow::read_parquet('data/tab_stoim_oil.parquet')
+df_groups <- arrow::read_parquet('data/df_groups.parquet')
+data_oilgas <- arrow::read_parquet('data/data_oilgas.parquet')
+
+names_4 <- 
+  read_parquet('data/hs4_labels.parquet') %>%
+  select(TNVED4 = hs4,
+         TNVED4_string = name_ru_short)
+
+pl_fizob <- 
+  bulletin_fo %>%
+  mutate(  STRANA = case_when(
+           STRANA == 'CN' ~ 'Китай',
+           STRANA == 'TR' ~ 'Турция',
+           STRANA == 'IN' ~ 'Индия',
+           STRANA == 'OTHER' ~ 'Прочие'
+         ) %>% factor(
+           levels = c(
+             'Китай',
+             'Индия',
+             'Турция',
+             'Прочие'
+           )
+         )
+  ) %>%
+  mutate(
+    fizob = 100* round(fizob, 3)
+  ) %>%
+  rename(
+    Дата = PERIOD,
+    Направление = NAPR,
+    `Изменение физобъёма, %` =  fizob
+  ) %>%
+  ggplot(aes(x = Дата,
+             y = `Изменение физобъёма, %`,
+             color = Направление)
+  ) +
+  geom_hline(yintercept = 0,
+             linetype = 'dashed',
+             color = 'grey50',
+             linewidth = 0.3) +
+  geom_line() +
+  facet_wrap(~STRANA, scales = 'free',
+             labeller = as_labeller(\(x) paste0("<b>", x, "</b>"))
+             ) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1, scale = 1, style_positive = 'plus'),
+                     expand = c(0, 0)) +
+  scale_x_date(date_breaks = "1 years", date_labels = "%Y",
+               expand = c(0.01, 0.01)) +
+  scale_color_manual(
+    values =  c(mgimo_colors[["primary"]], mgimo_colors[['secondary']]),
+    breaks = c('ИМ', 'ЭК')
+  ) +
+  labs(
+    x = NULL,
+    y = NULL,
+    color = NULL #'Направление'
+  ) +
+  theme_classic(base_size = 13, base_family = "Source Sans Pro") +
+  coord_cartesian(clip = 'off') +
+  theme(
+    legend.position = "bottom",
+    legend.key.width = unit(1.1, "cm"),
+    strip.background = element_blank(),
+    axis.text.x = element_text(size = 10),
+    panel.spacing.y = unit(3, "cm"),
+    panel.spacing.x = unit(3, 'cm'),
+    panel.background = element_rect(fill = 'transparent'),
+    plot.background = element_rect(fill = 'transparent'),
+    legend.background = element_rect(fill = 'transparent'),
+  )
+
+#-----------------------
+# Рисунок по нефтегазовому и ненефтегазовому экспорту
+#-----------------------
+
+pl_oil_nonoil <- 
+  tab_stoim_oil %>%
+  mutate(  STRANA = case_when(
+           STRANA == 'CN' ~ 'Китай',
+           STRANA == 'TR' ~ 'Турция',
+           STRANA == 'IN' ~ 'Индия',
+           STRANA == 'OTHER' ~ 'Прочие'
+         ) %>% factor(
+           levels = c(
+             'Китай',
+             'Индия',
+             'Турция',
+             'Прочие'
+           )
+         ),
+         STOIM = round(STOIM, 3)
+  ) %>%
+  rename(
+    Дата = PERIOD,
+    Тип = type,
+    `Экспорт, млрд долл.` =  STOIM
+  ) %>%
+  ggplot(aes(x = Дата,
+             y = `Экспорт, млрд долл.`,
+             color = Тип)
+  ) +
+  geom_hline(yintercept = 0,
+             linetype = 'dashed',
+             color = 'grey50',
+             linewidth = 0.3) +
+  geom_line() +
+  facet_wrap(~STRANA, scales = 'free',
+             labeller = as_labeller(\(x) paste0("<b>", x, "</b>"))
+             ) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_date(date_breaks = "1 years", date_labels = "%Y",
+               expand = c(0.01, 0.01)) +
+  scale_color_manual(
+    values =  c(mgimo_colors[["accent1"]], mgimo_colors[['accent3']]),
+    breaks = c('Кроме нефти и газа', 'Нефтегазовый')
+  ) +
+  labs(
+    x = NULL,
+    y = NULL,
+    color = NULL #'Направление'
+  ) +
+  theme_classic(base_size = 13, base_family = "Source Sans Pro") +
+  coord_cartesian(clip = 'off') +
+  theme(
+    legend.position = "bottom",
+    legend.key.width = unit(1.1, "cm"),
+    strip.background = element_blank(),
+    axis.text.x = element_text(size = 10),
+    panel.spacing.y = unit(3, "cm"),
+    panel.spacing.x = unit(3, 'cm'),
+    panel.background = element_rect(fill = 'transparent', color = 'transparent'),
+    plot.background = element_rect(fill = 'transparent', color = 'transparent'),
+    legend.background = element_rect(fill = 'transparent',color = 'transparent')
+  )
+
+# Рисунок нефтегаз по странам:
+
+pl_oilgas <- 
+  data_oilgas %>%
+  ggplot(aes(x = PERIOD, y = NETTO, fill = STRANA)) +
+  geom_area(position = 'stack') +
+  facet_wrap(~good, scales = 'free',
+             labeller = as_labeller(\(x) paste0("<b>", x, "</b>"))
+             ) +
+  theme_classic(base_size = 13, base_family = "Source Sans Pro") +
+  coord_cartesian(clip = 'off') +
+  scale_x_date(expand = expansion(mult = 0)) +
+  scale_y_continuous(expand = expansion(mult = 0)) +
+  theme(
+    legend.position = "bottom",
+    legend.key.width = unit(1.1, "cm"),
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold"),
+    axis.text.x = element_text(size = 10),
+    #panel.spacing.y = unit(0.5, "cm"),
+    panel.spacing.x = unit(1.0, 'cm'),
+    legend.title = element_blank(),
+    panel.background = element_rect(fill = 'transparent', color = 'transparent'),
+    plot.background = element_rect(fill = 'transparent', color = 'transparent'),
+    legend.background = element_rect(fill = 'transparent',color = 'transparent')
+  ) +
+  scale_fill_manual(
+    values = c(
+      country_colors[['Китай']],
+      country_colors[['Турция']],
+      country_colors[['Индия']],
+      country_colors[['Япония']],
+      country_colors[['Венгрия']],
+      country_colors[['Словакия']],
+      country_colors[['Прочие']]
+    ),
+    breaks = c(
+        'Китай',
+        'Индия',
+        'Турция',
+        'Япония',
+        'Венгрия',
+        'Словакия',
+        'Прочие'
+      )
+    ) +
+  labs(x = NULL,
+       y = NULL
+       )
+
+#-----------------------
+```
+
+## В этом выпуске
+
+* Данные за **`r stri_datetime_format(max(bulletin_fo$PERIOD), format = "LLLL yyyy", locale = "ru")`**;
+* Динамика физических объёмов год к году;
+* Объёмы нефтегазового и ненефтегазового экспорта по основным странам-партнёрам;
+* топ-20 товарных групп по изменению объёмов торговли за последние 12 месяцев (май 2025-апрель 2026 vs май 2024-апрель 2025).
+
+## 1. Физические объёмы: экспорт и импорт
+
+Изменение физобъёма **год к году** (%) по основным партнёрам.
+
+```{r}
+#| fig-cap: "Изменение физических объёмов торговли по странам-партнёрам, % г/г."
+ggplotly(pl_fizob, dynamicTicks = FALSE) %>%
+  layout(
+    font = list(family = "Source Sans Pro", size = 13),
+    legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.06)
+  )
+```
+
+**Главное:**
+
+- Физический объём торговли с Турцией продолжил сокращаться. Отрицательная динамика наблюдается с ноября 2023 г.
+- В `r stri_datetime_format(max(bulletin_fo$PERIOD), format = "LLLL yyyy", locale = "ru")` физобъём экспорта в Индию снизился на 12.5%. Основная причина - снижение поставок нефти и нефтепродуктов. 
+- Физобъём импорт из Китая за год увеличился на +12%, а экспорт лишь на +2%.
+
+## 2. Экспорт: нефть и газ vs прочие товары (млрд $)
+
+Стоимость экспорта в нефтегазовом и ненефтегазовом сегментах.
+
+```{r}
+#| fig-cap: "Экспорт в стоимостном выражении (млрд $): нефтегазовый сегмент и прочие товары."
+ggplotly(pl_oil_nonoil, dynamicTicks = FALSE) %>%
+  layout(
+    font = list(family = "Source Sans Pro", size = 13),
+    legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.06)
+  )
+```
+
+**Главное**
+
+- На месячном уровне **объёмы экспорта (в денежном выражении) с начала года выорсли** по многим направлениями.
+- С начала года экспорт нефти и нефтепродкутов в **Китай** и **Индию** значительно вырос.
+- **Главный вопрос**: вернётся ли в 2026 г. объём экспорта неффтепродуктов к уровням 2024 г.?
+
+### 2.1 Экспорт нефти и прородного газа (млн т)
+
+```{r}
+#| fig-cap: "Экспорт нефти, нефтепродектов и природного газа в натуральном выражении, млн т"
+
+ggplotly(pl_oilgas, dynamicTicks = F) %>%
+  fix_stacked_area_hover(data_oilgas,
+  x = "PERIOD", y = "NETTO", fill = "STRANA") %>%
+  layout(
+    font = list(family = "Source Sans Pro", size = 13),
+    legend = list(
+      title = list(text = ""),
+      orientation = "h",
+      x = 0.5,
+      xanchor = "center",
+      y = -0.1,
+      yanchor = "top",
+      entrywidth = 0.24,
+      entrywidthmode = "fraction"
+    )
+  )
+
+```
+
+## 3. Экспорт товаров (млрд $)
+
+```{r}
+#| fig-cap: "Топ-20 товарных позиций экспорта по изменению стоимости за 12 месяцев. Зелёный сегмент — рост, красный — снижение."
+#| fig-width: 10
+#| fig-height: 8
+
+plot_export <- df_groups %>%
+  left_join(names_4, by = "TNVED4") %>%
+  filter(NAPR == "ЭК") %>%
+  mutate(
+    STOIM_diff_abs = abs(STOIM_diff),
+    type = if_else(STOIM_diff > 0, "positive", "negative"),
+    position_label = (STOIM_last12 + STOIM_year_before) / 2,
+    label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
+  ) %>%
+  arrange(-STOIM_diff_abs) %>%
+  head(20) %>%
+  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
+  ggplot(aes(color = type)) +
+  geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string)) +
+  geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = site_bg, shape = 21) +
+  scale_color_manual(
+    values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]),
+    breaks = c("positive", "negative")
+  ) +
+  geom_text(
+    aes(x = position_label, y = TNVED4_string, label = label),
+    nudge_y = 0.41,
+    size = 5) +
+  scale_x_break(c(38, 98)) +
+  coord_cartesian(clip = "off") +
+  geom_vline(xintercept = c(39.5, 97.5), color = "grey50", linetype = "solid", linewidth = 1.7) +
+  theme_groups() +
+  labs(y = NULL, x = "млрд долл.")
+
+fig_dir <- knitr::opts_chunk$get("fig.path")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+fig_export <- file.path(fig_dir, "groups-export.svg")
+ggsave(fig_export, plot = plot_export, width = 10, height = 8, device = svglite::svglite, bg = site_bg)
+patch_ggbreak_svg(fig_export)
+knitr::include_graphics(fig_export)
+```
+
+## 4. Импорт товаров (млрд $)
+
+```{r}
+#| fig-cap: "Топ-20 товарных позиций импорта по изменению стоимости за 12 месяцев. Зелёный сегмент — рост, красный — снижение."
+#| fig-width: 10
+#| fig-height: 8
+
+plot_import <- df_groups %>%
+  left_join(names_4, by = "TNVED4") %>%
+  filter(NAPR == "ИМ") %>%
+  mutate(
+    STOIM_diff_abs = abs(STOIM_diff),
+    type = if_else(STOIM_diff > 0, "positive", "negative"),
+    position_label = (STOIM_last12 + STOIM_year_before) / 2,
+    label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
+  ) %>%
+  arrange(-STOIM_diff_abs) %>%
+  head(20) %>%
+  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
+  ggplot(aes(color = type)) +
+  geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string)) +
+  geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = site_bg, shape = 21) +
+  scale_color_manual(
+    values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]),
+    breaks = c("positive", "negative")
+  ) +
+  geom_text(aes(x = position_label, y = TNVED4_string, label = label),
+            nudge_y = 0.41,
+            size = 5) +
+  coord_cartesian(clip = "off") +
+  theme_groups() +
+  labs(y = NULL, x = "млрд долл.")
+
+fig_dir <- knitr::opts_chunk$get("fig.path")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+fig_import <- file.path(fig_dir, "groups-import.svg")
+ggsave(fig_import, plot = plot_import, width = 10, height = 8, device = svglite::svglite, bg = site_bg)
+patch_ggbreak_svg(fig_import)
+knitr::include_graphics(fig_import)
+```
