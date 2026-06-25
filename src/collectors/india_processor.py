@@ -24,6 +24,22 @@ from core.edizm import load_common_edizm_mapping, resolve_edizm_records
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# MEIDB меняет единицы USD в выгрузке (тыс. vs млн). Порог по сумме файла надёжнее даты.
+_STOIM_MILLIONS_USD_SUM_THRESHOLD = 100_000
+
+
+def infer_india_stoim_multiplier(stoim: pd.Series) -> float:
+    """Return 1000 when raw STOIM is in million USD, else 1 (already thousand USD)."""
+    values = pd.to_numeric(stoim, errors="coerce").fillna(0)
+    total = values.sum()
+    if total <= 0:
+        return 1.0
+    # Monthly MEIDB files in thousand USD have totals in the millions; million-USD files ~3k–7k.
+    if values.max() >= _STOIM_MILLIONS_USD_SUM_THRESHOLD:
+        return 1.0
+    return 1000.0 if total < _STOIM_MILLIONS_USD_SUM_THRESHOLD else 1.0
+
+
 def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_file: Path):
     """
     Сканирует директорию с необработанными данными, обрабатывает каждый CSV-файл,
@@ -70,15 +86,22 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            # STOIM -> тысячи USD (стандарт проекта).
-            # Для текущего архива india_new:
-            # - до 2026-01 значения уже в тысячах USD -> без умножения
-            # - с 2026-01 значения в млн USD -> *1000
+            stoim_sum = df['STOIM'].fillna(0).sum() if 'STOIM' in df.columns else 0
+            kol_sum = df['KOL'].fillna(0).sum() if 'KOL' in df.columns else 0
+            if stoim_sum == 0 and kol_sum == 0:
+                logger.info(f"  → пропуск {file_path.name}: STOIM и KOL нулевые (скелет MEIDB)")
+                continue
+
+            # MEIDB: сначала приводим к тыс. USD (млн → ×1000 по сумме файла).
             if 'STOIM' in df.columns:
-                file_year = int(df['Year'].iloc[0]) if 'Year' in df.columns and len(df) else 0
-                file_month = int(df['Month'].iloc[0]) if 'Month' in df.columns and len(df) else 0
-                if (file_year, file_month) >= (2026, 1):
-                    df['STOIM'] = df['STOIM'] * 1000
+                multiplier = infer_india_stoim_multiplier(df['STOIM'])
+                if multiplier != 1.0:
+                    df['STOIM'] = df['STOIM'] * multiplier
+                logger.info(
+                    f"     MEIDB→тыс. USD: x{multiplier:g} (raw sum={stoim_sum:,.2f})"
+                )
+                # CN/TR в unified parquet и на Superset — STOIM в USD, не в тыс.
+                df['STOIM'] = df['STOIM'] * 1000
 
             # Map units through the common EDIZM normalization layer.
             if 'EDIZM' in df.columns:
@@ -102,7 +125,10 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
 
             period_label = df_final['PERIOD'].iloc[0].strftime('%Y-%m') if len(df_final) else "?"
             total_stoim = df_final['STOIM'].sum()
-            logger.info(f"     STOIM сумма за {period_label}: {total_stoim:,.0f} (тыс. USD)")
+            logger.info(
+                f"     STOIM сумма за {period_label}: {total_stoim:,.0f} USD "
+                f"({total_stoim / 1e9:.3f} млрд)"
+            )
 
             dfs.append(df_final)
 
@@ -120,9 +146,9 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
 
     # Сводка по месяцам — для проверки размерности (резкий скачок/провал = возможная ошибка масштаба)
     stoim_by_month = final_df.groupby(final_df['PERIOD'].dt.to_period('M'))['STOIM'].sum()
-    logger.info("STOIM по месяцам (тыс. USD), для проверки размерности:")
+    logger.info("STOIM по месяцам (USD), для проверки размерности:")
     for period, total in stoim_by_month.items():
-        logger.info(f"  {period}: {total:,.0f}")
+        logger.info(f"  {period}: {total:,.0f} ({total / 1e9:.3f} млрд)")
 
     save_country_output(final_df, processor_input.output_file, logger=logger)
 

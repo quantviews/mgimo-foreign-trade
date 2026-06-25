@@ -279,7 +279,7 @@ def get_all_trade_data(year: int, month: int, country_code: int = DEFAULT_COUNTR
 def post_process_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     Выполняет постобработку данных: переименование столбцов, создание новых и т.д.
-    Размерность STOIM для периода с 2025-09 исправляется в india_processor (там не применяется *1000).
+    Масштаб STOIM не меняется здесь — india_processor приводит к тысячам USD по сумме файла.
     """
     df.Flow = df.Flow.apply(lambda x: 'ИМ' if x == 'Ex' else 'ЭК')
 

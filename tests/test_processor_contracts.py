@@ -147,8 +147,7 @@ class TestIndiaProcessorContract:
     """Contract tests for india_processor.process_and_merge_india_data.
 
     Input: india_*.csv files with Year and Month columns (PERIOD is constructed).
-    STOIM: before 2026-01 source values are already in thousand USD; from
-    2026-01 source values are in million USD and are multiplied by 1000.
+    STOIM: MEIDB normalized to USD (same unit as CN/TR in unified parquet).
     EDIZM_ISO: mapped via common EDIZM normalization layer (e.g. KGS→166, NOS→796).
     """
 
@@ -156,8 +155,8 @@ class TestIndiaProcessorContract:
     def india_df(self, tmp_path):
         (tmp_path / "india_2024_01.csv").write_text(
             "NAPR,STRANA,TNVED,TNVED2,TNVED4,TNVED6,STOIM,NETTO,KOL,EDIZM,Year,Month\n"
-            "ИМ,IN,0101010000,01,0101,010101,5.0,1000.0,5.0,KGS,2024,1\n"
-            "ЭК,IN,8704210000,87,8704,870421,12.0,8000.0,3.0,NOS,2024,1\n",
+            "ИМ,IN,0101010000,01,0101,010101,2500000.0,1000.0,5.0,KGS,2024,1\n"
+            "ЭК,IN,8704210000,87,8704,870421,2000000.0,8000.0,3.0,NOS,2024,1\n",
             encoding="utf-8",
         )
         # Pass a non-existent edizm file to exercise fallback aliases from the
@@ -174,9 +173,11 @@ class TestIndiaProcessorContract:
         assert set(india_df["NAPR"].unique()) == {"ИМ", "ЭК"}
 
     def test_stoim_before_2026_kept_as_thousand_usd(self, india_df):
-        """Before 2026-01, STOIM is already in thousand USD."""
+        """MEIDB thousand-USD files are stored as USD (×1000) like CN/TR."""
         im_stoim = india_df.loc[india_df["NAPR"] == "ИМ", "STOIM"].iloc[0]
-        assert im_stoim == 5.0, f"Expected 2024 STOIM to stay 5.0, got {im_stoim}"
+        assert im_stoim == 2_500_000_000.0, (
+            f"Expected 2024 STOIM 2_500_000 * 1000 = 2_500_000_000, got {im_stoim}"
+        )
 
     def test_stoim_from_2026_scaled_by_1000(self, tmp_path):
         """From 2026-01, source STOIM is in million USD and is scaled to thousand USD."""
@@ -192,7 +193,32 @@ class TestIndiaProcessorContract:
         df = pd.read_parquet(output)
 
         im_stoim = df.loc[df["NAPR"] == "ИМ", "STOIM"].iloc[0]
-        assert im_stoim == 5000.0, f"Expected 2026 STOIM 5.0 * 1000 = 5000.0, got {im_stoim}"
+        assert im_stoim == 5_000_000.0, f"Expected 2026 STOIM 5.0 mln → 5_000_000 USD, got {im_stoim}"
+
+    def test_zero_month_file_skipped(self, tmp_path):
+        """MEIDB skeleton months (STOIM=0, KOL=0) are not merged into output."""
+        (tmp_path / "india_2026_04.csv").write_text(
+            "NAPR,STRANA,TNVED,TNVED2,TNVED4,TNVED6,STOIM,NETTO,KOL,EDIZM,Year,Month\n"
+            "ИМ,IN,0101010000,01,0101,010101,0.0,0.0,0.0,KGS,2026,4\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "india_2026_03.csv").write_text(
+            "NAPR,STRANA,TNVED,TNVED2,TNVED4,TNVED6,STOIM,NETTO,KOL,EDIZM,Year,Month\n"
+            "ИМ,IN,0101010000,01,0101,010101,5.0,1000.0,5.0,KGS,2026,3\n",
+            encoding="utf-8",
+        )
+        missing_edizm = tmp_path / "edizm_missing.csv"
+        output = tmp_path / "in_skip_zero.parquet"
+        india_processor.process_and_merge_india_data(tmp_path, output, missing_edizm)
+        df = pd.read_parquet(output)
+        assert len(df) == 1
+        assert df["PERIOD"].dt.month.iloc[0] == 3
+
+    def test_infer_stoim_multiplier_by_file_sum(self):
+        assert india_processor.infer_india_stoim_multiplier(pd.Series([4_500_000.0])) == 1.0
+        assert india_processor.infer_india_stoim_multiplier(pd.Series([4_500.0, 3_200.0])) == 1000.0
+        assert india_processor.infer_india_stoim_multiplier(pd.Series([0.0])) == 1.0
+        assert india_processor.infer_india_stoim_multiplier(pd.Series([150_000.0, 50.0])) == 1.0
 
     def test_edizm_iso_mapped_from_dict(self, india_df):
         """EDIZM_ISO is derived from the common EDIZM layer: KGS→166, NOS→796."""
