@@ -22,18 +22,6 @@ website:
         href: site/technical.qmd
       - text: "Бюллетень (ежемесячный)"
         href: site/bulletin_comparison.qmd
-      - text: "Вводная презентация"
-        href: other/intro-presentation.qmd
-      - text: "Занятия"
-        menu:
-          - text: "Занятие 1"
-            href: lessons/lesson_01_intro.qmd
-          - text: "Занятие 2"
-            href: lessons/lesson_02_old_new_stats.qmd
-          - text: "Занятие 3"
-            href: lessons/lesson_03_duckdb.qmd
-          - text: "Занятие 4"
-            href: lessons/lesson_04_superset.qmd
 
 format:
   html:
