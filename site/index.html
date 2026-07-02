@@ -39,7 +39,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-c8ad9e5dbd60b7b70b38521ab19b7da4.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-892a3a074d8977852bd138d1cf99eba2.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-734b42bc2d6003b4decd4ddff31c8e1c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -67,6 +67,9 @@ ul.task-list li input[type="checkbox"] {
     "search-label": "Поиск"
   }
 }</script>
+<script src="../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
 
 
 </head>
@@ -118,7 +121,7 @@ ul.task-list li input[type="checkbox"] {
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
 <h1 class="title">Национальная торговая статистика</h1>
-<p class="subtitle lead">Проект МГИМО</p>
+<p class="subtitle lead">Инфраструктура для анализа внешней торговли России · МГИМО</p>
 </div>
 
 
@@ -135,16 +138,160 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
+<div class="title-lead">
+<p>Единая база данных, API и аналитические инструменты — когда официальные источники недоступны или запаздывают.</p>
+</div>
+<div class="hero-chips">
+<p><span class="chip">DuckDB · SQL · Parquet</span> <span class="chip">Python API</span> <span class="chip">Физобъёмы · FAVAR nowcast</span> <span class="chip">Superset</span></p>
+</div>
+<section id="проблема" class="level2">
+<h2 class="anchored" data-anchor-id="проблема">Проблема</h2>
+<p>Официальная таможенная статистика России перестала публиковаться в привычном открытом формате — аналитикам приходится искать обходные пути.</p>
+<ul>
+<li><strong>Оперативные</strong> месячные данные по детализированной номенклатуре <strong>не публикуются</strong></li>
+<li>Для текущего анализа нельзя опереться на «золотой стандарт» российской таможенной статистики</li>
+<li>Растёт спрос на <strong>альтернативные источники</strong>: зеркальная статистика, UN Comtrade, коммерческие платформы</li>
+</ul>
+<div class="slide-takeaway">
+<p><strong>Появился запрос:</strong> исследователям нужна инфраструктура, которая <strong>собирает</strong>, <strong>сверяет</strong> и <strong>гармонизирует</strong> данные — а не разовая выгрузка из веб-интерфейса.</p>
+</div>
+<div class="split-panels">
+<div class="split-panel negative">
+<span class="panel-label">Проблема</span>
+<h3 class="anchored">
+Без системного подхода
+</h3>
+<ul>
+<li>
+ручная склейка <strong>CSV и Excel</strong>
+</li>
+<li>
+разные классификации и <strong>лаги публикации</strong>
+</li>
+<li>
+невозможность <strong>масштабировать</strong> выборки
+</li>
+<li>
+риск ошибок при <strong>сверке источников</strong>
+</li>
+</ul>
+</div>
+<div class="split-divider">
+
+</div>
+<div class="split-panel positive">
+<span class="panel-label">Решение</span>
+<h3 class="anchored">
+Что нужно на практике
+</h3>
+<ul>
+<li>
+<strong>единая структура</strong> данных по странам и ТН ВЭД
+</li>
+<li>
+<strong>прозрачность</strong> происхождения данных
+</li>
+<li>
+<strong>автоматическое</strong> обновление и воспроизводимость
+</li>
+<li>
+<strong>аналитика</strong> и поддержка качества данных
+</li>
+</ul>
+</div>
+</div>
+</section>
 <section id="что-мы-предлагаем" class="level2">
 <h2 class="anchored" data-anchor-id="что-мы-предлагаем">Что мы предлагаем</h2>
-<p>Мы создаём аналитический инструмент для оперативного доступа к данным по внешней торговле Российской Федерации. В основе проекта — статистика стран-партнёров: она публикуется своевременно и обладает высокой детализацией, однако требует гармонизации — приведения к единой классификации, валюте и проч. Платформа решает эту задачу и предоставляет структурированную базу данных, включая редко агрегируемый показатель — физические объёмы (тонны, штуки, кубометры и др.).</p>
-<p>В отличие от разрозненных источников, которые требуют ручной склейки десяток документов, мы агрегируем и гармонизируем внутренние и международные источники, обеспечивая консистентность и качество данных.</p>
+<p>Программный комплекс для сбора, гармонизации и предоставления торговой статистики России на основе зеркальных данных стран-партнёров.</p>
+<div class="feature-grid">
+<div class="feature-card accent">
+<p><strong>Гармонизированная база DuckDB</strong> Согласованные поля: страны, ТН ВЭД, периоды, стоимость и физические объёмы. Единая структура для всех источников.</p>
+<div class="db-stats">
+<div class="db-stat db-stat-main">
+<p><span class="db-stat-value">6,8 млн</span> <span class="db-stat-label">строк · янв 2019 — апр 2026</span></p>
+</div>
+<div class="db-stat">
+<p><span class="db-stat-value">138</span> <span class="db-stat-label">стран-партнёров (Comtrade)</span></p>
+</div>
+</div>
+<div class="db-stats-national">
+<span class="db-stats-title">Национальные зеркальные источники</span>
+<div class="db-stats-row">
+<p><span><strong>Индия</strong> — 540 тыс.</span> <span><strong>Китай</strong> — 471 тыс.</span> <span><strong>Турция</strong> — 322 тыс.</span></p>
+</div>
+</div>
+<p><span class="chip">SQL · Parquet · CSV</span></p>
+</div>
+<div class="feature-card">
+<p><strong>Мульти-источниковый синтез</strong> Национальная статистика партнёров, UN Comtrade и архив ФТС — с приоритетом источников и флагом верификации. <span class="chip">ФТС → нац. стат. → Comtrade</span></p>
+</div>
+<div class="feature-card accent">
+<p><strong>Расчёт физобъёмов торговли</strong> Восстановление пропусков, 12-месячные агрегаты и индексы физических объёмов на уровнях 2/4/6 знаков ТН ВЭД — редкий показатель, которого нет в большинстве веб-сервисов. <span class="chip">тонны · штуки · м³</span></p>
+</div>
+<div class="feature-card">
+<p><strong>Python API и аналитика</strong> Пакетные запросы, дашборды, nowcast на основе FAVAR и готовые отчёты — данные и инструменты в одном контуре. <span class="chip">API · Superset · FAVAR</span></p>
+</div>
+</div>
 </section>
-<section id="основные-возможности" class="level2">
-<h2 class="anchored" data-anchor-id="основные-возможности">Основные возможности</h2>
+<section id="архитектура-решения" class="level2">
+<h2 class="anchored" data-anchor-id="архитектура-решения">Архитектура решения</h2>
+<div class="cell" data-fig-width="11" data-fig-height="5.5" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">flowchart LR
+    subgraph sources["📥 Источники данных"]
+        direction TB
+        A["Китай/Индия/Турция — нац. статистика&lt;br/&gt;&lt;i&gt;оперативно · детально&lt;/i&gt;"]
+        B["🏛️ Архив ФТС&lt;br/&gt;&lt;i&gt;верификация 2014–2022&lt;/i&gt;"]
+        C["🌐 UN Comtrade&lt;br/&gt;&lt;i&gt;заполнение пробелов&lt;/i&gt;"]
+    end
+
+    subgraph etl["⚙️ ETL · ядро системы"]
+        direction TB
+        D["Автосбор&lt;br/&gt;collectors"]
+        E["Гармонизация&lt;br/&gt;+ верификация"]
+    end
+
+    subgraph storage["💾 Единая база"]
+        F[("harmonized&lt;br/&gt;&lt;b&gt;DuckDB&lt;/b&gt;")]
+    end
+
+    subgraph access["🚀 Для пользователя"]
+        direction TB
+        G["Python API"]
+        H["Дашборды"]
+        I["Физобъёмы · FAVAR"]
+    end
+
+    A --&gt; D
+    B --&gt; D
+    C --&gt; D
+    D --&gt; E --&gt; F
+    F --&gt; G &amp; H &amp; I
+
+    style F fill:#003d7a,color:#fff,stroke:#e74c3c,stroke-width:3px
+    style G fill:#e8f4fd,color:#003d7a,stroke:#003d7a
+    style H fill:#e8f4fd,color:#003d7a,stroke:#003d7a
+    style I fill:#fdecea,color:#c0392b,stroke:#e74c3c
+    style E fill:#f0fff4,color:#1e7a45,stroke:#27ae60
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<div class="slide-takeaway">
+<p>Каждая запись хранит <strong>источник</strong> и флаг <strong>верификации</strong> — видно, откуда цифра и подтверждена ли она зеркальной статистикой.</p>
+</div>
+</section>
+<section id="форматы-доступа" class="level2">
+<h2 class="anchored" data-anchor-id="форматы-доступа">Форматы доступа</h2>
 <section id="выгрузка-базы-данных" class="level3">
 <h3 class="anchored" data-anchor-id="выгрузка-базы-данных">Выгрузка базы данных</h3>
-<p>Получите полный снимок внешнеторговых данных в удобном формате:</p>
+<p>Полный снимок внешнеторговых данных в удобном формате:</p>
 <ul>
 <li>Выборочные периоды (месяцев, лет)</li>
 <li>Структурированные таблицы с согласованными полями</li>
@@ -153,54 +300,332 @@ ul.task-list li input[type="checkbox"] {
 <li>Стоимостные и физические показатели</li>
 </ul>
 </section>
-<section id="доступ-к-интерактивным-дашбордам" class="level3">
-<h3 class="anchored" data-anchor-id="доступ-к-интерактивным-дашбордам">Доступ к интерактивным дашбордам</h3>
-<p>Дашборд на основе Apache Superset позволяет вам:</p>
+<section id="интерактивные-дашборды" class="level3">
+<h3 class="anchored" data-anchor-id="интерактивные-дашборды">Интерактивные дашборды</h3>
+<p>Дашборд на основе Apache Superset:</p>
 <ul>
-<li>Строить собственные графики и отчёты без необходимости ручных расчётов</li>
-<li>Применять фильтры по товарам, странам, периодам в реальном времени</li>
-<li>Исользовать готовые решения, кастомизируемые под ваши задачи</li>
-<li>Экспортировать результаты в различные форматы</li>
+<li>Собственные графики и отчёты без ручных расчётов</li>
+<li>Фильтры по товарам, странам, периодам в реальном времени</li>
+<li>Готовые решения, кастомизируемые под ваши задачи</li>
+<li>Экспорт результатов в различные форматы</li>
 </ul>
 </section>
 <section id="кастомизированные-отчёты" class="level3">
 <h3 class="anchored" data-anchor-id="кастомизированные-отчёты">Кастомизированные отчёты</h3>
-<p>Мы готовим отчёты специально под ваши потребности:</p>
 <ul>
-<li>Excel-файлы структурированы в соответствии с вашими требованиями</li>
-<li>Автоматическое ежемесячное/ежеквартальное обновление по согласованному расписанию</li>
-<li>Включение специальных метрик и индексов (например, индексы физических объёмов)</li>
-<li>Гибкость в выборе географии, товаров и периодов анализа</li>
+<li>Excel-файлы по вашей структуре</li>
+<li>Автоматическое ежемесячное/ежеквартальное обновление</li>
+<li>Специальные метрики и индексы физических объёмов</li>
+<li>Гибкий выбор географии, товаров и периодов</li>
 </ul>
 </section>
 </section>
+<section id="почему-не-trademap" class="level2">
+<h2 class="anchored" data-anchor-id="почему-не-trademap">Почему не TradeMap?</h2>
+<p>TradeMap — популярный веб-инструмент ITC, но для серьёзной аналитики и автоматизации он быстро упирается в ограничения интерфейса.</p>
+<div class="source-grid">
+<div class="source-card">
+<span class="tag">Веб-платформа</span>
+<div class="card-title">
+TradeMap
+</div>
+<div class="card-body">
+Справочная витрина ITC для обзорной торговой статистики.
+</div>
+<div class="card-spec">
+<p>HS до 6 знаков · стоимость в USD · без национальной номенклатуры (ТН ВЭД-8/10). Источник цифры и степень проверки не прозрачны.</p>
+</div>
+<ul class="card-list">
+<li>
+только браузер, без API
+</li>
+<li>
+лимиты на выгрузку
+</li>
+<li>
+нет гармонизации источников
+</li>
+<li>
+нет физобъёмов и nowcast
+</li>
+</ul>
+<div class="card-verdict weak">
+Подходит для разовых запросов
+</div>
+</div>
+<div class="source-card">
+<span class="tag">Международный архив</span>
+<div class="card-title">
+UN Comtrade
+</div>
+<div class="card-body">
+Глобальный архив сырой внешнеторговой статистики ООН.
+</div>
+<div class="card-spec">
+<p>Потоки reporter ↔︎ partner · 200+ стран. Физические единицы есть не по всем позициям. Опечатки в данных не устраняются.</p>
+</div>
+<ul class="card-list">
+<li>
+лимиты API и задержки
+</li>
+<li>
+разные форматы и лаги
+</li>
+<li>
+нужна ручная сверка
+</li>
+<li>
+нет готовой аналитики
+</li>
+</ul>
+<div class="card-verdict mid">
+Не готовое решение
+</div>
+</div>
+<div class="source-card highlight">
+<span class="tag">★ Наша платформа</span>
+<div class="card-title">
+МГИМО Trade DB
+</div>
+<div class="card-body">
+Готовая база для регулярного анализа внешней торговли России.
+</div>
+<div class="card-spec">
+<p>Фокус: РФ × партнёры · месячная детализация · Китай, Индия, Турция + Comtrade + архив ФТС. Приоритет источников и источник происхождения каждой записи.</p>
+</div>
+<ul class="card-list">
+<li>
+<strong>API + SQL</strong> — автоматизация
+</li>
+<li>
+<strong>гармонизация</strong> ФТС + партнёры + Comtrade
+</li>
+<li>
+<strong>физобъёмы</strong> и индексы объёмов
+</li>
+<li>
+<strong>FAVAR nowcast</strong> + дашборды
+</li>
+</ul>
+<div class="card-verdict">
+Лучший выбор для регулярной аналитики
+</div>
+</div>
+</div>
+<table class="compare-table">
+<thead>
+<tr>
+<th class="col-criterion">
+</th>
+<th class="col-them">
+TradeMap
+</th>
+<th class="col-us">
+МГИМО Trade DB
+</th>
+</tr>
+</thead>
+<tbody>
+<tr class="group-row">
+<td colspan="3">
+Доступ и интеграция
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Программный API
+</td>
+<td class="cell-no">
+<span class="mark-no">✗</span> только браузер
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> Python API
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Массовые выгрузки
+</td>
+<td class="cell-no">
+лимиты интерфейса
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> без ограничений GUI
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Сложные срезы
+</td>
+<td class="cell-no">
+ручные сессии
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> пакетные запросы
+</td>
+</tr>
+<tr class="group-row">
+<td colspan="3">
+Данные
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Гармонизация источников
+</td>
+<td class="cell-mid">
+частично
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> ФТС + ЗС + Comtrade
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Детализация номенклатуры
+</td>
+<td class="cell-mid">
+HS до 6 знаков
+</td>
+<td class="cell-us">
+ТН ВЭД 2–10
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Физические объёмы
+</td>
+<td class="cell-mid">
+частично
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> + индексы физобъёмов
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Прозрачность источника
+</td>
+<td class="cell-no">
+<span class="mark-no">✗</span>
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> у каждой записи
+</td>
+</tr>
+<tr class="group-row">
+<td colspan="3">
+Аналитика
+</td>
+</tr>
+<tr>
+<td class="criterion">
+SQL и агрегации
+</td>
+<td class="cell-no">
+<span class="mark-no">✗</span>
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> DuckDB
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Дашборды и отчёты
+</td>
+<td class="cell-mid">
+базовые графики
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> Superset + отчёты
+</td>
+</tr>
+<tr>
+<td class="criterion">
+Nowcast
+</td>
+<td class="cell-no">
+<span class="mark-no">✗</span>
+</td>
+<td class="cell-us">
+<span class="mark-yes">✓</span> FAVAR
+</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="аналитика-от-данных-к-выводам" class="level2">
+<h2 class="anchored" data-anchor-id="аналитика-от-данных-к-выводам">Аналитика: от данных к выводам</h2>
+<p>Ежемесячный бюллетень, индексы физобъёмов, структурный анализ внешней торговли и оперативный nowcast.</p>
+<div class="analytics-preview">
+<div class="analytics-card">
+<p><span class="chart-tag">Ежемесячный бюллетень</span> <strong>Изменение физобъёма год к году</strong> <img src="pdf_figures/01-fizob.png" alt="Физические объёмы торговли"></p>
+</div>
+<div class="analytics-card">
+<p><span class="chart-tag">Структурный анализ</span> <strong>Экспорт: нефтегаз vs прочие товары</strong> <img src="pdf_figures/02-oilgas.png" alt="Нефтегазовый и прочий экспорт"></p>
+</div>
+</div>
+<div class="nowcast-highlight">
+<p><strong>Nowcast (FAVAR)</strong> — оперативные оценки при задержке официальной статистики. Прогноз отмечен в базе отдельным флагом и охватывает все уровни ТН ВЭД, страны и товарные группы.</p>
+</div>
+<p><a href="../site/bulletin_comparison.html" class="btn btn-primary landing-cta">Смотреть полный ежемесячный бюллетень →</a></p>
+</section>
 <section id="ключевые-особенности" class="level2">
 <h2 class="anchored" data-anchor-id="ключевые-особенности">Ключевые особенности</h2>
-<p>✅ <strong>Физические объёмы</strong> — не только стоимостные данные, но и реальные объёмы грузов</p>
-<p>✅ <strong>Гармонизация источников</strong> — единая структура данных из разных источников</p>
-<p>✅ <strong>Индексы объемов</strong> — расчёт индексов физических объёмов для отслеживания тенденций</p>
-<p>✅ <strong>Nowcast</strong> — оперативные прогнозы при задержке официальных данных</p>
-<p>✅ <strong>Оперативность</strong> — более короткие лаги по сравнению с альтернативными источниками</p>
+<div class="feature-highlights">
+<div class="highlight-item">
+<p><strong>Физические объёмы</strong> <span>тонны, штуки, м³ — не только USD</span></p>
+</div>
+<div class="highlight-item">
+<p><strong>Индексы физобъёмов</strong> <span>уровни 2/4/6 знаков ТН ВЭД и по странам</span></p>
+</div>
+<div class="highlight-item">
+<p><strong>Гармонизация</strong> <span>единые коды стран и единицы измерения</span></p>
+</div>
+<div class="highlight-item">
+<p><strong>Nowcast (FAVAR)</strong> <span>оперативные оценки при лаге статистики</span></p>
+</div>
+<div class="highlight-item">
+<p><strong>Актуальность</strong> <span>зеркальная статистика обновляется регулярно</span></p>
+</div>
+<div class="highlight-item">
+<p><strong>Прозрачность</strong> <span>источник и верификация у каждой записи</span></p>
+</div>
+</div>
 </section>
 <section id="как-начать" class="level2">
 <h2 class="anchored" data-anchor-id="как-начать">Как начать</h2>
-<p>Если вы заинтересованы в доступе к данным или хотите обговорить специальный отчёт:</p>
-<ol type="1">
-<li><strong>Свяжитесь с командой проекта</strong> — уточните ваши требования</li>
-<li><strong>Тестовый доступ</strong> — на этапе эксплуатации предоставляется <strong>бесплатно</strong></li>
-<li><strong>Развёртывание</strong> — мы помогаем интегрировать данные в ваши процессы</li>
-</ol>
+<div class="cta-steps">
+<div class="cta-step">
+<span class="cta-num">1</span> <strong>Свяжитесь с командой</strong>
+<p>
+Уточните задачи: география, товары, формат выгрузки или отчёта.
+</p>
+</div>
+<div class="cta-step">
+<span class="cta-num">2</span> <strong>Тестовый доступ</strong>
+<p>
+На этапе эксплуатации предоставляется <strong>бесплатно</strong>.
+</p>
+</div>
+<div class="cta-step">
+<span class="cta-num">3</span> <strong>Развёртывание</strong>
+<p>
+Помогаем интегрировать данные в ваши процессы и аналитику.
+</p>
+</div>
+</div>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-title-container flex-fill">
-Дополнительно
+Методология и техническая документация
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Хотите узнать больше о методологии? Смотрите <a href="../site/technical.html">техническую документацию</a>, где описаны подходы гармонизации, расчёт индексов и работа с прогнозами.</p>
+<p>Подробнее о гармонизации источников, расчёте индексов физобъёмов и nowcast — в <a href="../site/technical.html">технической документации</a>.</p>
 </div>
 </div>
 
