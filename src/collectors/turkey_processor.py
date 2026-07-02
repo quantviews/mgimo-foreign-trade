@@ -1,261 +1,141 @@
 """
-Модуль находит сырые данные в виде html файлов, производит их предварительную обработку и  объединяет в единый датасет,
-который затем гармонизируется в соответствии с моделью данных и сохраняется в виде parquet файла.
+Обработка данных из Excel файлов, организованных по годам и месяцам.
+
+Структура папок: path/{YYYY}/{YYYY}-{MM}.xlsx
+Пример: /data/2019/2019-01.xlsx, /data/2019/2019-02.xlsx и т.д.
+
+Основные функции:
+  - load_and_process_data(): загрузить и обработать все файлы
+  - save_dataset(): сохранить датасет в парquet файл
+  - find_data_files(): найти все файлы по структуре
+  - normalize(): нормализовать данные из Excel
+
+Использование:
+  from data_processor import load_and_process_data, save_dataset
+
+  df, stats = load_and_process_data("/path/to/data")
+  save_dataset(df, "/output/dataset.parquet")
 """
 
-import re, os, argparse, sys
-from bs4 import BeautifulSoup
+import logging
 from pathlib import Path
-from io import StringIO
-import pandas as pd
-import numpy as np
 from datetime import datetime
+from typing import Tuple, Dict, List, Optional
+import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from core.country_processor_contract import finalize_country_output
-from core.edizm import resolve_edizm_records
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Словарь единиц измерения
+iso_dict = {
+    "KG/ÇİFT": {"KOD": "715", "NAME": "ПАРА"},
+    "KG/METR E": {"KOD": "006", "NAME": "МЕТР"},
+    "KG/1000A DET": {"KOD": "798", "NAME": "ТЫСЯЧА ШТУК"},
+    "KG/KG P2O5": {"KOD": "865", "NAME": "КИЛОГРАММ ПЯТИОКИСИ ФОСФОРА"},
+    "KG/ADET": {"KOD": "796", "NAME": "ШТУКА"},
+    "KG/M3": {"KOD": "113", "NAME": "КУБИЧЕСКИЙ МЕТР"},
+    "KG/KG K2O": {"KOD": "852", "NAME": "КИЛОГРАММ ОКСИДА КАЛИЯ"},
+    "KG/KG MET.AM.": {"KOD": None, "NAME": "КИЛОГРАММ МЕТИЛАМИНА"},
+    "KG/1000LI TRE": {"KOD": "130", "NAME": "1000 ЛИТРОВ"},
+    "KG/CE-EL": {"KOD": "745", "NAME": "ЭЛЕМЕНТ"},
+    "KG/LİTRE": {"KOD": "112", "NAME": "ЛИТР"},
+    "KG/BAŞ": {"KOD": "836", "NAME": "ГОЛОВА"},
+    "KG/KARA T": {"KOD": "162", "NAME": "МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ"},
+    "KG/100AD ET": {"KOD": "797", "NAME": "СТО ШТУК"},
+    "KG/KG N": {"KOD": "861", "NAME": "КИЛОГРАММ АЗОТА"},
+    "KG/M2": {"KOD": "055", "NAME": "КВАДРАТНЫЙ МЕТР"},
+    "KG/LT- ALK%100": {"KOD": "831", "NAME": "ЛИТР ЧИСТОГО (100%) СПИРТА"},
+    "KG/KG H2O2": {"KOD": "841", "NAME": "КИЛОГРАММ ПЕРОКСИДА ВОДОРОДА"},
+    "KG/GRAM": {"KOD": "163", "NAME": "ГРАММ"},
+    "KG/KG U": {"KOD": "867", "NAME": "КИЛОГРАММ УРАНА"},
+    "KG/1000M 3": {"KOD": "114", "NAME": "1000 КУБИЧЕСКИХ МЕТРОВ"},
+    "KG/GI F/S": {"KOD": None, "NAME": "gi F/S"},
+    "KG/CT-L": {"KOD": None, "NAME": "CT-L"},
+    "G.T/ADET": {"KOD": "796", "NAME": "ШТУКА"},
+    "KG/KG NET EDA": {"KOD": None, "NAME": "KG NET EDA"},
+    "KG/KG %90 SDT": {"KOD": "845", "NAME": "КИЛОГРАММ СУХОГО НА 90 % ВЕЩЕСТВА"},
+    "KG/KG KOH": {"KOD": "859", "NAME": "КИЛОГРАММ ГИДРОКСИДА КАЛИЯ"},
+    "KG/KG NAOH": {"KOD": "863", "NAME": "КИЛОГРАММ ГИДРОКСИДА НАТРИЯ"},
+}
 
 
-def parse_arguments():
+def normalize(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Обработчик аргументов для запуска модуля из командной строки.
+    Нормализация данных из Excel файла.
 
-    usage: processor.py [-h] [-a] year
+    Args:
+        df: DataFrame из Excel файла
 
-    :return: возвращает список аргументов для запуска модуля
+    Returns:
+        Обработанный DataFrame с импортом и экспортом
     """
-    current_year = datetime.now().year
-    parser = argparse.ArgumentParser(
-        description="Module processes raw data, compiles normalized dataset and saves result into a parquet file"
-    )
+    # Пропускаем пустые строки в начале файла и ищем заголовки
+    header_row = None
+    for idx, row in df.iterrows():
+        if "Yıl" in str(row.values) or "Год" in str(row.values) or "Year" in str(row.values):
+            header_row = idx
+            break
 
-    def valid_year(value):
-        if not value.isdigit():
-            raise argparse.ArgumentTypeError(
-                f"Year should be a number in range 2005-{current_year}"
-            )
-        year = int(value)
-        if year < 2005 or year > current_year:
-            raise argparse.ArgumentTypeError(
-                f"Year should be a number in range 2005-{current_year}"
-            )
-        return value
-
-    # Позиционные аргументы (обязательные)
-
-    parser.add_argument(
-        "year",
-        type=valid_year,
-        nargs="?",
-        metavar=f"[2005-{current_year}]",
-        help=f"year (from 2005 to {current_year})",
-    )
-
-    parser.add_argument(
-        "-a",
-        "--all",
-        action="store_true",
-        help="process data for the all available years",
-    )
-
-    # parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
-
-    # Парсинг аргументов
-    args = parser.parse_args()
-    return args
-
-
-def table_clean(df: pd.DataFrame, year) -> pd.DataFrame:
-    """
-    Функция производит очистку таблицы полученной из сырых данных.
-    - удаляются дублирующиеся строки,
-    - определяются позиции референсных ячеек для сепарации полезных данных от артефактов форматирования
-    - заполняются отсутствующие значения в столбцах "Month", "Country", "Country name"
-    - исправляются ошибки в кодах с ведущим нулем
-
-    :param df: pandas.DataFrame
-    :param year:
-    :return: pd.DataFrame
-    """
-    # Удаление дубликатов
-    df.drop_duplicates(inplace=True)
-
-    # Поиск положения "Month" в таблице
-    month_pos = np.where(df.values == "Month")
-    if len(month_pos[0]) > 1:
-        print("Can't parse: multiple 'Month' found")
-        return pd.DataFrame()
-    if len(month_pos[0]) == 0:
-        print("One of the tables is empty: no 'Month' found")
-        return pd.DataFrame()
-
-    month_row, month_col = month_pos[0][0], month_pos[1][0]
-    df = df.iloc[month_row:, month_col:].copy()
-
-    # Если последняя строка в 4-м столбце начинается с "Note:" или содержит "provisional", удалить её.
-    # Проверка на слово "provisional" выполняется отдельно, так как на странице могут быть оба совпадения.
-    last_row_val = df.iloc[-1, 3]
-    if isinstance(last_row_val, str) and last_row_val.startswith("Note:"):
-        df = df.iloc[:-1].copy()
-    last_row_val = df.iloc[-1, 3]
-    if isinstance(last_row_val, str) and "provisional" in last_row_val:
-        df = df.iloc[:-1].copy()
-
-    # Удалить столбцы, полностью состоящие из NaN
-    df.dropna(axis=1, how="all", inplace=True)
-
-    # Маска для строк, содержащих цифры в 4-м столбце
-    mask = df.iloc[:, 3].astype(str).str.contains(r"\d", na=False)
-    if not mask.any():
-        print("Table is empty: no digits in 4th column")
-        return pd.DataFrame()
-
-    last_idx = mask[mask].index[-1]
-    df = df.loc[:last_idx].copy()
-
-    # Удаление строк с "total" в 4-м столбце (регистронезависимо)
-    total_mask = (
-        df.iloc[:, 3]
-        .astype(str)
-        .str.fullmatch(r"\s*total\s*:?\s*", case=False, na=False)
-    )
-    df = df.loc[~total_mask].copy()
-
-    # Первая строка — имена столбцов
-    df.columns = df.iloc[0]
-    df = df.iloc[1:]
-    df.columns.name = year
-
-    # Удаление дублированных названий столбцов
-    df = df.loc[:, ~df.columns.duplicated()]
-
-    # Заполнение пропусков в первых трёх столбцах вперёд
-    df.iloc[:, 0:3] = df.iloc[:, 0:3].ffill()
-
-    # Проверка и исправление ошибки в исходных данных с отсутствующим нулем в начале HS8 кода
-    mask = df["HS8"].str.len() < 8
-
-    df.loc[mask, "HS8"] = df.loc[mask, "HS8"].apply(
-        lambda x: x if x.startswith("0") else "0" + x
-    )
-
-    # Удаление дублированных строк и сброс индекса
-    df.drop_duplicates(inplace=True)
-    df.reset_index(drop=True, inplace=True)
-
-    # print(df[df["HS8"].str.len() < 8]["HS8"]) # найти и напечатать слишком короткие коды
-
-    return df
-
-
-def load_df(filename, year) -> pd.DataFrame:
-    """
-    Функция загружает данные из определенного html файла, обнаруживает в нем таблицы для обработки,
-    производит их очистку с помощью функции table_clean() объединяет и возвращает pd.DataFrame с результатом.
-
-    :param filename:
-    :param year:
-    :return: pd.DataFrame
-    """
-    with open(filename, "r", encoding="utf-8", errors="ignore") as file:
-        html_content = file.read()
-
-    soup = BeautifulSoup(html_content, "html.parser").find_all("table")
-
-    dfs = [
-        table_clean(pd.read_html(StringIO(str(table)), flavor="lxml")[0], year)
-        for table in soup
-    ]
-
-    # Фильтруем пустые DataFrame, чтобы избежать ошибок конкатенации
-    dfs = [df for df in dfs if not df.empty]
-
-    if dfs:
-        return pd.concat(dfs, axis=0, ignore_index=True)
+    # Если заголовки не найдены, пытаемся использовать стандартный формат
+    if header_row is None:
+        # Пытаемся получить год/месяц из первого ряда данных
+        year = f"{int(df.iloc[0, 0])}"
+        month = f"{int(df.iloc[0, 1]):02d}"
+        df = df[pd.to_numeric(df["GTİP"], errors="coerce").notna()]
+        df = df[df.columns[4:]]
     else:
-        print(f"No valid tables in file {os.path.basename(filename)}")
-        return pd.DataFrame()
+        # Используем данные из строки после заголовков
+        data_row_idx = header_row + 1
+        year = f"{int(df.iloc[data_row_idx, 0])}"
+        month = f"{int(df.iloc[data_row_idx, 1]):02d}"
 
+        # Берем данные начиная со строки заголовков
+        df = df.iloc[header_row:].reset_index(drop=True)
+        df.columns = df.iloc[0]
+        df = df[1:].reset_index(drop=True)
+        df = df[pd.to_numeric(df["GTİP"], errors="coerce").notna()]
 
-def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
-    """
-    Функция выполняет гармонизацию данных в соответствии с моделью данных.
-
-    :param df:
-    :param year:
-    :return:
-    """
-    print("Harmonizing consolidated data...")
-    # Переименование колонок и удаление лишних сразу
-    df.rename(
-        columns={
-            "Month": "PERIOD",
-            "Country": "STRANA",
-            "HS8": "TNVED",
-            "Unit": "EDIZM",
-        },
-        inplace=True,
-    )
-    df.drop(["Country\xa0name", "HS8\xa0name"], axis=1, inplace=True)
-
-    # Форматирование периода
-    df["PERIOD"] = pd.to_datetime(df["PERIOD"].str.zfill(2).radd(f"{year}-").add("-01"))
-
-    # Страна и строковые столбцы
+    df["PERIOD"] = pd.to_datetime(f"{year}-{month}-01")
     df["STRANA"] = "TR"
-    edizm_records = resolve_edizm_records(df["EDIZM"])
-    df["EDIZM_ISO"] = edizm_records.map(
-        lambda record: record.get("KOD") if isinstance(record, dict) and record.get("KOD") else "?"
-    )
-    df["EDIZM"] = edizm_records.map(
-        lambda record: record.get("NAME") if isinstance(record, dict) and record.get("NAME") else "?"
-    )
+    df["TNVED"] = df["GTİP"].str[:8]
+    df["TNVED6"] = df["GTİP"].str[:6]
+    df["TNVED4"] = df["GTİP"].str[:4]
+    df["TNVED2"] = df["GTİP"].str[:2]
+    df["EDIZM_ISO"] = df["Ölçü"].map(lambda x: iso_dict.get(x, {}).get("KOD"))
+    df = df[df.columns[2:]]
 
-    # TNVED разбивка без многократного обращения к колонке
-    df["TNVED4"] = df["TNVED"].str[:4]
-    df["TNVED6"] = df["TNVED"].str[:6]
-    df["TNVED2"] = df["TNVED"].str[:2]
+    df_import = df[
+        df["İhracat USD"].notnull() &
+        (df["İhracat USD"] != 0.0)
+    ].copy()
 
-    # Маски выборки: вместо index/loc — boolean index
-    mask_in = df["Export\xa0Dollar"] != "0"
-    mask_out = df["Import\xa0Dollar"] != "0"
+    df_export = df[
+        df["İthalat USD"].notnull() &
+        (df["İthalat USD"] != 0.0)
+    ].copy()
 
-    # inbound (ИМ)
-    df_in = df[mask_in].copy()
-    df_in.drop(
-        ["Import\xa0quantity\xa01", "Import\xa0quantity\xa02", "Import\xa0Dollar"],
-        axis=1,
-        inplace=True,
-    )
-    df_in.rename(
+    df_import["NAPR"] = "ИМ"
+    df_import = df_import.rename(
         columns={
-            "Export\xa0quantity\xa01": "NETTO",
-            "Export\xa0quantity\xa02": "KOL",
-            "Export\xa0Dollar": "STOIM",
-        },
-        inplace=True,
+            "İhracat USD": "STOIM",
+            "İhracat Miktar 1 (kilogram)": "NETTO",
+            "İhracat Miktar 2": "KOL",
+            "Ölçü": "EDIZM",
+        }
     )
-    df_in["NAPR"] = "ИМ"
 
-    # outbound (ЭК)
-    df_out = df[mask_out].copy()
-    df_out.drop(
-        ["Export\xa0quantity\xa01", "Export\xa0quantity\xa02", "Export\xa0Dollar"],
-        axis=1,
-        inplace=True,
-    )
-    df_out.rename(
+    df_export["NAPR"] = "ЭК"
+    df_export = df_export.rename(
         columns={
-            "Import\xa0quantity\xa01": "NETTO",
-            "Import\xa0quantity\xa02": "KOL",
-            "Import\xa0Dollar": "STOIM",
-        },
-        inplace=True,
+            "İthalat USD": "STOIM",
+            "İthalat Miktar 1 (kilogram)": "NETTO",
+            "İthalat Miktar 2": "KOL",
+            "Ölçü": "EDIZM",
+        }
     )
-    df_out["NAPR"] = "ЭК"
-
-    # Итоговое объединение
-    result = pd.concat([df_in, df_out], ignore_index=True)
 
     cols = [
         "NAPR",
@@ -264,159 +144,402 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
         "TNVED",
         "EDIZM",
         "EDIZM_ISO",
-        "STOIM",
-        "NETTO",
         "KOL",
         "TNVED4",
         "TNVED6",
         "TNVED2",
+        "NETTO",
+        "STOIM",
     ]
-    result = result[cols]
-    result.sort_values(by="PERIOD", inplace=True)
-    result.reset_index(drop=True, inplace=True)
+    df_import = df_import[cols]
+    df_export = df_export[cols]
 
-    # Преобразование типов
-    for col in ["STOIM", "NETTO", "KOL"]:
-        clean_col = (
-            result[col]
-            .str.replace(".", "", regex=False)
-            .str.replace(",", ".", regex=False)
-        )
-        result[col] = pd.to_numeric(clean_col, errors="coerce").fillna(0).astype(float)
-
-    return finalize_country_output(result, country_code="TR", sort_by=("PERIOD",))
+    return pd.concat([df_import, df_export], ignore_index=True).sort_values(by="TNVED", ascending=True)
 
 
-def build_for_year(year):
+
+
+def get_expected_months(
+    start_year: int = 2019,
+    end_year: Optional[int] = None
+) -> List[Tuple[int, int]]:
     """
-    Функция загружает обработанные и очищенные данные с помощью функции load_df() из всех html файлов за определенный
-    год и возвращает результирующий датасет за определенный год.
+    Получить список ожидаемых месяцев от start_year до end_year.
 
-    :param year:
-    :return: pd.DataFrame или None если данных нет
+    Args:
+        start_year: Начальный год (по умолчанию 2019)
+        end_year: Конечный год (по умолчанию текущий год)
+
+    Returns:
+        Список кортежей (год, месяц)
     """
-    # Определяем путь относительно расположения скрипта
-    script_dir = Path(__file__).resolve().parent.parent.parent
-    html_files_path = script_dir / "data_raw" / "turkey" / "raw_html_tables" / f"turkey_html_data_{year}"
+    if end_year is None:
+        end_year = datetime.now().year
 
-    if not html_files_path.is_dir():
-        print(
-            f"{html_files_path} folder is absent. Can't fetch raw html tables for {year}."
-        )
-        return None
-    
-    pattern = re.compile(r"\d{2,10}-\d{2,10}-20\d{2}\.html")
-    html_files = [
-        f
-        for f in html_files_path.iterdir()
-        if f.is_file() and pattern.match(f.name)
-    ]
-    html_files.sort()
-    
-    if not html_files:
-        print(f"There are no required files for {year}.")
-        return None
-    
-    dfs = []
-    for index, f in enumerate(html_files):
-        print(f"{index + 1}/{len(html_files)} Working with: {f.name}")
-        df = load_df(f, year)
-        if not df.empty:
-            dfs.append(df)
+    expected = []
+    for year in range(start_year, end_year + 1):
+        for month in range(1, 13):
+            # Пропускаем будущие месяцы текущего года
+            if year == end_year and month > datetime.now().month:
+                break
+            expected.append((year, month))
 
-    if dfs:
-        final_df = pd.concat(dfs, axis=0, ignore_index=True)
-
-        # Сбросить пустые строки
-        final_df = final_df.dropna(subset=[final_df.columns[3]]).reset_index(
-            drop=True
-        )
-
-        return final_df
-    else:
-        print(f"No data to process for {year}")
-        return None
+    return expected
 
 
-def main():
-    args = parse_arguments()
+def find_data_files(
+    base_path: str,
+    start_year: int = 2019,
+    end_year: Optional[int] = None
+) -> Tuple[Dict[Tuple[int, int], Path], List[Tuple[int, int]]]:
+    """
+    Найти все файлы данных в формате {YYYY}/{YYYY}-{MM}.xlsx.
 
-    # Определяем путь относительно расположения скрипта для сохранения файлов
-    script_dir = Path(__file__).resolve().parent.parent.parent
-    
-    if args.all:
+    Args:
+        base_path: Базовый путь к папкам с данными
+        start_year: Начальный год (по умолчанию 2019)
+        end_year: Конечный год (по умолчанию текущий год)
 
-        pattern = re.compile(r"turkey_html_data_(20\d{2})")
+    Returns:
+        Кортеж (найденные_файлы, отсутствующие_месяцы)
+        найденные_файлы: словарь {(год, месяц): Path}
+        отсутствующие_месяцы: список [(год, месяц), ...]
+    """
+    if end_year is None:
+        end_year = datetime.now().year
 
-        # Находим все папки с данными по годам
-        working_dir = script_dir / "data_raw" / "turkey" / "raw_html_tables"
-        
-        if not working_dir.is_dir():
-            print(f"Directory {working_dir} does not exist.")
-            return
-        
-        # Извлекаем годы из имен папок вида turkey_html_data_YYYY
-        years = []
-        for p in working_dir.iterdir():
-            if p.is_dir():
-                match = pattern.match(p.name)
-                if match:
-                    years.append(match.group(1))
-        years = sorted(years)
+    base_path = Path(base_path)
+    found_files = {}
+    missing_months = []
 
-        if years:
-            dfs = []
-            for year in years:
-                print(f"\n{'=' * 30}\n Processing {year}")
-                df = build_for_year(year)
-                if df is not None and not df.empty:
-                    df = harmonize_df(df, year)
-                    dfs.append(df)
-                else:
-                    print(f"Skipping {year}: no data available")
+    expected_months = get_expected_months(start_year, end_year)
 
-            if dfs:
-                full_df = pd.concat(dfs, axis=0, ignore_index=True)
-                # Создаем директорию data_processed если её нет
-                output_dir = script_dir / "data_processed"
-                output_dir.mkdir(exist_ok=True)
-                output_path = output_dir / "tr_full.parquet"
-                full_df.to_parquet(output_path)
-                print(
-                    f'Data consolidation and harmonization completed. \nFile "{output_path}" was saved.'
-                )
-            else:
-                print("No data to process for any year.")
+    for year, month in expected_months:
+        year_path = base_path / str(year)
+        file_path = year_path / f"{year}-{month:02d}.xlsx"
 
+        if file_path.exists():
+            found_files[(year, month)] = file_path
         else:
-            print("No folders with data.")
+            missing_months.append((year, month))
 
-    elif args.year:
-        df = build_for_year(args.year)
-        
-        if df is None or df.empty:
-            print(f"No data available for year {args.year}. Cannot proceed.")
-            return
-        
-        df = harmonize_df(df, args.year)
-        
-        if df is None or df.empty:
-            print(f"Failed to harmonize data for year {args.year}.")
-            return
+    return found_files, missing_months
 
-        # Создаем директорию data_processed если её нет
-        output_dir = script_dir / "data_processed"
-        output_dir.mkdir(exist_ok=True)
-        output_path = output_dir / f"turkey_{args.year}_processed.parquet"
-        df.to_parquet(output_path)
-        print(
-            f'Data consolidation and harmonization completed. \nFile "{output_path}" was saved.'
+
+def load_and_process_data(
+    base_path: str,
+    start_year: int = 2019,
+    end_year: Optional[int] = None,
+    verbose: bool = True,
+    output_path: Optional[str] = None
+) -> Tuple[Optional[pd.DataFrame], Dict]:
+    """
+    Загрузить и обработать все файлы данных.
+
+    Args:
+        base_path: Базовый путь к папкам с данными
+        start_year: Начальный год (по умолчанию 2019)
+        end_year: Конечный год (по умолчанию текущий год)
+        verbose: Выводить подробные логи (по умолчанию True)
+        output_path: Путь для сохранения в парquet формате (опционально)
+
+    Returns:
+        Кортеж (результирующий_датасет, статистика)
+        результирующий_датасет: объединённый DataFrame или None если ошибка
+        статистика: словарь с информацией об обработке
+
+    Пример:
+        df, stats = load_and_process_data(
+            "/data/raw",
+            output_path="/data/processed/dataset.parquet"
         )
+    """
+    if end_year is None:
+        end_year = datetime.now().year
+
+    logger.info(f"Ищу файлы в {base_path} с {start_year} по {end_year} год(ы)...")
+    found_files, missing_months = find_data_files(base_path, start_year, end_year)
+
+    # Вывести информацию об отсутствующих месяцах
+    if missing_months:
+        if verbose:
+            logger.warning(f"Отсутствующие месяцы: {len(missing_months)}")
+            for year, month in missing_months[:10]:  # Показать первые 10
+                logger.warning(f"  - {year}-{month:02d}")
+            if len(missing_months) > 10:
+                logger.warning(f"  ... и ещё {len(missing_months) - 10}")
     else:
-        print(
-            "Use a 'year' option to extract data for a specific year or '--all' for all available years"
-        )
+        if verbose:
+            logger.info("Все ожидаемые месяцы найдены")
+
+    # Загрузить и обработать файлы
+    dfs = []
+    failed_files = []
+
+    logger.info(f"Обработка {len(found_files)} файлов...")
+
+    for (year, month), file_path in found_files.items():
+        try:
+            df = pd.read_excel(file_path)
+            df_processed = normalize(df)
+            dfs.append(df_processed)
+
+            if verbose:
+                logger.debug(f"Обработан {year}-{month:02d}: {len(df_processed)} строк")
+
+        except Exception as e:
+            error_msg = str(e)
+            failed_files.append({
+                'file': f"{year}-{month:02d}",
+                'path': str(file_path),
+                'error': error_msg
+            })
+            logger.error(f"Ошибка при обработке {file_path}: {error_msg}")
+
+    # Вывести информацию об ошибках
+    if failed_files and verbose:
+        logger.error(f"Не удалось обработать {len(failed_files)} файлов:")
+        for item in failed_files:
+            logger.error(f"  - {item['file']}: {item['error']}")
+
+    # Объединить всё в один датасет
+    result_df = None
+    if dfs:
+        result_df = pd.concat(dfs, ignore_index=True)
+        if verbose:
+            logger.info(f"Успешно загружено и обработано {len(dfs)} файлов")
+            logger.info(f"Итоговый датасет: {len(result_df)} строк")
+    else:
+        logger.error("Не удалось загрузить ни один файл")
+
+    # Сохранить датасет если указан output_path
+    if output_path and result_df is not None:
+        logger.info(f"Сохраняю датасет в {output_path}...")
+        save_dataset(result_df, output_path)
+
+    # Подготовить статистику
+    stats = {
+        'total_files': len(found_files),
+        'processed_files': len(dfs),
+        'failed_files': failed_files,
+        'missing_months': missing_months,
+        'total_rows': len(result_df) if result_df is not None else 0,
+        'output_path': output_path if output_path and result_df is not None else None,
+    }
+
+    return result_df, stats
+
+
+def save_dataset(
+    df: pd.DataFrame,
+    output_path: str,
+    compression: str = "snappy"
+) -> bool:
+    """
+    Сохранить датасет в парquet файл.
+
+    Парquet формат обеспечивает:
+    - Компактное хранение данных (~50-80% от исходного размера)
+    - Быстрое чтение и фильтрацию
+    - Сохранение типов данных
+    - Быстрое сжатие (snappy, gzip, brotli)
+
+    Args:
+        df: DataFrame для сохранения
+        output_path: Путь для сохранения файла (с расширением .parquet)
+        compression: Алгоритм сжатия ('snappy', 'gzip', 'brotli' или None)
+
+    Returns:
+        True если успешно, False если ошибка
+
+    Пример:
+        success = save_dataset(df, "/data/output/dataset.parquet")
+    """
+    if df is None or len(df) == 0:
+        logger.error("DataFrame пуст, нечего сохранять")
+        return False
+
+    try:
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        df.to_parquet(output_path, compression=compression, index=False)
+        file_size_mb = output_path.stat().st_size / (1024 * 1024)
+        logger.info(f"Датасет сохранен в {output_path}")
+        logger.info(f"Размер файла: {file_size_mb:.2f} MB")
+        logger.info(f"Строк: {len(df):,}, Столбцов: {len(df.columns)}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении файла {output_path}: {e}")
+        return False
+
+
+def load_dataset(file_path: str) -> Optional[pd.DataFrame]:
+    """
+    Загрузить датасет из парquet файла.
+
+    Args:
+        file_path: Путь к парquet файлу
+
+    Returns:
+        Загруженный DataFrame или None при ошибке
+
+    Пример:
+        df = load_dataset("/data/output/dataset.parquet")
+    """
+    try:
+        file_path = Path(file_path)
+
+        if not file_path.exists():
+            logger.error(f"Файл не найден: {file_path}")
+            return None
+
+        if file_path.suffix.lower() == '.parquet':
+            df = pd.read_parquet(file_path)
+            logger.info(f"Датасет загружен из Parquet: {file_path}")
+        elif file_path.suffix.lower() == '.csv':
+            df = pd.read_csv(file_path)
+            logger.info(f"Датасет загружен из CSV: {file_path}")
+        else:
+            logger.error(f"Неподдерживаемый формат: {file_path.suffix}")
+            return None
+
+        logger.info(f"Размер: {len(df):,} строк, {len(df.columns)} столбцов")
+        return df
+
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке датасета: {e}")
+        return None
+
+
+def print_statistics(stats: Dict) -> None:
+    """
+    Вывести красивую статистику обработки.
+
+    Args:
+        stats: Словарь статистики от load_and_process_data
+    """
+    print("\n" + "="*70)
+    print("СТАТИСТИКА ОБРАБОТКИ ДАННЫХ")
+    print("="*70)
+
+    print(f"\nФайлы:")
+    print(f"  Найдено файлов:        {stats['total_files']}")
+    print(f"  Успешно обработано:    {stats['processed_files']}")
+    print(f"  Ошибок обработки:      {len(stats['failed_files'])}")
+    print(f"  Отсутствующих:         {len(stats['missing_months'])}")
+
+    print(f"\nДанные:")
+    print(f"  Всего строк в датасете: {stats['total_rows']:,}")
+
+    if stats.get('output_path'):
+        print(f"\nВывод:")
+        print(f"  Сохранен в: {stats['output_path']}")
+
+    if stats['missing_months']:
+        print(f"\nОтсутствующие месяцы ({len(stats['missing_months'])}):")
+        # Сгруппировать по годам
+        by_year = {}
+        for year, month in stats['missing_months']:
+            if year not in by_year:
+                by_year[year] = []
+            by_year[year].append(month)
+
+        for year in sorted(by_year.keys()):
+            months = sorted(by_year[year])
+            months_str = ", ".join(f"{m:02d}" for m in months)
+            print(f"  {year}: {months_str}")
+
+    if stats['failed_files']:
+        print(f"\nФайлы с ошибками ({len(stats['failed_files'])}):")
+        for item in stats['failed_files'][:10]:  # Показать первые 10
+            print(f"  - {item['file']}: {item['error'][:60]}...")
+        if len(stats['failed_files']) > 10:
+            print(f"  ... и ещё {len(stats['failed_files']) - 10}")
+
+    print("\n" + "="*70 + "\n")
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    if len(sys.argv) < 2:
+        print("Использование:")
+        print("  python data_processor.py <path_to_data> [output_path] [start_year] [end_year]")
+        print("\nПараметры:")
+        print("  path_to_data - путь к папке с файлами Excel (структура: {YYYY}/{YYYY}-{MM}.xlsx)")
+        print("  output_path  - путь для сохранения результата в parquet (опционально)")
+        print("  start_year   - начальный год (по умолчанию 2019)")
+        print("  end_year     - конечный год (по умолчанию текущий)")
+        print("\nПримеры:")
+        print("  python data_processor.py /path/to/data")
+        print("  python data_processor.py /path/to/data dataset.parquet")
+        print("  python data_processor.py /path/to/data dataset.parquet 2019 2024")
+        sys.exit(1)
+
+    base_path = sys.argv[1]
+
+    # Определяем output_path - если содержит '/', '\\' или '.parquet', то это путь
+    output_path = None
+    start_year = 2019
+    end_year = None
+
+    if len(sys.argv) > 2:
+        arg2 = sys.argv[2]
+        # Проверяем является ли это путем к файлу
+        if '/' in arg2 or '\\' in arg2 or arg2.endswith('.parquet'):
+            output_path = arg2
+            if len(sys.argv) > 3:
+                start_year = int(sys.argv[3])
+            if len(sys.argv) > 4:
+                end_year = int(sys.argv[4])
+        else:
+            # Это год
+            try:
+                start_year = int(arg2)
+                if len(sys.argv) > 3:
+                    arg3 = sys.argv[3]
+                    if '/' in arg3 or '\\' in arg3 or arg3.endswith('.parquet'):
+                        output_path = arg3
+                    else:
+                        end_year = int(arg3)
+                        if len(sys.argv) > 4:
+                            output_path = sys.argv[4]
+                if len(sys.argv) > 4 and not output_path:
+                    arg4 = sys.argv[4]
+                    if '/' in arg4 or '\\' in arg4 or arg4.endswith('.parquet'):
+                        output_path = arg4
+                    else:
+                        end_year = int(arg4)
+            except ValueError:
+                # Не год, считаем что это путь
+                output_path = arg2
+                if len(sys.argv) > 3:
+                    start_year = int(sys.argv[3])
+                if len(sys.argv) > 4:
+                    end_year = int(sys.argv[4])
+
+    # Загрузить и обработать данные
+    df, stats = load_and_process_data(
+        base_path,
+        start_year,
+        end_year,
+        output_path=output_path
+    )
+    print_statistics(stats)
+
+    if df is not None:
+        # Если output_path не был указан, предложить его
+        if not output_path:
+            default_output = Path(base_path).parent / f"dataset_{start_year}_{end_year or 'current'}.parquet"
+            print(f"\nДля сохранения датасета используйте:")
+            print(f"  python data_processor.py {base_path} {start_year} {end_year or datetime.now().year} {default_output}")
+
+        print("\nПервые 5 строк датасета:")
+        print(df.head())
+
+        print("\nИнформация о датасете:")
+        print(f"Форма: {df.shape}")
+        print(f"Колонки: {list(df.columns)}")
+        print(f"Типы данных:\n{df.dtypes}")

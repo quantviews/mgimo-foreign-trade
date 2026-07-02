@@ -1,314 +1,275 @@
-"""
-Модуль позволяет выгружать HS8 коды и сырые данные с сайта института статистики Турции в виде html таблиц. HS8 коды
-сохраняются отдельно в виде json файлов.
-"""
-
-import argparse, asyncio, re, json, time
-from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright, Error
+import argparse
+import asyncio
+import logging
 from pathlib import Path
 from datetime import datetime
+from typing import Optional, Tuple
+
+from playwright.async_api import async_playwright, Page, Browser, BrowserContext
+import pandas as pd
+
+# Конфигурация
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+class TurkeyCollector:
+    def __init__(
+        self,
+        base_path: Path,
+        url: str = "https://bi.tuik.gov.tr/extensions/tuik-mashup/index.html?report_type=2",
+        max_retries: int = 3,
+        timeout_ms: int = 30000,
+    ):
+        self.base_path = Path(base_path)
+        self.url = url
+        self.max_retries = max_retries
+        self.timeout_ms = timeout_ms
+
+    async def download_month(
+        self,
+        year: str,
+        month: int,
+        kod: str = "00000000"
+    ) -> bool:
+        """Скачивает данные для одного месяца с повторами при ошибке."""
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                logger.info(f"Попытка {attempt}/{self.max_retries}: {year}-{month:02d}")
+                await self._scrape_month(year, month, kod)
+                logger.info(f"✓ Успешно: {year}-{month:02d}")
+                return True
+
+            except asyncio.TimeoutError as e:
+                logger.warning(f"Таймаут (попытка {attempt}): {e}")
+                if attempt == self.max_retries:
+                    logger.error(f"✗ Не удалось скачать {year}-{month:02d} после {self.max_retries} попыток")
+                    return False
+                await asyncio.sleep(2 ** attempt)  # Экспоненциальная задержка
+
+            except Exception as e:
+                logger.error(f"Ошибка при скачивании {year}-{month:02d}: {e}", exc_info=True)
+                if attempt == self.max_retries:
+                    return False
+                await asyncio.sleep(2 ** attempt)
+
+    async def _scrape_month(self, year: str, month: int, kod: str) -> None:
+        """Выполняет скрепинг - копируя исходный код максимально близко."""
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            context = await browser.new_context(accept_downloads=True)
+            page = await context.new_page()
+
+            # НЕ устанавливаем set_default_timeout как в исходном коде
+
+            # Навигация и заполнение формы
+            await self._fill_form(page, year, str(month), kod)
+
+            # Генерация отчета и скачивание
+            await self._generate_and_download(page, year, month)
+
+            await context.close()
+            await browser.close()
+
+    async def _fill_form(self, page: Page, year: str, month: str, kod: str) -> None:
+        """Заполняет форму - копируя исходный код точно."""
+        await page.goto(self.url)
+        await page.get_by_text("Ürün / Ürün Grubu - Ülke").click()
+
+        buttons = page.get_by_text("Sonraki Adım")
+        subm1 = buttons.nth(0)
+        subm2 = buttons.nth(1)
+
+        if await subm1.is_visible():
+            await subm1.click()
+
+        await page.get_by_text("Ülke/Ürün").click()
+        await page.wait_for_timeout(250)
+        await page.get_by_text("Harmonize Sistem").click()
+        await page.wait_for_timeout(250)
+        await page.get_by_text("HS12 (GTIP)").click()
+
+        if await subm2.is_visible():
+            await subm2.click()
+
+        await page.get_by_placeholder("Kod ya da Tanım Ara").first.click()
+        await page.locator("label", has_text="75 - Rusya Federasyonu").click()
+
+        await page.get_by_text("Seçiniz").nth(0).click()
+        await page.get_by_role("option", name=year, exact=True).click()
+
+        await page.wait_for_timeout(1000)
+
+        seciniz = page.get_by_text("Seçiniz")
+        await seciniz.last.click()
+        await page.get_by_role("option", name=month, exact=True).click()
+
+        await page.get_by_text("Kod Gir").nth(1).click()
+        await page.wait_for_timeout(250)
+
+        await page.get_by_text("İhracat", exact=True).click()
+        await page.get_by_text("İthalat", exact=True).click()
+        await page.get_by_text("Miktar 1 (kilogram)", exact=True).click()
+        await page.get_by_text("Miktar 2", exact=True).click()
+        await page.get_by_text("USD", exact=True).click()
+
+        cn_input = page.locator("#react-select-4-input")
+        await cn_input.click()
+        await cn_input.fill(kod)
+        await page.wait_for_timeout(300)
+        await cn_input.press("Enter")
+
+    async def _wait_visible(self, element, max_attempts: int = 10, timeout: int = 1000) -> bool:
+        """Жди пока элемент станет видимым."""
+        for attempt in range(max_attempts):
+            try:
+                if await element.is_visible(timeout=500):
+                    return True
+            except:
+                pass
+            await asyncio.sleep(timeout / 1000)
+        return False
+
+    async def _generate_and_download(self, page: Page, year: str, month: int) -> None:
+        """Генерирует отчет и скачивает Excel - как в исходном коде."""
+        download_dir = self.base_path / f"raw_tr_new_gui/{year}"
+        download_dir.mkdir(parents=True, exist_ok=True)
+
+        async with page.context.expect_page() as popup_info:
+            await page.get_by_role("button", name="Raporu Oluştur").click()
+
+        new_page = await popup_info.value
+        await new_page.wait_for_load_state("domcontentloaded")
+        await new_page.wait_for_timeout(15000)  # Увеличено с 8000 до 15000
+
+        excel_btn = new_page.get_by_text("Excel", exact=True)
+
+        async with new_page.expect_download() as download_info:
+            await excel_btn.click()
+
+        download = await download_info.value
+        await download.save_as(str(download_dir / f"{year}-{month:02d}.xlsx"))
+        logger.info(f"✓ Скачан: {year}-{month:02d}.xlsx")
+
+        await new_page.close()
+
+    async def _click_with_retry(
+        self,
+        page: Page,
+        selector,
+        timeout: int = 5000,
+        is_locator: bool = False,
+        retries: int = 3
+    ) -> None:
+        """Клик с автоматическим повтором."""
+        for attempt in range(retries):
+            try:
+                if is_locator:
+                    # Уже передан locator
+                    element = selector
+                elif isinstance(selector, str):
+                    # Текст
+                    element = page.get_by_text(selector, exact=True)
+                else:
+                    element = selector
+
+                # Сначала дождемся видимости
+                await element.wait_for(timeout=timeout)
+                await element.click(timeout=timeout)
+                return
+
+            except Exception as e:
+                if attempt == retries - 1:
+                    logger.error(f"Не удалось кликнуть после {retries} попыток: {e}")
+                    raise
+                logger.debug(f"Попытка клика {attempt + 1}/{retries} не удалась, повтор...")
+                await asyncio.sleep(0.5 * (attempt + 1))
+
+    async def _select_with_retry(
+        self,
+        page: Page,
+        text: str,
+        timeout: int = 5000
+    ) -> None:
+        """Выбирает элемент с повторами."""
+        for attempt in range(3):
+            try:
+                element = page.get_by_text(text, exact=True)
+                await element.wait_for(timeout=timeout)
+                await element.click(timeout=timeout)
+                await page.wait_for_timeout(250)
+                return
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                logger.debug(f"Повтор выбора '{text}' ({attempt + 1}/3)")
+                await asyncio.sleep(0.5)
 
 
-def parse_arguments():
-    """
-    Обработчик аргументов для запуска модуля из командной строки.
+    async def download_range(
+        self,
+        year: str,
+        start_month: int = 1,
+        end_month: int = 12,
+        kod: str = "00000000",
+        concurrent: int = 2
+    ) -> dict:
+        """Скачивает данные для диапазона месяцев."""
+        results = {"success": [], "failed": []}
 
-    usage: collector.py [-h] [-c YEAR] [-y YEAR]
-    -c YEAR, --codes YEAR - загружает только коды за определенный год
-    -y YEAR, --year YEAR - год (от 2005 до текущего)
+        # Ограничиваем количество одновременных задач
+        semaphore = asyncio.Semaphore(concurrent)
 
-    Если аргументы не указаны, выводится справка и скрипт завершается.
-    """
-    current_year = datetime.now().year
-    parser = argparse.ArgumentParser(
-        description=f"Module downloads data from Turkey Institute of Statistics in year range [2005-{current_year}]"
-    )
+        async def download_with_semaphore(month):
+            async with semaphore:
+                success = await self.download_month(year, month, kod)
+                if success:
+                    results["success"].append(f"{year}-{month:02d}")
+                else:
+                    results["failed"].append(f"{year}-{month:02d}")
 
-    def valid_year(value):
-        if not value.isdigit():
-            raise argparse.ArgumentTypeError(
-                f"Year should be a number in range 2005-{current_year}"
-            )
-        year = int(value)
-        if year < 2005 or year > current_year:
-            raise argparse.ArgumentTypeError(
-                f"Year should be a number in range 2005-{current_year}"
-            )
-        return year
+        tasks = [
+            download_with_semaphore(month)
+            for month in range(start_month, end_month + 1)
+        ]
 
-    parser.add_argument(
-        "-y",
-        "--year",
-        dest="year",
-        type=valid_year,
-        metavar=f"[2005-{current_year}]",
-        help=f"download data for a specific year",
-    )
+        await asyncio.gather(*tasks)
+        return results
 
-    parser.add_argument(
-        "-c",
-        "--codes",
-        dest="codes",
-        type=valid_year,
-        metavar=f"[2005-{current_year}]",
-        help=f"download codes for a specific year without downloading data",
-    )
+
+async def main():
+    parser = argparse.ArgumentParser(description="Сбор данных TUIK со статистикой Турции")
+    parser.add_argument("--path", type=str, required=True, help="Путь для сохранения")
+    parser.add_argument("--year", type=str, required=True, help="Год")
+    parser.add_argument("--start-month", type=int, default=1, help="Начальный месяц")
+    parser.add_argument("--end-month", type=int, default=12, help="Конечный месяц")
+    parser.add_argument("--kod", type=str, default="00000000", help="Код продукта")
+    parser.add_argument("--concurrent", type=int, default=2, help="Кол-во одновременных загрузок")
+    parser.add_argument("--retries", type=int, default=3, help="Количество повторов")
 
     args = parser.parse_args()
 
-    # Проверка: если нет ни одного аргумента, показываем help и выходим
-    if (not hasattr(args, "year") or args.year is None) and (
-        not hasattr(args, "codes") or args.codes is None
-    ):
-        parser.print_help()
-        parser.exit(1)
-
-    return args
-
-
-async def download_and_save_codes(playwright, year: str) -> dict:
-    """
-    Функция подключается к сайту института статистики Турции выгружает все возможные коды HS8 за определенный год
-    и сохраняет в виде json файла в папке "HS_CODES_DIR" (если папка отсутствует она будет создана)
-    :param playwright:
-    :param year:
-    :return: dict
-    """
-    browser = await playwright.chromium.launch(headless=True)
-    page = await browser.new_page()
-    await page.goto(DATA_URL, wait_until="domcontentloaded")
-
-    print(f"Downloading codes for {year} ...")
-
-    # The UI changes over time, so avoid brittle index-based selectors.
-    # We only click options that are present.
-    for option_text in [
-        "Monthly",
-        "I know country code",
-        "I know HS8(CN) code",
-        "Export",
-        "Import",
-        "$(Dollar)",
-    ]:
-        option = page.get_by_text(option_text)
-        if await option.count() > 0:
-            await option.first.click()
-
-    await page.get_by_text(year).click()
-    await page.get_by_text("<< All months >>").click(delay=300)
-
-    textboxes = page.locator("input.z-textbox:visible")
-    if await textboxes.count() < 4:
-        raise RuntimeError("Can't find required input fields while downloading HS codes.")
-
-    country_input = textboxes.nth(0)
-    cn_input = textboxes.nth(3)
-
-    await country_input.fill(COUNTRY_ID)
-
-    hs_codes = {}
-    pattern = r"\d{8} - .+"  # regex шаблон формата "01234567 - Text..."
-
-    # Ждём загрузки кнопки "Ara" после клика
-    for two_digits in [f"{i:02}" for i in range(1, 100)]:
-        await cn_input.fill(two_digits)
-        await page.get_by_role("button", name="Ara").click(delay=300, timeout=2000)
-        await page.wait_for_timeout(2000)
-        output = await page.content()
-        bs_elements = BeautifulSoup(output, "html.parser").find_all(class_="z-listcell")
-        for el in bs_elements:
-            s = el.get_text()
-            if re.fullmatch(pattern, s):
-                key, value = s.split(" - ", 1)
-                hs_codes[key] = value
-        print(f"Downloading HS2 {two_digits}; Total: {len(hs_codes)}")
-
-    # сохраняем результат в json-file
-    HS_CODES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(CODES_FILE_PATH, "w", encoding="utf-8") as file:
-        json.dump(hs_codes, file, indent=4)
-
-    print(f"Codes were saved in {CODES_FILE_PATH.name}")
-
-    await browser.close()
-    return hs_codes
-
-
-async def load_codes(playwright, year: str) -> dict:
-    """
-    Если файл с кодами отсутствует, функция загружает коды с помощью функции download_and_save_codes(), сохраняет результат
-    в json-файл и возвращает словарь с кодами. Если файл существует, то выполняется его проверка, выгружаются коды
-    и возвращается словарь с кодами.
-    :param year:
-    :return hs_codes:
-    """
-    def _read_codes_from_file() -> dict:
-        with CODES_FILE_PATH.open("r", encoding="utf-8") as f:
-            loaded = json.load(f)
-        if not isinstance(loaded, dict) or not loaded:
-            raise ValueError("codes file is empty or has invalid structure")
-        return loaded
-
-    if CODES_FILE_PATH.exists():
-        try:
-            print("HS8 codes were already downloaded and will be used for downloading data.")
-            return _read_codes_from_file()
-        except Exception as e:
-            print(f"Codes file is corrupted or unreadable ({CODES_FILE_PATH.name}): {e}")
-            print("Will re-download HS8 codes...")
-            CODES_FILE_PATH.unlink(missing_ok=True)
-
-    try:
-        await download_and_save_codes(playwright, year)
-        return _read_codes_from_file()
-    except Exception as e:
-        raise RuntimeError(f"Failed to load codes: {e}") from e
-
-
-async def collect_data(playwright, year: str, hs_codes: dict):
-    """
-    Функция подключается к сайту института статистики Турции и выгружает данные за заданный год используя
-    ранее выгруженные HS8 коды. Результат сохраняется в виде html таблиц для дальнейшей обработки.
-    :param playwright:
-    :param year:
-    :return:
-    """
-
-    browser = await playwright.chromium.launch(headless=True)
-    context = await browser.new_context()
-    page = await context.new_page()
-
-    await page.goto(DATA_URL)
-
-    # Настроим страницу и получим id нужных полей
-    await page.goto(DATA_URL)
-    await page.get_by_text("Monthly").click()
-    await page.get_by_text(year).click()
-    await page.get_by_text("<< All months >>").click()
-    await page.get_by_text("I know country code").click()
-    await page.get_by_text("I know HS8(CN) code").click()
-    await page.get_by_text("Export").click()
-    await page.get_by_text("Import").click()
-    await page.get_by_text("$(Dollar)").click()
-
-    html_content = await page.content()
-    doc = BeautifulSoup(html_content, "html.parser")
-    textboxes = doc.find_all(class_="z-textbox")
-
-    if len(textboxes) < 3:
-        raise RuntimeError("Can't find required input fields on page")
-
-    country_input_id = textboxes[0].get("id")
-    cn_input_id = textboxes[2].get("id")
-
-    # Вводим страну
-    await page.fill(f"#{country_input_id}", COUNTRY_ID)
-
-    # Подготавливаем пакеты кодов для загрузки
-
-    keys = list(hs_codes.keys())
-    batches = [keys[i : i + BATCH_SIZE] for i in range(0, len(keys), BATCH_SIZE)]
-
-    start_t = time.time()
-    start_dt = datetime.fromtimestamp(start_t)
-
-    # Проверяем какой последний батч HS8 кодов был выгружен в этом месяце в виде html файла.
-    # Подразумевается, что попытка выгрузки была осуществлена и файлы выгружаются последовательно. То есть, если файлы
-    # с младшими кодами по какой-то причине были удалены, мы не будем их снова выгружать.
-
-    html_filename_pattern = re.compile(r"\d{8}-\d{8}-20\d{2}\.html")
-
-    HTML_TABLES_DIR.mkdir(parents=True, exist_ok=True)
-
-    files_with_html = [
-        p
-        for p in HTML_TABLES_DIR.iterdir()
-        if p.is_file() and html_filename_pattern.match(p.name)
-    ]
-
-    files_with_html = sorted(
-        [
-            p
-            for p in files_with_html
-            if datetime.fromtimestamp(p.stat().st_mtime).year == start_dt.year
-            and datetime.fromtimestamp(p.stat().st_mtime).month == start_dt.month
-        ]
+    collector = TurkeyCollector(
+        base_path=args.path,
+        max_retries=args.retries
     )
 
-    if len(files_with_html) == 0:
-        latest_file = "0"
-    else:
-        latest_file = files_with_html[-1].name.split("-")[1]
-        print(
-            f"Most recently downloaded HS8 code for the required year - {latest_file}\nContinue downloading process ..."
-        )
+    results = await collector.download_range(
+        year=args.year,
+        start_month=args.start_month,
+        end_month=args.end_month,
+        kod=args.kod,
+        concurrent=args.concurrent
+    )
 
-    for batch in batches:
-
-        if latest_file < batch[-1]:
-
-            # Заполнение поля с пакетами кодов
-            await page.fill(f"#{cn_input_id}", ",".join(batch))
-
-            # Ожидание открытия новой вкладки с отчетом и обработка исключения с таймаутом ответа от сайта:
-            async with context.expect_page() as new_page_info:
-                await page.wait_for_selector(
-                    'button:has-text("Make Report")', state="visible"
-                )
-                await page.get_by_role("button", name="Make Report").click(delay=300)
-
-            new_page = await new_page_info.value
-
-            # Ожидание полной загрузки содержимого
-            await new_page.wait_for_load_state("networkidle")
-            output = await new_page.content()
-
-            # Сохранение HTML файла с отчетом
-            filename = HTML_TABLES_DIR / f"{batch[0]}-{batch[-1]}-{year}.html"
-            filename.write_text(output, encoding="utf-8")
-            print(f"{filename.name} is ready")
-
-            # Закрываем вкладку с отчетом
-            await new_page.close()
-
-    # Завершение работы браузера
-    await context.close()
-    await browser.close()
-
-
-async def main(args):
-
-    if args.codes:
-        async with async_playwright() as playwright:
-            await load_codes(playwright, YEAR)
-
-    elif args.year:
-        async with async_playwright() as playwright:
-            hs_codes = await load_codes(playwright, YEAR)
-            print("Downloading data ...")
-            try:
-                await collect_data(playwright, YEAR, hs_codes)
-                print("Raw data download completed.")
-            except Error as e:
-                print(f"Error: {e}\nTry to run the script again a bit later.")
+    logger.info(f"\n=== ИТОГИ ===")
+    logger.info(f"Успешно: {len(results['success'])}")
+    logger.info(f"Ошибок: {len(results['failed'])}")
+    if results['failed']:
+        logger.warning(f"Не удалось скачать: {', '.join(results['failed'])}")
 
 
 if __name__ == "__main__":
-    DATA_URL = "https://biruni.tuik.gov.tr/disticaretapp/disticaret_ing.zul?param1=4&param2=24&sitcrev=0&isicrev=0&sayac=5902"
-    COUNTRY_ID = "75"  ## 75 - Россия
-    BATCH_SIZE = 25  # максимальное количество кодов в одном отчете - 25
-    project_root = Path(__file__).resolve().parent.parent.parent
-    HS_CODES_DIR = project_root / "data_raw" / "turkey" / "hs_codes_json"
-
-    args = parse_arguments()
-    if args.codes is not None:
-        YEAR = str(args.codes)
-    elif args.year is not None:
-        YEAR = str(args.year)
-
-    CODES_FILE_PATH = HS_CODES_DIR / f"turkey_codes_{YEAR}.json"
-    HTML_TABLES_DIR = (
-        project_root / "data_raw" / "turkey" / "raw_html_tables" / f"turkey_html_data_{YEAR}"
-    )
-    asyncio.run(main(args))
+    asyncio.run(main())
