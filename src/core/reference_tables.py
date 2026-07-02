@@ -5,6 +5,8 @@ from pipelines.merge_pipeline import (
     load_hs4_labels,
     load_partner_mapping,
     load_strana_mapping,
+    refresh_hs4_reference,
+    refresh_hs4_reference_db,
     save_reference_tables,
 )
 
@@ -13,5 +15,7 @@ __all__ = [
     "load_partner_mapping",
     "load_strana_mapping",
     "load_hs4_labels",
+    "refresh_hs4_reference",
+    "refresh_hs4_reference_db",
     "save_reference_tables",
 ]

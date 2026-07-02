@@ -21,3 +21,8 @@ undetected-chromedriver>=3.5,<4.0
 
 # Tests
 pytest>=8.0,<10.0
+
+# Optional tooling / translation scripts
+openai>=1.40,<3.0
+python-dotenv>=1.0,<2.0
+deep-translator>=1.11,<2.0

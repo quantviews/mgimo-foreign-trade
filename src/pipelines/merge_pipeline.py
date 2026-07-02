@@ -629,6 +629,44 @@ def build_unified_trade_data_enriched_view_sql() -> str:
     """
 
 
+def refresh_hs4_reference(conn: duckdb.DuckDBPyConnection, project_root: Path) -> int:
+    """
+    Reload only hs4_reference from hs4_labels.json and refresh enriched view.
+
+    Does not touch unified_trade_data or other reference tables.
+    """
+    logger.info("Refreshing hs4_reference...")
+    hs4_df = load_hs4_labels(project_root)
+    conn.execute("DROP TABLE IF EXISTS hs4_reference")
+    conn.register("hs4_ref_df", hs4_df)
+    conn.execute("""
+        CREATE TABLE hs4_reference AS
+        SELECT DISTINCT TNVED4, TNVED4_NAME_SHORT, TNVED4_NAME_FULL
+        FROM hs4_ref_df
+        ORDER BY TNVED4
+    """)
+    conn.unregister("hs4_ref_df")
+    conn.execute("CREATE INDEX idx_hs4_ref_tnved4 ON hs4_reference(TNVED4)")
+    logger.info(f"  ... created hs4_reference table with {len(hs4_df)} rows")
+
+    logger.info("Refreshing unified_trade_data_enriched view...")
+    conn.execute(build_unified_trade_data_enriched_view_sql())
+    logger.info("  ... updated unified_trade_data_enriched view")
+    return len(hs4_df)
+
+
+def refresh_hs4_reference_db(output_db_path: Path, project_root: Path) -> int:
+    """Reload hs4_reference in an existing DuckDB file."""
+    conn = duckdb.connect(str(output_db_path))
+    try:
+        return refresh_hs4_reference(conn, project_root)
+    except Exception as e:
+        logger.error(f"Failed to refresh hs4_reference: {e}")
+        raise
+    finally:
+        conn.close()
+
+
 def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
     """
     Save reference tables (TNVED names, country names) as separate tables in DuckDB.

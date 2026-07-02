@@ -30,6 +30,7 @@ NOWCAST_UNIFIED_COLUMNS = (
     "KOL",
     "TNVED4",
     "TNVED6",
+    "TNVED8",
     "TNVED2",
     "TYPE",
 )

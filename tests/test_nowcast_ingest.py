@@ -50,6 +50,7 @@ class TestTransformNowcastToUnified:
         assert row["TNVED2"] == "01"
         assert row["TNVED4"] == "0101"
         assert row["TNVED6"] == "010101"
+        assert row["TNVED8"] == "01010100"
 
     def test_normalizes_strana_and_napr(self):
         raw = _sample_nowcast_raw(type_values=("pred",))

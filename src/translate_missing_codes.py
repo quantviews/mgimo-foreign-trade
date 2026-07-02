@@ -15,8 +15,14 @@ import logging
 import json
 import os
 import time
+import duckdb
 from openai import OpenAI
 from collections import defaultdict
+
+try:
+    from core.normalization_rules import normalize_tnved_code
+except ImportError:
+    from normalization_rules import normalize_tnved_code
 
 # Try to load .env file if python-dotenv is available
 try:
@@ -127,6 +133,150 @@ def load_missing_codes_with_names(reports_dir: Path) -> dict:
     return dict(code_names)
 
 
+def _clean_text(value: object) -> str:
+    """Normalize optional text fields; treat pandas NaN and 'nan' as empty."""
+    if value is None:
+        return ''
+    if isinstance(value, float) and pd.isna(value):
+        return ''
+    text = str(value).strip()
+    return '' if text.lower() == 'nan' else text
+
+
+def load_comtrade_cmd_names_by_level(comtrade_file: Path) -> dict[int, dict[str, str]]:
+    """Load Comtrade cmdDesc grouped by code precision (2/4/6/8/10)."""
+    names_by_level: dict[int, dict[str, str]] = {2: {}, 4: {}, 6: {}, 8: {}, 10: {}}
+    if not comtrade_file.exists():
+        logger.warning(f"Comtrade cmd summary not found: {comtrade_file}")
+        return names_by_level
+
+    df = pd.read_csv(comtrade_file, dtype=str)
+    for _, row in df.iterrows():
+        desc = _clean_text(row.get('cmdDesc', ''))
+        if not desc:
+            continue
+        code10 = normalize_tnved_code(_clean_text(row.get('cmdCode', '')), 10)
+        for level in (2, 4, 6, 8, 10):
+            key = code10[:level]
+            current = names_by_level[level].get(key, '')
+            if len(desc) > len(current):
+                names_by_level[level][key] = desc
+
+    logger.info(
+        "Loaded Comtrade cmdDesc: "
+        + ", ".join(f"L{level}={len(names_by_level[level])}" for level in (2, 4, 6, 8, 10))
+    )
+    return names_by_level
+
+
+def resolve_english_name(
+    code: str,
+    comtrade_names: dict[int, dict[str, str]],
+    report_names: dict[str, str],
+) -> str:
+    """Pick the best available English HS name for a 10-digit code."""
+    code10 = normalize_tnved_code(code, 10)
+    report_name = _clean_text(report_names.get(code10, ''))
+    if report_name:
+        return report_name
+
+    for level in (10, 8, 6, 4, 2):
+        name = _clean_text(comtrade_names.get(level, {}).get(code10[:level], ''))
+        if name:
+            return name
+    return ''
+
+
+def load_db_missing_codes(
+    db_path: Path,
+    comtrade_names: dict[int, dict[str, str]],
+    report_names: dict[str, str],
+    fallback_db_paths: list[Path] | None = None,
+) -> dict:
+    """
+    Load TNVED codes with empty TNVED_NAME from unified_trade_data_enriched.
+
+    Returns:
+        Dictionary mapping code -> list of (source, english_name) tuples
+    """
+    candidate_paths = [db_path]
+    if fallback_db_paths:
+        candidate_paths.extend(fallback_db_paths)
+
+    rows = None
+    used_path = None
+    last_error = None
+    for path in candidate_paths:
+        if not path.exists():
+            continue
+        try:
+            logger.info(f"Loading missing TNVED names from {path}")
+            conn = duckdb.connect(str(path), read_only=True)
+            try:
+                rows = conn.execute("""
+                    SELECT DISTINCT TNVED AS code
+                    FROM unified_trade_data_enriched
+                    WHERE TNVED IS NOT NULL AND TRIM(TNVED) != ''
+                      AND (TNVED_NAME IS NULL OR TRIM(COALESCE(TNVED_NAME, '')) = '')
+                    ORDER BY TNVED
+                """).fetchall()
+                used_path = path
+            finally:
+                conn.close()
+            break
+        except Exception as exc:
+            last_error = exc
+            logger.warning(f"Could not read missing codes from {path}: {exc}")
+
+    if rows is None:
+        logger.error(f"Failed to load missing codes from DuckDB: {last_error}")
+        return {}
+
+    if used_path and used_path != db_path:
+        logger.info(f"Using fallback database: {used_path}")
+
+    missing_codes = {}
+    with_name = 0
+    for (code,) in rows:
+        code10 = normalize_tnved_code(code, 10)
+        english_name = resolve_english_name(code10, comtrade_names, report_names)
+        if english_name:
+            with_name += 1
+        missing_codes[code10] = [('db', english_name)]
+
+    logger.info(f"DB missing codes: {len(missing_codes):,} ({with_name:,} with English names)")
+    return missing_codes
+
+
+def flatten_report_names(reports_dir: Path) -> dict[str, str]:
+    """Flatten country missing-code reports to code -> best English name."""
+    code_names = load_missing_codes_with_names(reports_dir)
+    return {
+        code: get_best_name_for_translation(code, names_list)
+        for code, names_list in code_names.items()
+        if get_best_name_for_translation(code, names_list)
+    }
+
+
+def export_db_missing_codes_csv(missing_codes: dict, output_csv: Path) -> None:
+    """Export DB gap list for review."""
+    rows = []
+    for code, names_list in sorted(missing_codes.items()):
+        english_name = get_best_name_for_translation(code, names_list)
+        rows.append({
+            'TNVED': code,
+            'HS_NAME': english_name,
+            'TNVED2': code[:2],
+            'TNVED4': code[:4],
+            'TNVED6': code[:6],
+            'TNVED8': code[:8],
+        })
+
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows).to_csv(output_csv, index=False, encoding='utf-8-sig')
+    logger.info(f"Exported {len(rows)} DB missing codes to {output_csv}")
+
+
 def get_best_name_for_translation(code: str, names_by_country: list) -> str:
     """
     Select the best name for translation from multiple country sources.
@@ -147,7 +297,25 @@ def get_best_name_for_translation(code: str, names_by_country: list) -> str:
     return sorted_names[0][1]
 
 
-def translate_with_chatgpt(client: OpenAI, text: str, max_retries: int = 3) -> str:
+def translate_offline(text: str) -> str:
+    """Translate text to Russian without OpenAI (Google Translate fallback)."""
+    if not text or not text.strip():
+        return ''
+    try:
+        from deep_translator import GoogleTranslator
+        return GoogleTranslator(source='auto', target='ru').translate(text.strip())
+    except Exception as e:
+        logger.warning(f"Offline translation failed: {e}")
+        return ''
+
+
+def translate_with_chatgpt(
+    client: OpenAI | None,
+    text: str,
+    max_retries: int = 3,
+    *,
+    offline: bool = False,
+) -> str:
     """
     Translate text to Russian using ChatGPT API.
     
@@ -161,6 +329,9 @@ def translate_with_chatgpt(client: OpenAI, text: str, max_retries: int = 3) -> s
     """
     if not text or not text.strip():
         return ''
+
+    if offline or client is None:
+        return translate_offline(text)
     
     prompt = f"""Translate the following official HS (Harmonized System) commodity code name to Russian.
 
@@ -233,10 +404,12 @@ customs classification documents."""
 def translate_missing_codes(
     missing_codes: dict,
     russian_names: dict,
-    api_key: str,
+    api_key: str | None,
     output_file: Path,
     resume_file: Path = None,
-    max_codes: int = None
+    max_codes: int = None,
+    *,
+    offline: bool = False,
 ) -> dict:
     """
     Translate missing codes to Russian.
@@ -255,7 +428,7 @@ def translate_missing_codes(
     logger.info("Starting translation process...")
     
     # Initialize OpenAI client
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key) if api_key and not offline else None
     
     # Load existing translations from both output_file and resume_file
     translations = {}
@@ -292,8 +465,9 @@ def translate_missing_codes(
             continue
         
         best_name = get_best_name_for_translation(code, names_list)
-        if best_name:
-            codes_to_translate.append((code, best_name))
+        if not best_name:
+            best_name = f"Harmonized System code {code}"
+        codes_to_translate.append((code, best_name))
     
     logger.info(f"Codes to translate: {len(codes_to_translate):,}")
     logger.info(f"Codes already in Russian reference: {sum(1 for c in missing_codes.keys() if c in russian_names):,}")
@@ -320,7 +494,7 @@ def translate_missing_codes(
             skipped_count += 1
             continue
         
-        translated = translate_with_chatgpt(client, name)
+        translated = translate_with_chatgpt(client, name, offline=offline)
         if translated:
             translations[code] = {
                 'original_name': name,
@@ -391,6 +565,27 @@ def main():
         metavar='N',
         help='Test mode: translate only first N codes (e.g., --test 5 for 5 codes)'
     )
+    parser.add_argument(
+        '--offline',
+        action='store_true',
+        help='Translate via Google Translate instead of OpenAI (no API key required)'
+    )
+    parser.add_argument(
+        '--retranslate-bad',
+        action='store_true',
+        help='Retranslate entries with empty/short Russian names in the output JSON'
+    )
+    parser.add_argument(
+        '--from-db',
+        action='store_true',
+        help='Translate TNVED codes that are missing names in unified_trade_data.duckdb'
+    )
+    parser.add_argument(
+        '--db-path',
+        type=Path,
+        default=None,
+        help='Path to unified_trade_data.duckdb (default: db/unified_trade_data.duckdb)'
+    )
     args = parser.parse_args()
     
     script_dir = Path(__file__).resolve().parent
@@ -401,10 +596,11 @@ def main():
     metadata_dir = project_root / 'metadata'
     output_dir = project_root / 'metadata' / 'translations'
     output_dir.mkdir(parents=True, exist_ok=True)
+    db_path = args.db_path or (project_root / 'db' / 'unified_trade_data.duckdb')
     
     # Get API key from environment variable or .env file
     api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
+    if not api_key and not args.offline:
         logger.error("OPENAI_API_KEY not found!")
         logger.info("")
         logger.info("Please set it using one of these methods:")
@@ -420,14 +616,36 @@ def main():
         logger.info("3. Install python-dotenv for .env support:")
         logger.info("   pip install python-dotenv")
         logger.info("")
+        logger.info("Or rerun with --offline to use Google Translate fallback.")
+        logger.info("")
         return
+    if args.offline:
+        logger.info("Offline mode: using Google Translate fallback (no OpenAI)")
     
     # Load Russian names
     tnved_file = metadata_dir / 'tnved.csv'
     russian_names = load_russian_tnved_names(tnved_file)
     
     # Load missing codes
-    missing_codes = load_missing_codes_with_names(reports_dir)
+    if args.from_db:
+        comtrade_names = load_comtrade_cmd_names_by_level(
+            metadata_dir / 'comtrade_cmdcode_summary.csv'
+        )
+        report_names = flatten_report_names(reports_dir)
+        missing_codes = load_db_missing_codes(
+            db_path,
+            comtrade_names,
+            report_names,
+            fallback_db_paths=[
+                project_root / 'db' / 'unified_trade_data_2025_2026.duckdb',
+            ],
+        )
+        export_db_missing_codes_csv(
+            missing_codes,
+            reports_dir / 'db_tnved_missing_codes.csv',
+        )
+    else:
+        missing_codes = load_missing_codes_with_names(reports_dir)
     
     # Output files (use test prefix if in test mode)
     if args.test:
@@ -438,6 +656,24 @@ def main():
         output_json = output_dir / 'missing_codes_translations.json'
         output_csv = output_dir / 'missing_codes_translations.csv'
         resume_file = output_dir / 'translations_resume.json'
+
+    if args.retranslate_bad and output_json.exists():
+        with open(output_json, 'r', encoding='utf-8') as f:
+            existing = json.load(f)
+        bad_codes = {
+            code
+            for code, data in existing.items()
+            if len(_clean_text(data.get('russian_name', ''))) <= 2
+            or _clean_text(data.get('original_name', '')).lower() == 'nan'
+        }
+        if bad_codes:
+            logger.info(f"Removing {len(bad_codes)} bad translations for re-translation")
+            for code in bad_codes:
+                existing.pop(code, None)
+            with open(output_json, 'w', encoding='utf-8') as f:
+                json.dump(existing, f, ensure_ascii=False, indent=2)
+            if resume_file.exists():
+                resume_file.unlink()
     
     # Translate
     translations = translate_missing_codes(
@@ -446,7 +682,8 @@ def main():
         api_key,
         output_json,
         resume_file,
-        max_codes=args.test
+        max_codes=args.test,
+        offline=args.offline,
     )
     
     # Save CSV
