@@ -1,0 +1,315 @@
+---
+title: "Бюллетень: торговля с Индией"
+subtitle: "Ежемесячный выпуск"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-title: ""
+    toc-depth: 2
+    toc-location: left
+    code-fold: true
+    fig-align: center
+    include-in-header:
+      - text: |
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+          <style>
+            body, .quarto-title-banner, main#quarto-document-content {
+              font-family: "Source Sans Pro", sans-serif;
+            }
+          </style>
+---
+
+```{r}
+#| include: false
+knitr::opts_knit$set(root.dir = normalizePath("."))
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 11,
+  fig.height = 7
+)
+
+library(tidyverse)
+library(arrow)
+library(plotly)
+library(stringi)
+library(showtext)
+library(sysfonts)
+library(patchwork)
+library(ggtext)
+
+font_add_google("Source Sans 3", "ssp")
+showtext_auto()
+
+clean_legend_plotly <- function(p){
+  for (i in 1:length(p$x$data)) {
+    if (!is.null(p$x$data[[i]]$name)) {
+      p$x$data[[i]]$name <- str_extract(p$x$data[[i]]$name, "(?<=\\()[^,]*(?=,)")
+    }
+  }
+  p
+}
+
+mgimo_colors <- c(
+  primary    = "#003d7a",
+  secondary  = "#e74c3c",
+  accent1    = "#27ae60",
+  accent2    = "#3498db",
+  accent3    = "#f39c12",
+  text       = "#2c3e50",
+  light_bg   = "#f8f9fa"
+)
+
+site_bg <- mgimo_colors[["light_bg"]]
+
+theme_groups <- function() {
+  theme_minimal(base_size = 18, base_family = "ssp") +
+    theme(
+      panel.grid.minor = element_blank(),
+      panel.grid.major.y = element_blank(),
+      legend.position = "none",
+      panel.background = element_rect(fill = site_bg, colour = NA),
+      plot.background = element_rect(fill = site_bg, colour = NA),
+      panel.border = element_rect(colour = NA, fill = NA),
+      axis.title.x = element_text(size = 16, color = "grey40", family = "ssp")
+    )
+}
+
+patch_ggbreak_svg <- function(path, bg = site_bg) {
+  bg <- toupper(bg)
+  svg <- readLines(path, warn = FALSE, encoding = "UTF-8")
+  svg <- gsub("#FFFFFF", bg, svg, fixed = TRUE)
+  svg <- gsub("#EBEBEB", bg, svg, fixed = TRUE)
+  svg <- gsub(
+    'font-family: "[^"]+"',
+    'font-family: "Source Sans Pro"',
+    svg,
+    perl = TRUE
+  )
+  writeLines(svg, path, useBytes = TRUE)
+}
+
+trade_balance <- read_parquet("data/trade_balance_india.parquet")
+df_groups <- read_parquet("data/data_4_india.parquet")
+data_oil <- read_parquet("data/data_oil_export_india.parquet")
+
+date_min <- min(trade_balance$PERIOD)
+date_max <- max(trade_balance$PERIOD)
+report_month <- stri_datetime_format(date_max, format = "LLLL yyyy", locale = "ru")
+
+pl_trade_balance <-
+  trade_balance %>%
+  mutate(
+    `Стоимость, млрд долл.` = round(STOIM / 10^9, 1),
+    Показатель = case_when(
+      NAPR == "ЭК" ~ "Экспорт",
+      NAPR == "ИМ" ~ "Импорт",
+      NAPR == "ТБ" ~ "Торговый баланс"
+    )
+  ) %>%
+  rename(Дата = PERIOD) %>%
+  ggplot() +
+  geom_col(
+    data = ~ filter(.x, Показатель == "Торговый баланс"),
+    aes(Дата, `Стоимость, млрд долл.`, fill = Показатель)
+  ) +
+  geom_line(
+    data = ~ filter(.x, Показатель != "Торговый баланс"),
+    aes(Дата, `Стоимость, млрд долл.`, color = Показатель),
+    linewidth = I(1)
+  ) +
+  scale_color_manual(
+    values = c("Экспорт" = mgimo_colors[["secondary"]], "Импорт" = mgimo_colors[["primary"]]),
+    name = NULL
+  ) +
+  scale_fill_manual(
+    values = c("Торговый баланс" = mgimo_colors[["accent1"]]),
+    name = NULL
+  ) +
+  scale_x_date(
+    breaks = seq(date_min, date_max, by = "year"),
+    labels = scales::label_date("%Y")
+  ) +
+  labs(x = NULL, y = NULL) +
+  theme_classic(base_size = 13, base_family = "ssp") +
+  coord_cartesian(clip = "off") +
+  theme(
+    legend.position = "bottom",
+    legend.key.width = unit(1.1, "cm"),
+    strip.background = element_blank(),
+    axis.text.x = element_text(size = 10),
+    panel.spacing.y = unit(3, "cm"),
+    panel.spacing.x = unit(3, "cm"),
+    panel.background = element_rect(fill = "transparent"),
+    plot.background = element_rect(fill = "transparent"),
+    legend.background = element_rect(fill = "transparent")
+  )
+
+pl_oil_export <-
+  data_oil %>%
+  mutate(`Экспорт, млн т` = round(NETTO, 1)) %>%
+  rename(Дата = PERIOD) %>%
+  ggplot(aes(x = Дата, y = `Экспорт, млн т`)) +
+  geom_line(color = mgimo_colors[["primary"]], linewidth = I(1)) +
+  geom_point(shape = 21, fill = "white", color = mgimo_colors[["primary"]]) +
+  scale_x_date(
+    breaks = seq(date_min, date_max, by = "year"),
+    labels = scales::label_date("%Y")
+  ) +
+  labs(x = NULL, y = NULL) +
+  theme_classic(base_size = 13, base_family = "ssp") +
+  theme(
+    strip.background = element_blank(),
+    axis.text.x = element_text(size = 10),
+    panel.background = element_rect(fill = "transparent"),
+    plot.background = element_rect(fill = "transparent"),
+    legend.background = element_rect(fill = "transparent")
+  )
+```
+
+## В этом выпуске
+
+* Данные за **`r report_month`**;
+* Lorem ipsum dolor sit amet, consectetur adipiscing elit;
+* Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua;
+* Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.
+
+## 1. Импорт, экспорт и торговый баланс
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque habitant morbi tristique senectus et netus.
+
+```{r}
+#| fig-cap: "Импорт, экспорт и торговый баланс торговли с Индией, млрд $."
+ggplotly(pl_trade_balance, dynamicTicks = FALSE) %>%
+  layout(
+    font = list(family = "Source Sans Pro", size = 13),
+    legend = list(
+      orientation = "h",
+      x = 0.5,
+      xanchor = "center",
+      y = -0.08,
+      font = list(family = "Source Sans Pro", size = 13)
+    )
+  ) %>%
+  clean_legend_plotly()
+```
+
+**Главное:**
+
+- Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+- Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae.
+- Integer nec odio praesent libero sed cursus ante dapibus diam.
+
+## 2. Экспорт нефти
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas sed diam eget risus varius blandit.
+
+```{r}
+#| fig-cap: "Экспорт нефти в Индию в натуральном выражении, млн т."
+ggplotly(pl_oil_export, dynamicTicks = FALSE) %>%
+  layout(
+    font = list(family = "Source Sans Pro", size = 13)
+  )
+```
+
+**Главное:**
+
+- Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+- Cras ultricies mi eu turpis hendrerit fringilla.
+- Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.
+
+## 3. Торговля помимо сырой нефти
+
+```{r}
+#| fig-cap: "Топ-12 товарных позиций экспорта и импорта по изменению стоимости за 12 месяцев. Зелёный сегмент — рост, красный — снижение."
+#| fig-width: 10
+#| fig-height: 8
+
+plot_export <- df_groups %>%
+  filter(NAPR == "ЭК", TNVED4 != "2709") %>%
+  mutate(
+    across(c(STOIM_last12, STOIM_year_before, STOIM_diff), ~ .x * 1000),
+    STOIM_diff_abs = abs(STOIM_diff),
+    type = if_else(STOIM_diff > 0, "positive", "negative"),
+    position_label = (STOIM_last12 + STOIM_year_before) / 2,
+    label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
+  ) %>%
+  arrange(-STOIM_diff_abs) %>%
+  head(12) %>%
+  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
+  ggplot(aes(color = type)) +
+  geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string)) +
+  geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = site_bg, shape = 21) +
+  scale_color_manual(
+    values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]),
+    breaks = c("positive", "negative")
+  ) +
+  geom_text(aes(x = position_label, y = TNVED4_string, label = label), nudge_y = 0.41, size = 5) +
+  coord_cartesian(clip = "off") +
+  theme_groups() +
+  labs(y = NULL,
+       x = "млн долл.",
+       title = 'Экспорт')
+
+plot_import <- df_groups %>%
+  filter(NAPR == "ИМ") %>%
+  mutate(
+    across(c(STOIM_last12, STOIM_year_before, STOIM_diff), ~ .x * 1000),
+    STOIM_diff_abs = abs(STOIM_diff),
+    type = if_else(STOIM_diff > 0, "positive", "negative"),
+    position_label = (STOIM_last12 + STOIM_year_before) / 2,
+    label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
+  ) %>%
+  arrange(-STOIM_diff_abs) %>%
+  head(12) %>%
+  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
+  ggplot(aes(color = type)) +
+  geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string)) +
+  geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = site_bg, shape = 21) +
+  scale_color_manual(
+    values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]),
+    breaks = c("positive", "negative")
+  ) +
+  geom_text(aes(x = position_label, y = TNVED4_string, label = label), nudge_y = 0.41, size = 5) +
+  coord_cartesian(clip = "off") +
+  theme_groups() +
+  labs(y = NULL,
+       x = "млн долл.",
+       title = 'Импорт')
+
+title_box_theme <- theme(
+    plot.title.position = "plot",
+    plot.title = ggtext::element_textbox_simple(
+      size = 18,
+      face = "bold",
+      family = 'ssp',
+      color = mgimo_colors[["primary"]],
+      halign = 0.05,
+      padding = margin(4, 10, 4, 10),
+      margin = margin(0, 0, 6, r = 0),
+      fill = 'transparent',
+      box.color = mgimo_colors[["primary"]],
+      linewidth = 2,
+      r = unit(6, "pt")
+  )
+  )
+
+groups_ft <- (plot_export + title_box_theme) / (plot_import + title_box_theme)
+
+fig_dir <- knitr::opts_chunk$get("fig.path")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+fig_ft <- file.path(fig_dir, "groups-ft.svg")
+ggsave(fig_ft, plot = groups_ft, width = 10, height = 8, device = svglite::svglite, bg = site_bg)
+patch_ggbreak_svg(fig_ft)
+knitr::include_graphics(fig_ft)
+```
+
+**Главное:**
+
+- Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+- Nulla consequat massa quis enim.
+- Curabitur ullamcorper ultricies nisi.

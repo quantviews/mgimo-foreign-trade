@@ -1,0 +1,449 @@
+---
+title: "Экспорт энергоресурсов из РФ в Китай"
+output:
+  html_notebook:
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 10,
+  fig.height = 5.5
+)
+```
+
+> **Не входит в публикацию сайта.** Рендер: `rmarkdown::render("site/cn_energy_trade.Rmd")` из корня репозитория.
+
+## Объект анализа
+
+Только **экспорт из РФ в Китай** (`NAPR = 'ЭК'`, `STRANA = 'CN'`, `TYPE = 'fact'`).
+
+| Группа | TNVED | Стоимость | Физический объём | Средняя цена |
+|--------|-------|-----------|------------------|--------------|
+| Нефть сырая | 2709 | `STOIM`, USD | `NETTO`, т | USD/т |
+| Нефтепродукты | 2710, 2712–2715 | то же | то же | USD/т |
+| **СПГ** | 2711 → **271111** | то же | то же | USD/т |
+| **Газ трубопроводный** | 2711 → **271121** | то же | то же | USD/т |
+| Прочие газовые углеводороды | 2711 → прочие 6-зн. | то же | то же | USD/т |
+| Уголь | 2701, 2702, 2704 | то же | то же | USD/т |
+
+Для Китая `STOIM` в базе — **полные USD**. Средняя цена: `STOIM / NETTO_т`.
+
+Разбивка газа — по **TNVED6** внутри позиции 2711: `271111` (природный газ сжиженный = СПГ), `271121` (природный газ газообразный = трубопроводный), остальные коды 2711 (пропан, бутан и др.).
+
+```{r libraries}
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(duckdb)
+  library(arrow)
+  library(jsonlite)
+  library(scales)
+})
+```
+
+```{r paths}
+`%||%` <- function(x, y) if (!is.null(x) && nzchar(x)) x else y
+
+repo_root <- Sys.getenv("MGIMO_REPO_ROOT") %||%
+  normalizePath(
+    if (basename(getwd()) == "site") ".." else getwd(),
+    winslash = "/",
+    mustWork = TRUE
+  )
+
+db_path <- Sys.getenv("MGIMO_DUCKDB_PATH") %||%
+  file.path(repo_root, "db", "unified_trade_data.duckdb")
+
+out_dir <- file.path(repo_root, "site", "data", "cn_energy")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+if (!file.exists(db_path)) {
+  stop("DuckDB not found: ", db_path)
+}
+```
+
+```{r energy-groups}
+tnved4_codes <- c(
+  "2709",
+  "2710", "2712", "2713", "2714", "2715",
+  "2711",
+  "2701", "2702", "2704"
+)
+tnved4_sql <- paste0("'", tnved4_codes, "'", collapse = ", ")
+
+group_order <- c(
+  "Нефть сырая",
+  "Нефтепродукты",
+  "СПГ",
+  "Газ трубопроводный",
+  "Прочие газовые углеводороды",
+  "Уголь"
+)
+
+group_colors <- c(
+  "Нефть сырая" = "#0B3D5C",
+  "Нефтепродукты" = "#C45B1C",
+  "СПГ" = "#1E88E5",
+  "Газ трубопроводный" = "#43A047",
+  "Прочие газовые углеводороды" = "#8E24AA",
+  "Уголь" = "#5D4037"
+)
+
+classify_energy_group <- function(df) {
+  df %>%
+    mutate(
+      TNVED6 = str_pad(TNVED6, 6, pad = "0"),
+      energy_group = case_when(
+        TNVED4 == "2711" & str_starts(TNVED6, "271111") ~ "lng",
+        TNVED4 == "2711" & str_starts(TNVED6, "271121") ~ "pipeline_gas",
+        TNVED4 == "2711" ~ "other_gas",
+        TNVED4 == "2709" ~ "crude_oil",
+        TNVED4 %in% c("2710", "2712", "2713", "2714", "2715") ~ "oil_products",
+        TNVED4 %in% c("2701", "2702", "2704") ~ "coal",
+        TRUE ~ NA_character_
+      ),
+      energy_group_ru = case_when(
+        energy_group == "lng" ~ "СПГ",
+        energy_group == "pipeline_gas" ~ "Газ трубопроводный",
+        energy_group == "other_gas" ~ "Прочие газовые углеводороды",
+        energy_group == "crude_oil" ~ "Нефть сырая",
+        energy_group == "oil_products" ~ "Нефтепродукты",
+        energy_group == "coal" ~ "Уголь",
+        TRUE ~ NA_character_
+      )
+    )
+}
+```
+
+```{r helpers}
+add_metrics <- function(df) {
+  df %>%
+    mutate(
+      stoim_usd = stoim,
+      stoim_bn = stoim_usd / 1e9,
+      netto_t = netto_kg / 1000,
+      netto_mt = netto_t / 1e6,
+      price_usd_t = if_else(netto_t > 0, stoim_usd / netto_t, NA_real_)
+    )
+}
+
+fmt_bn <- function(x) round(x, 2)
+fmt_mt <- function(x) round(x, 2)
+fmt_price <- function(x) round(x, 1)
+fmt_pct <- function(x) round(100 * x, 1)
+
+period_metrics <- function(df) {
+  df %>%
+    group_by(energy_group_ru) %>%
+    summarise(
+      stoim_bn = sum(stoim_usd, na.rm = TRUE) / 1e9,
+      netto_mt = sum(netto_t, na.rm = TRUE) / 1e6,
+      .groups = "drop"
+    ) %>%
+    mutate(
+      price_usd_t = if_else(netto_mt > 0, stoim_bn * 1e9 / (netto_mt * 1e6), NA_real_),
+      energy_group_ru = factor(energy_group_ru, levels = group_order)
+    ) %>%
+    arrange(energy_group_ru)
+}
+```
+
+```{r connect-db}
+con <- dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE)
+```
+
+```{r load-monthly}
+raw_monthly <- dbGetQuery(
+  con,
+  sprintf(
+    "
+    SELECT
+      PERIOD,
+      TNVED4,
+      TNVED6,
+      SUM(NETTO) AS netto_kg,
+      SUM(STOIM) AS stoim
+    FROM unified_trade_data
+    WHERE STRANA = 'CN'
+      AND NAPR = 'ЭК'
+      AND TYPE = 'fact'
+      AND TNVED4 IN (%s)
+    GROUP BY PERIOD, TNVED4, TNVED6
+    ORDER BY PERIOD, TNVED4, TNVED6
+    ",
+    tnved4_sql
+  )
+) %>%
+  mutate(
+    PERIOD = as.Date(PERIOD),
+    TNVED4 = str_pad(TNVED4, 4, pad = "0"),
+    year = year(PERIOD),
+    month = month(PERIOD)
+  ) %>%
+  add_metrics() %>%
+  classify_energy_group() %>%
+  filter(!is.na(energy_group))
+
+monthly_groups <- raw_monthly %>%
+  group_by(PERIOD, year, month, energy_group, energy_group_ru) %>%
+  summarise(
+    stoim_usd = sum(stoim_usd, na.rm = TRUE),
+    netto_t = sum(netto_t, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    stoim_bn = stoim_usd / 1e9,
+    netto_mt = netto_t / 1e6,
+    price_usd_t = if_else(netto_t > 0, stoim_usd / netto_t, NA_real_),
+    energy_group_ru = factor(energy_group_ru, levels = group_order)
+  ) %>%
+  arrange(PERIOD, energy_group_ru)
+
+monthly_groups %>%
+  summarise(min_period = min(PERIOD), max_period = max(PERIOD))
+```
+
+## Годовые итоги
+
+По отдельной таблице на каждую товарную группу (год — строка).
+
+```{r annual-table, results='asis'}
+annual_groups <- monthly_groups %>%
+  group_by(year, energy_group, energy_group_ru) %>%
+  summarise(
+    stoim_bn = sum(stoim_usd, na.rm = TRUE) / 1e9,
+    netto_mt = sum(netto_t, na.rm = TRUE) / 1e6,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    price_usd_t = if_else(netto_mt > 0, stoim_bn * 1e9 / (netto_mt * 1e6), NA_real_),
+    energy_group_ru = factor(energy_group_ru, levels = group_order)
+  )
+
+annual_display <- annual_groups %>%
+  arrange(energy_group_ru, year) %>%
+  transmute(
+    energy_group,
+    energy_group_ru,
+    Год = year,
+    `Стоимость, млрд USD` = fmt_bn(stoim_bn),
+    `Объём, млн т` = fmt_mt(netto_mt),
+    `Цена, USD/т` = fmt_price(price_usd_t)
+  )
+
+for (grp in group_order) {
+  tbl <- annual_display %>%
+    filter(energy_group_ru == grp) %>%
+    select(Год, `Стоимость, млрд USD`, `Объём, млн т`, `Цена, USD/т`)
+
+  if (nrow(tbl) == 0) {
+    next
+  }
+
+  cat("\n\n### ", grp, "\n\n", sep = "")
+  print(knitr::kable(tbl, align = c("l", "r", "r", "r")))
+}
+
+annual_total <- annual_groups %>%
+  group_by(year) %>%
+  summarise(
+    stoim_bn = sum(stoim_bn, na.rm = TRUE),
+    netto_mt = sum(netto_mt, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    price_usd_t = if_else(netto_mt > 0, stoim_bn * 1e9 / (netto_mt * 1e6), NA_real_)
+  ) %>%
+  transmute(
+    Год = year,
+    `Стоимость, млрд USD` = fmt_bn(stoim_bn),
+    `Объём, млн т` = fmt_mt(netto_mt),
+    `Цена, USD/т` = fmt_price(price_usd_t)
+  )
+
+cat("\n\n### Итого энергоресурсы\n\n")
+print(knitr::kable(annual_total, align = c("l", "r", "r", "r")))
+```
+
+## Январь–апрель 2026 к январю–апрелю 2025
+
+```{r ytd-jan-apr}
+jan_apr <- monthly_groups %>% filter(month %in% 1:4)
+
+y2025 <- period_metrics(jan_apr %>% filter(year == 2025)) %>%
+  rename(
+    stoim_bn_2025 = stoim_bn,
+    netto_mt_2025 = netto_mt,
+    price_2025 = price_usd_t
+  )
+
+y2026 <- period_metrics(jan_apr %>% filter(year == 2026)) %>%
+  rename(
+    stoim_bn_2026 = stoim_bn,
+    netto_mt_2026 = netto_mt,
+    price_2026 = price_usd_t
+  )
+
+ytd_compare <- y2025 %>%
+  full_join(y2026, by = "energy_group_ru") %>%
+  mutate(
+    d_stoim_pct = (stoim_bn_2026 / stoim_bn_2025) - 1,
+    d_netto_pct = (netto_mt_2026 / netto_mt_2025) - 1,
+    d_price_pct = (price_2026 / price_2025) - 1
+  )
+
+ytd_display <- ytd_compare %>%
+  transmute(
+    Группа = energy_group_ru,
+    `Стоимость 2025, млрд` = fmt_bn(stoim_bn_2025),
+    `Стоимость 2026, млрд` = fmt_bn(stoim_bn_2026),
+    `Δ стоимость, %` = fmt_pct(d_stoim_pct),
+    `Объём 2025, млн т` = fmt_mt(netto_mt_2025),
+    `Объём 2026, млн т` = fmt_mt(netto_mt_2026),
+    `Δ объём, %` = fmt_pct(d_netto_pct),
+    `Цена 2025, USD/т` = fmt_price(price_2025),
+    `Цена 2026, USD/т` = fmt_price(price_2026),
+    `Δ цена, %` = fmt_pct(d_price_pct)
+  )
+
+knitr::kable(ytd_display, caption = "Сравнение января–апреля")
+
+ytd_total <- jan_apr %>%
+  group_by(year) %>%
+  summarise(
+    stoim_bn = sum(stoim_usd, na.rm = TRUE) / 1e9,
+    netto_mt = sum(netto_t, na.rm = TRUE) / 1e6,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    price_usd_t = if_else(netto_mt > 0, stoim_bn * 1e9 / (netto_mt * 1e6), NA_real_)
+  ) %>%
+  pivot_longer(
+    cols = c(stoim_bn, netto_mt, price_usd_t),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  mutate(metric = recode(metric,
+    stoim_bn = "Стоимость, млрд USD",
+    netto_mt = "Объём, млн т",
+    price_usd_t = "Цена, USD/т"
+  )) %>%
+  pivot_wider(names_from = year, values_from = value)
+
+knitr::kable(ytd_total, caption = "Итого январь–апрель, все группы")
+```
+
+## Месячная динамика — стоимость
+
+```{r plot-stoim}
+ggplot(monthly_groups, aes(x = PERIOD, y = stoim_bn, color = energy_group_ru)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.1) +
+  scale_color_manual(values = group_colors) +
+  scale_y_continuous(labels = label_number(accuracy = 0.1)) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    title = "Экспорт в Китай: стоимость",
+    subtitle = "млрд USD в месяц",
+    x = NULL, y = "млрд USD", color = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "bottom")
+```
+
+```{r plot-stoim-facet}
+ggplot(monthly_groups, aes(x = PERIOD, y = stoim_bn)) +
+  geom_line(color = "#0B3D5C", linewidth = 0.8) +
+  geom_point(color = "#0B3D5C", size = 1) +
+  facet_wrap(~energy_group_ru, scales = "free_y", ncol = 3) +
+  scale_y_continuous(labels = label_number(accuracy = 0.1)) +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(title = "Стоимость экспорта", x = NULL, y = "млрд USD/мес") +
+  theme_minimal(base_size = 12) +
+  theme(strip.text = element_text(face = "bold"))
+```
+
+## Месячная динамика — физические объёмы
+
+```{r plot-volume}
+ggplot(monthly_groups, aes(x = PERIOD, y = netto_mt, color = energy_group_ru)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.1) +
+  scale_color_manual(values = group_colors) +
+  scale_y_continuous(labels = label_number(accuracy = 0.1)) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    title = "Экспорт в Китай: физические объёмы",
+    subtitle = "млн тонн NETTO в месяц",
+    x = NULL, y = "млн т", color = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "bottom")
+```
+
+```{r plot-volume-facet}
+ggplot(monthly_groups, aes(x = PERIOD, y = netto_mt)) +
+  geom_line(color = "#2E7D32", linewidth = 0.8) +
+  geom_point(color = "#2E7D32", size = 1) +
+  facet_wrap(~energy_group_ru, scales = "free_y", ncol = 3) +
+  scale_y_continuous(labels = label_number(accuracy = 0.1)) +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(title = "Физические объёмы экспорта", x = NULL, y = "млн т/мес") +
+  theme_minimal(base_size = 12) +
+  theme(strip.text = element_text(face = "bold"))
+```
+
+## Месячная динамика — средние цены
+
+```{r plot-price}
+ggplot(monthly_groups, aes(x = PERIOD, y = price_usd_t, color = energy_group_ru)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.1) +
+  scale_color_manual(values = group_colors) +
+  scale_y_continuous(labels = label_number(accuracy = 1)) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    title = "Экспорт в Китай: средневзвешенная цена",
+    subtitle = "USD/т (STOIM / NETTO)",
+    x = NULL, y = "USD/т", color = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "bottom")
+```
+
+```{r plot-price-facet}
+ggplot(monthly_groups, aes(x = PERIOD, y = price_usd_t)) +
+  geom_line(color = "#C45B1C", linewidth = 0.8) +
+  geom_point(color = "#C45B1C", size = 1) +
+  facet_wrap(~energy_group_ru, scales = "free_y", ncol = 3) +
+  scale_y_continuous(labels = label_number(accuracy = 1)) +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(title = "Средневзвешенная цена", x = NULL, y = "USD/т") +
+  theme_minimal(base_size = 12) +
+  theme(strip.text = element_text(face = "bold"))
+```
+
+## Экспорт готовых данных
+
+```{r export}
+write_parquet(annual_groups, file.path(out_dir, "cn_energy_export_annual.parquet"))
+write_parquet(ytd_compare, file.path(out_dir, "cn_energy_export_ytd_jan_apr.parquet"))
+write_parquet(monthly_groups, file.path(out_dir, "cn_energy_export_monthly.parquet"))
+
+write_csv(annual_display, file.path(out_dir, "cn_energy_export_annual.csv"))
+write_csv(ytd_display, file.path(out_dir, "cn_energy_export_ytd_jan_apr.csv"))
+write_csv(
+  monthly_groups %>%
+    select(PERIOD, energy_group_ru, stoim_bn, netto_mt, price_usd_t),
+  file.path(out_dir, "cn_energy_export_monthly.csv")
+)
+
+list.files(out_dir, pattern = "cn_energy_export", full.names = TRUE)
+
+dbDisconnect(con, shutdown = TRUE)
+```

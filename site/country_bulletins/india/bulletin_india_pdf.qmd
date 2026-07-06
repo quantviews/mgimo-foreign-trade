@@ -1,0 +1,251 @@
+---
+title: "Бюллетень: торговля с Индией"
+subtitle: "Ежемесячный выпуск — печатная версия"
+date: last-modified
+format:
+  pdf:
+    template: ../../templates/bulletin-country-pdf.tex
+    documentclass: scrartcl
+    classoption:
+      - DIV=12
+      - numbers=noenddot
+    papersize: a4
+    fontsize: 9pt
+    pdf-engine: xelatex
+    mainfont: "Arial"
+    sansfont: "Arial"
+    monofont: "Courier New"
+    geometry:
+      - landscape
+      - top=8mm
+      - bottom=6mm
+      - left=10mm
+      - right=10mm
+    toc: false
+    number-sections: false
+    keep-tex: false
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| include: false
+knitr::opts_knit$set(root.dir = normalizePath("."))
+
+library(tidyverse)
+library(arrow)
+library(stringi)
+library(patchwork)
+library(ggtext)
+
+mgimo_colors <- c(
+  primary   = "#003d7a",
+  secondary = "#e74c3c",
+  accent1   = "#27ae60",
+  accent2   = "#3498db",
+  accent3   = "#f39c12",
+  text      = "#2c3e50",
+  light_bg  = "#f8f9fa"
+)
+
+theme_pdf_base <- function() {
+  theme(
+    text = element_text(color = mgimo_colors[["text"]]),
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.background = element_rect(fill = "white", color = NA),
+    plot.margin = margin(4, 6, 2, 2)
+  )
+}
+
+theme_pdf_timeseries <- function() {
+  theme_classic(base_size = 9) +
+    theme_pdf_base() +
+    theme(
+      legend.position = "bottom",
+      legend.key.width = unit(0.75, "cm"),
+      legend.text = element_text(size = 7.5),
+      legend.margin = margin(t = 1),
+      axis.text = element_text(size = 7, color = mgimo_colors[["text"]]),
+      axis.line = element_line(linewidth = 0.3, color = "grey40"),
+      plot.margin = margin(2, 4, 1, 1)
+    )
+}
+
+theme_pdf_groups <- function() {
+  theme_minimal(base_size = 9) +
+    theme_pdf_base() +
+    theme(
+      panel.grid.minor = element_blank(),
+      panel.grid.major.y = element_blank(),
+      panel.grid.major.x = element_line(linewidth = 0.2, color = "grey90"),
+      legend.position = "none",
+      axis.text.y = element_text(size = 6.6, color = mgimo_colors[["text"]]),
+      axis.text.x = element_text(size = 6.8, color = mgimo_colors[["text"]]),
+      axis.title.x = element_text(size = 7.2, color = "grey40"),
+      plot.margin = margin(2, 4, 1, 1)
+    )
+}
+
+title_box_theme <- theme(
+  plot.title.position = "plot",
+  plot.title = ggtext::element_textbox_simple(
+    size = 9.5,
+    face = "bold",
+    color = mgimo_colors[["primary"]],
+    halign = 0.05,
+    padding = margin(2, 6, 2, 6),
+    margin = margin(0, 0, 2, 0),
+    fill = "transparent",
+    box.color = mgimo_colors[["primary"]],
+    linewidth = 1,
+    r = unit(3, "pt")
+  )
+)
+
+trade_balance <- read_parquet("data/trade_balance_india.parquet")
+df_groups <- read_parquet("data/data_4_india.parquet")
+data_oil <- read_parquet("data/data_oil_export_india.parquet")
+
+date_min <- min(trade_balance$PERIOD)
+date_max <- max(trade_balance$PERIOD)
+report_month <- stri_datetime_format(date_max, format = "LLLL yyyy", locale = "ru")
+
+pl_trade_balance <-
+  trade_balance %>%
+  mutate(
+    `Стоимость, млрд долл.` = round(STOIM / 10^9, 1),
+    Показатель = case_when(
+      NAPR == "ЭК" ~ "Экспорт",
+      NAPR == "ИМ" ~ "Импорт",
+      NAPR == "ТБ" ~ "Торговый баланс"
+    )
+  ) %>%
+  rename(Дата = PERIOD) %>%
+  ggplot() +
+  geom_col(
+    data = ~ filter(.x, Показатель == "Торговый баланс"),
+    aes(Дата, `Стоимость, млрд долл.`, fill = Показатель)
+  ) +
+  geom_line(
+    data = ~ filter(.x, Показатель != "Торговый баланс"),
+    aes(Дата, `Стоимость, млрд долл.`, color = Показатель),
+    linewidth = I(1)
+  ) +
+  scale_color_manual(
+    values = c("Экспорт" = mgimo_colors[["secondary"]], "Импорт" = mgimo_colors[["primary"]]),
+    name = NULL
+  ) +
+  scale_fill_manual(
+    values = c("Торговый баланс" = mgimo_colors[["accent1"]]),
+    name = NULL
+  ) +
+  scale_x_date(
+    breaks = seq(date_min, date_max, by = "year"),
+    labels = scales::label_date("%Y")
+  ) +
+  labs(x = NULL, y = NULL) +
+  theme_pdf_timeseries() +
+  coord_cartesian(clip = "off")
+
+pl_oil_export <-
+  data_oil %>%
+  mutate(`Экспорт, млн т` = round(NETTO, 1)) %>%
+  rename(Дата = PERIOD) %>%
+  ggplot(aes(x = Дата, y = `Экспорт, млн т`)) +
+  geom_line(color = mgimo_colors[["primary"]], linewidth = I(1)) +
+  geom_point(shape = 21, fill = "white", color = mgimo_colors[["primary"]], size = 1.3) +
+  scale_x_date(
+    breaks = seq(date_min, date_max, by = "year"),
+    labels = scales::label_date("%Y")
+  ) +
+  labs(x = NULL, y = NULL) +
+  theme_pdf_timeseries() +
+  theme(legend.position = "none")
+
+plot_export <- df_groups %>%
+  filter(NAPR == "ЭК", TNVED4 != "2709") %>%
+  mutate(
+    across(c(STOIM_last12, STOIM_year_before, STOIM_diff), ~ .x * 1000),
+    STOIM_diff_abs = abs(STOIM_diff),
+    type = if_else(STOIM_diff > 0, "positive", "negative"),
+    position_label = (STOIM_last12 + STOIM_year_before) / 2,
+    label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
+  ) %>%
+  arrange(-STOIM_diff_abs) %>%
+  head(12) %>%
+  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
+  ggplot(aes(color = type)) +
+  geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string), linewidth = 0.45) +
+  geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = "white", shape = 21, size = 1.4) +
+  scale_color_manual(
+    values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]),
+    breaks = c("positive", "negative")
+  ) +
+  geom_text(aes(x = position_label, y = TNVED4_string, label = label), nudge_y = 0.32, size = 2.5) +
+  coord_cartesian(clip = "off") +
+  theme_pdf_groups() +
+  labs(y = NULL, x = "млн долл.", title = "Экспорт")
+
+plot_import <- df_groups %>%
+  filter(NAPR == "ИМ") %>%
+  mutate(
+    across(c(STOIM_last12, STOIM_year_before, STOIM_diff), ~ .x * 1000),
+    STOIM_diff_abs = abs(STOIM_diff),
+    type = if_else(STOIM_diff > 0, "positive", "negative"),
+    position_label = (STOIM_last12 + STOIM_year_before) / 2,
+    label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
+  ) %>%
+  arrange(-STOIM_diff_abs) %>%
+  head(12) %>%
+  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
+  ggplot(aes(color = type)) +
+  geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string), linewidth = 0.45) +
+  geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = "white", shape = 21, size = 1.4) +
+  scale_color_manual(
+    values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]),
+    breaks = c("positive", "negative")
+  ) +
+  geom_text(aes(x = position_label, y = TNVED4_string, label = label), nudge_y = 0.32, size = 2.5) +
+  coord_cartesian(clip = "off") +
+  theme_pdf_groups() +
+  labs(y = NULL, x = "млн долл.", title = "Импорт")
+
+groups_ft <- (plot_export + title_box_theme) / (plot_import + title_box_theme) +
+  plot_layout(heights = c(1, 1))
+
+save_chart <- function(plot, name, width, height) {
+  path <- file.path("pdf_figures", paste0(name, ".png"))
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  ggsave(path, plot = plot, width = width, height = height, dpi = 300, bg = "white")
+  normalizePath(path, winslash = "/", mustWork = FALSE)
+}
+
+fig_balance <- save_chart(pl_trade_balance, "01-balance", 5.2, 2.65)
+fig_oil <- save_chart(pl_oil_export, "02-oil", 5.2, 2.65)
+fig_groups <- save_chart(groups_ft, "03-groups", 5.2, 5.6)
+```
+
+\countrypagebanner{`r report_month`}
+
+\begin{countrypageone}
+\noindent
+\begin{minipage}[t]{0.485\textwidth}
+\vspace{0pt}
+\begin{chartpanel}{01}{Импорт, экспорт и торговый баланс, млрд \$}
+\includegraphics[width=\linewidth,height=0.335\textheight,keepaspectratio]{`r fig_balance`}
+\end{chartpanel}
+\vspace{2pt}
+\begin{chartpanel}{02}{Экспорт нефти, млн т}
+\includegraphics[width=\linewidth,height=0.335\textheight,keepaspectratio]{`r fig_oil`}
+\end{chartpanel}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.485\textwidth}
+\vspace{0pt}
+\begin{chartpanel}{03}{Экспорт и импорт по категориям, млн \$}
+\includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{`r fig_groups`}
+\end{chartpanel}
+\end{minipage}
+\end{countrypageone}
