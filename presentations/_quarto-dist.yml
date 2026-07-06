@@ -1,0 +1,17 @@
+# Профиль для передачи заказчику: один HTML-файл со всеми ресурсами.
+# Сборка из корня проекта:
+#   quarto run presentations/scripts/export_bulletin_charts.R
+#   quarto render presentations/project-overview.qmd --profile dist
+
+format:
+  revealjs:
+    embed-resources: true
+    output-file: project-overview-standalone
+    chalkboard: false
+    html-math-method: plain
+
+execute:
+  freeze: false
+
+params:
+  inline_charts: true

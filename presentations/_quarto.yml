@@ -1,0 +1,31 @@
+project:
+  title: "МГИМО — Национальная торговая статистика"
+  type: default
+  resources:
+    - figures/bulletin/**
+    - figures/nowcast.svg
+    - fonts/**
+
+lang: ru
+
+format:
+  revealjs:
+    theme:
+      - simple
+      - styles/mgimo-reveal.scss
+    css: slides.css
+    width: 1280
+    height: 720
+    margin: 0.06
+    slide-level: 2
+    transition: slide
+    background-transition: fade
+    preview-links: auto
+    auto-stretch: false
+    footer: "Национальная торговая статистика · МГИМО"
+    slide-number: c/t
+    show-slide-number: all
+    chalkboard:
+      buttons: false
+    mermaid:
+      theme: neutral

@@ -1,0 +1,170 @@
+/*-- scss:defaults --*/
+
+$font-family-sans-serif: "PT Sans", "Segoe UI", system-ui, sans-serif !default;
+$font-family-monospace: "Cascadia Code", "Fira Code", Consolas, monospace !default;
+$presentation-heading-font: "PT Serif", Georgia, serif !default;
+
+$body-bg: #f8f9fb !default;
+$body-color: #2c3e50 !default;
+$link-color: #0056b3 !default;
+
+$presentation-font-size-root: 38px !default;
+$presentation-h1-font-size: 1.55em !default;
+$presentation-h2-font-size: 1.25em !default;
+$presentation-h3-font-size: 0.95em !default;
+
+/*-- scss:rules --*/
+
+.reveal {
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.reveal h1,
+.reveal h2,
+.reveal h3,
+.reveal h4 {
+  font-family: $presentation-heading-font;
+  color: #003d7a;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.reveal h1 {
+  border-bottom: 4px solid #e74c3c;
+  padding-bottom: 0.15em;
+  margin-bottom: 0.35em;
+}
+
+.reveal h2 {
+  margin-bottom: 0.55em;
+}
+
+.reveal strong {
+  color: #003d7a;
+}
+
+.reveal a {
+  color: #0056b3;
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 86, 179, 0.35);
+  text-underline-offset: 3px;
+}
+
+.reveal a:hover {
+  color: #e74c3c;
+}
+
+.reveal .slide-number {
+  color: rgba(0, 61, 122, 0.55);
+  background: transparent;
+  font-size: 0.55em;
+}
+
+.reveal .footer {
+  color: rgba(44, 62, 80, 0.65);
+  font-size: 0.42em;
+}
+
+.reveal .quarto-title-block .title {
+  font-family: $presentation-heading-font;
+  color: #003d7a;
+  font-size: 1.35em;
+}
+
+.reveal .quarto-title-block .subtitle {
+  color: #5e6b7a;
+  font-size: 0.72em;
+  margin-top: 0.4em;
+  line-height: 1.35;
+}
+
+.reveal .quarto-title-block .subtitle em {
+  display: block;
+  margin-top: 0.5em;
+  font-size: 0.85em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e74c3c;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.reveal .quarto-title-block .author,
+.reveal .quarto-title-block .institute {
+  color: #2c3e50;
+  font-size: 0.58em;
+}
+
+.reveal section.has-dark-background,
+.reveal section.has-dark-background h1,
+.reveal section.has-dark-background h2,
+.reveal section.has-dark-background h3,
+.reveal section.has-dark-background p,
+.reveal section.has-dark-background li {
+  color: #ffffff !important;
+}
+
+.reveal section.has-dark-background h1 {
+  border-bottom-color: #e74c3c;
+}
+
+.reveal section.has-dark-background strong {
+  color: #ffd6cf;
+}
+
+.reveal ul,
+.reveal ol {
+  display: block;
+  margin-left: 1.1em;
+}
+
+.reveal li {
+  margin-bottom: 0.35em;
+  line-height: 1.25;
+}
+
+.reveal li::marker {
+  color: #e74c3c;
+}
+
+.reveal blockquote {
+  background: #f0f5ff;
+  border-left: 5px solid #003d7a;
+  box-shadow: none;
+  font-style: normal;
+  width: 92%;
+  padding: 0.6em 1em;
+}
+
+.reveal pre {
+  font-size: 0.48em;
+  box-shadow: 0 8px 24px rgba(0, 61, 122, 0.08);
+}
+
+.reveal code {
+  color: #c0392b;
+  background: #f4f6f8;
+  padding: 0.08em 0.22em;
+  border-radius: 4px;
+}
+
+.reveal table:not(.compare-table) {
+  font-size: 0.52em;
+  border-collapse: collapse;
+}
+
+.reveal table:not(.compare-table) thead th {
+  background: #003d7a;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.reveal table:not(.compare-table) tbody tr:nth-child(even) {
+  background: #f4f7fb;
+}
+
+.reveal .mermaid svg {
+  max-height: 58vh;
+}
