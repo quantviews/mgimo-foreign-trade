@@ -39,7 +39,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-c8ad9e5dbd60b7b70b38521ab19b7da4.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-734b42bc2d6003b4decd4ddff31c8e1c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-5192c418bd01de0913ee39057892c6b8.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -241,7 +241,27 @@ ul.task-list li input[type="checkbox"] {
 <div>
 <p></p><figure class="figure"><p></p>
 <div>
-<pre class="mermaid mermaid-js">flowchart LR
+<pre class="mermaid mermaid-js">%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontSize": "14px",
+    "fontFamily": "Inter, Segoe UI, Arial, sans-serif",
+    "primaryColor": "#ffffff",
+    "primaryTextColor": "#2c3e50",
+    "primaryBorderColor": "#c5dff5",
+    "secondaryColor": "#e8f4fd",
+    "secondaryTextColor": "#003d7a",
+    "secondaryBorderColor": "#003d7a",
+    "tertiaryColor": "#f0f5ff",
+    "tertiaryTextColor": "#003d7a",
+    "tertiaryBorderColor": "#c5dff5",
+    "clusterBkg": "#f8f9fb",
+    "clusterBorder": "#c5dff5",
+    "lineColor": "#5a6a7a",
+    "titleColor": "#003d7a"
+  }
+}}%%
+flowchart LR
     subgraph sources["📥 Источники данных"]
         direction TB
         A["Китай/Индия/Турция — нац. статистика&lt;br/&gt;&lt;i&gt;оперативно · детально&lt;/i&gt;"]
@@ -272,11 +292,19 @@ ul.task-list li input[type="checkbox"] {
     D --&gt; E --&gt; F
     F --&gt; G &amp; H &amp; I
 
+    style A fill:#ffffff,color:#2c3e50,stroke:#c5dff5
+    style B fill:#ffffff,color:#2c3e50,stroke:#c5dff5
+    style C fill:#ffffff,color:#2c3e50,stroke:#c5dff5
+    style D fill:#ffffff,color:#2c3e50,stroke:#003d7a
     style F fill:#003d7a,color:#fff,stroke:#e74c3c,stroke-width:3px
     style G fill:#e8f4fd,color:#003d7a,stroke:#003d7a
     style H fill:#e8f4fd,color:#003d7a,stroke:#003d7a
     style I fill:#fdecea,color:#c0392b,stroke:#e74c3c
     style E fill:#f0fff4,color:#1e7a45,stroke:#27ae60
+    style sources fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
+    style etl fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
+    style storage fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
+    style access fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
 </pre>
 </div>
 <p></p></figure><p></p>
