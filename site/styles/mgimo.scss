@@ -14,6 +14,7 @@ $link-color: #0056b3;        // Синий для ссылок
 
 $border-color: #ecf0f1;      // Светлый серый для границ
 $body-bg: #f8f9fa;           // Очень светлый фон
+$mermaid-fg-color--lightest: #f0f5ff; // subgraph background (Quarto default is too dark on light theme)
 
 /*-- scss:rules --*/
 
@@ -214,6 +215,13 @@ nav[aria-label="Table of contents"] ul li.active a {
 }
 
 // ── Landing page (index.qmd) ────────────────────────────────────────────────
+
+// Quarto renders Mermaid as inline SVG; ensure readable size on light background.
+.quarto-layout-panel .cell-output-display svg.mermaid,
+figure > svg.mermaid {
+  max-width: 100%;
+  height: auto;
+}
 
 .title-lead {
   font-size: 1.25rem;

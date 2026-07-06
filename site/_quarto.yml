@@ -22,5 +22,7 @@ format:
     theme:
       - cosmo
       - styles/mgimo.scss
+    mermaid:
+      theme: neutral
     toc: false
     lang: ru
