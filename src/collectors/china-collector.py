@@ -24,6 +24,29 @@ def get_download_path():
     else:
         return Path.home() / "downloads"
 
+def get_chrome_major_version():
+    """Detect the installed Chrome major version so uc pins the matching driver.
+
+    undetected_chromedriver otherwise reuses a cached driver that can target a
+    newer Chrome than the one installed, raising SessionNotCreatedException
+    (e.g. "driver only supports Chrome 150" while the browser is 149).
+
+    Returns the major version as int, or None if detection fails (uc then
+    falls back to its own auto-resolution).
+    """
+    if os.name != 'nt':
+        return None
+    import winreg
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(hive, r'Software\Google\Chrome\BLBeacon') as key:
+                version = winreg.QueryValueEx(key, 'version')[0]
+                return int(str(version).split('.')[0])
+        except (FileNotFoundError, OSError, ValueError):
+            continue
+    return None
+
+
 def automate_download(year: str, month: str, flow: str, partner_code: str):
     """
     Opens the Chinese customs stats website, fills the form,
@@ -51,8 +74,15 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
     # prefs = {"download.default_directory": str(download_dir)}
     # options.add_experimental_option("prefs", prefs)
 
-    # Let undetected_chromedriver resolve the matching driver version automatically.
-    driver = uc.Chrome(options=options)
+    # Pin the driver to the installed Chrome major version. Without this,
+    # undetected_chromedriver may reuse a cached driver built for a newer Chrome
+    # than the one installed, causing SessionNotCreatedException.
+    chrome_major = get_chrome_major_version()
+    if chrome_major is not None:
+        print(f"Detected Chrome major version: {chrome_major}; pinning ChromeDriver to it.")
+    else:
+        print("Could not detect Chrome version; letting undetected_chromedriver auto-resolve.")
+    driver = uc.Chrome(options=options, version_main=chrome_major)
     # Evade detection
     # driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
