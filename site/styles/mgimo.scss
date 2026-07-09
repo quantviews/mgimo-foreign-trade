@@ -32,6 +32,18 @@ $mermaid-fg-color--lightest: #f0f5ff; // subgraph background (Quarto default is 
   z-index: 1000;
 }
 
+// МГИМО emblem in the navbar: white chip so the dark parts read on blue
+.navbar-brand-container .navbar-brand img,
+.navbar-brand img {
+  height: 44px;
+  width: auto;
+  background: #ffffff;
+  padding: 4px;
+  border-radius: 7px;
+  box-sizing: content-box;
+  margin-right: 0.7rem;
+}
+
 .navbar-dark .navbar-nav .nav-link {
   color: rgba(255, 255, 255, 0.92);
   transition: color 0.2s ease;
@@ -215,6 +227,22 @@ nav[aria-label="Table of contents"] ul li.active a {
 }
 
 // ── Landing page (index.qmd) ────────────────────────────────────────────────
+
+// Logo lockup inside the highlighted comparison card
+.card-logos {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+
+  img {
+    width: auto;
+    display: block;
+  }
+
+  img:first-child { height: 46px; }
+  img:last-child { height: 32px; }
+}
 
 // Quarto renders Mermaid as inline SVG; ensure readable size on light background.
 .quarto-layout-panel .cell-output-display svg.mermaid,
@@ -511,12 +539,16 @@ figure > svg.mermaid {
   }
 
   .col-them {
-    background: #fafafa;
+    background: #eef1f4;
+    color: #5a6a7a;
+    font-weight: 600;
     width: 35%;
   }
 
   .col-us {
-    background: #f0f7ff;
+    background: #003d7a;
+    color: #ffffff;
+    font-weight: 700;
     width: 35%;
   }
 
@@ -661,6 +693,23 @@ figure > svg.mermaid {
     font-size: 0.9rem;
     color: rgba(255, 255, 255, 0.88);
     line-height: 1.5;
+  }
+}
+
+.cta-email {
+  margin-top: 0.15rem !important;
+
+  a {
+    color: #ffffff;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: rgba(255, 255, 255, 0.5);
+    transition: text-decoration-color 0.2s ease;
+  }
+
+  a:hover {
+    text-decoration-color: #e74c3c;
   }
 }
 
