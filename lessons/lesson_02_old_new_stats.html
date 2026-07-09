@@ -313,7 +313,7 @@
 <span id="cb2-8"><a></a><span class="st">    LIMIT 10</span></span>
 <span id="cb2-9"><a></a><span class="st">"""</span>).df()</span>
 <span id="cb2-10"><a></a></span>
-<span id="cb2-11"><a></a><span class="bu">print</span>(<span class="st">"Топ-10 стран по импорту в 2021 (тыс. USD):"</span>)</span>
+<span id="cb2-11"><a></a><span class="bu">print</span>(<span class="st">"Топ-10 стран по импорту в 2021 (USD):"</span>)</span>
 <span id="cb2-12"><a></a><span class="bu">print</span>(top_import_2021)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="практика-3-динамика-экспорта-по-месяцам-2021" class="slide level2">
@@ -390,7 +390,7 @@
 <span id="cb6-16"><a></a>ax.plot(dynamics[<span class="st">'PERIOD'</span>], dynamics[<span class="st">'import_val'</span>], label<span class="op">=</span><span class="st">'Импорт'</span>)</span>
 <span id="cb6-17"><a></a>ax.plot(dynamics[<span class="st">'PERIOD'</span>], dynamics[<span class="st">'export_val'</span>], label<span class="op">=</span><span class="st">'Экспорт'</span>)</span>
 <span id="cb6-18"><a></a>ax.legend()</span>
-<span id="cb6-19"><a></a>ax.set_title(<span class="st">'Динамика импорта и экспорта (тыс. USD)'</span>)</span>
+<span id="cb6-19"><a></a>ax.set_title(<span class="st">'Динамика импорта и экспорта (USD)'</span>)</span>
 <span id="cb6-20"><a></a>plt.xticks(rotation<span class="op">=</span><span class="dv">45</span>)</span>
 <span id="cb6-21"><a></a>plt.tight_layout()</span>
 <span id="cb6-22"><a></a>plt.show()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>

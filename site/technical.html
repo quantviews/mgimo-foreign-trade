@@ -39,7 +39,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-c8ad9e5dbd60b7b70b38521ab19b7da4.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-5192c418bd01de0913ee39057892c6b8.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-0af0c603aec7240aa4ca46ea66a26cae.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -134,46 +134,54 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<section id="общий-подход" class="level2">
-<h2 class="anchored" data-anchor-id="общий-подход">Общий подход</h2>
-<p>Наша система собирает торговые данные из различных международных источников (базы данных внешнеторговых партнёров, UN Comtrade) — и приводит их к единой структуре. Это позволяет вам работать с согласованными данными без необходимости ручной склейки и проверки консистентности.</p>
-<section id="этап-1-гармонизация-источников" class="level3">
-<h3 class="anchored" data-anchor-id="этап-1-гармонизация-источников">Этап 1: Гармонизация источников</h3>
-<p>Разные источники используют разные форматы, классификации и временные метки. Мы:</p>
-<ul>
-<li><strong>Стандартизируем классификации:</strong> цель - привести сырые данные к единой, последовательной структуре. Это позволяет проводить унифицированный анализ по разным странам и периодам времени</li>
-<li><strong>Дополнение нулями:</strong> Товарные коды (ТН ВЭД и его производные) хранятся в виде строк и дополняются нулями слева для обеспечения постоянной длины и правильной сортировки.</li>
-<li><strong>Согласовываем страны</strong> — используем единые коды стран</li>
-<li><strong>Стандартизация единиц измерения:</strong> Оригинальные единицы измерения из колонки EDIZM сопоставляются со стандартным справочником</li>
-<li><strong>Проверяем качество</strong> — фильтруем аномалии и незначительные погрешности</li>
-</ul>
-<p>Результат: единая база данных (DuckDB), где все торговые потоки имеют одинаковую структуру.</p>
+<p>Система собирает торговые данные из статистики стран-партнёров и международной базы ООН (UN Comtrade), приводит их к единой структуре и хранит в одной базе данных.</p>
+<p>Ниже — как устроен этот путь от разрозненных выгрузок до готовых показателей.</p>
+<section id="общая-схема" class="level2">
+<h2 class="anchored" data-anchor-id="общая-схема">Общая схема</h2>
+<p>Сбор → приведение к единому виду → единая база (DuckDB) → расчёт индексов физобъёмов и оперативного прогноза → выгрузки, дашборды и отчёты.</p>
+<p>Порядок шагов и проверки качества описаны в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md">orchestration.md</a>, а целевая модель данных — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a>.</p>
 </section>
-<section id="этап-2-расчёт-индексов-физических-объёмов" class="level3">
-<h3 class="anchored" data-anchor-id="этап-2-расчёт-индексов-физических-объёмов">Этап 2: Расчёт индексов физических объёмов</h3>
-<p>Физические объёмы (тонны, штуки и т.д.) — редкие и ценные показатели, которые часто отсутствуют в целых периодах. Мы восстанавливаем их:</p>
+<section id="этап-1.-сбор-и-приведение-к-единому-виду" class="level2">
+<h2 class="anchored" data-anchor-id="этап-1.-сбор-и-приведение-к-единому-виду">Этап 1. Сбор и приведение к единому виду</h2>
+<p>Разные источники используют разные форматы, классификации и обозначения. Мы сводим их к общему стандарту:</p>
+<ul>
+<li><strong>Единая структура.</strong> Все потоки приводятся к одному набору полей — страна, товар, период, направление, стоимость и объём — независимо от источника. Используем обозначения, принятые в данных ФТС России.</li>
+<li><strong>Коды ТН ВЭД.</strong> Коды хранятся как строки. Значимые ведущие нули сохраняются, а короткие коды дополняются нулями справа до 10 знаков; из них формируются уровни агрегации 2, 4, 6 и 8 знаков.</li>
+<li><strong>Единицы измерения.</strong> Исходные обозначения из поля <code>EDIZM</code> сопоставляются со стандартным справочником и приводятся к принятым в российской практике единицам.</li>
+<li><strong>Страны.</strong> Используются единые двухбуквенные ISO-коды стран.</li>
+<li><strong>Международное дополнение.</strong> Данные UN Comtrade добавляются там, где нет национальной статистики, чтобы закрыть пробелы по остальным странам.</li>
+</ul>
+<p>Результат — единая база данных (DuckDB), где все торговые потоки имеют одинаковую структуру. Подробности пайплайна: <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge_processed_data-docs.md">merge_processed_data-docs.md</a>, а трансформация Comtrade — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge-comtrade-to-duckdb-docs.md">merge-comtrade-to-duckdb-docs.md</a>. О том, как устроен сбор по странам, — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/country-collector-guide.md">country-collector-guide.md</a>.</p>
+</section>
+<section id="этап-2.-индексы-физических-объёмов" class="level2">
+<h2 class="anchored" data-anchor-id="этап-2.-индексы-физических-объёмов">Этап 2. Индексы физических объёмов</h2>
+<p>Физические объёмы (тонны, штуки, кубометры) — редкий и ценный показатель, который к тому же неполон. Мы восстанавливаем и индексируем его:</p>
 <ol type="1">
-<li><strong>Восстановление данных</strong> — где физические объёмы отсутствуют, устанавливаем их на основе цены и доступной информации</li>
-<li><strong>Расчёт 12-месячных показателей</strong> — агрегируем по скользящим окнам для избежания сезонности</li>
-<li><strong>Построение индексов физических</strong> — нормируем относительно базового периода (первые 12 месяцев торговли с ненулевыми объёмами)</li>
-<li><strong>Агрегация</strong> — отдельно индексы 2-знаковых групп товаров, 4-знаковых, 6-знаковых и по всем товарам</li>
+<li><strong>Выбор меры.</strong> Для каждого ряда выбирается натуральная мера — количество в дополнительной единице (<code>KOL</code>) или вес нетто (<code>NETTO</code>), — в зависимости от того, какая единица измерения для конкретной товарной группы устойчива во времени.</li>
+<li><strong>Полная месячная панель.</strong> Пропуски в помесячных рядах заполняются, чтобы объёмы можно было сравнивать по времени.</li>
+<li><strong>12-месячные показатели.</strong> Значения сглаживаются скользящим окном, чтобы снять сезонность.</li>
+<li><strong>Базовый период и индекс.</strong> Показатель нормируется относительно базового периода — 12 месяцев с начала первого года, где появились ненулевые объёмы.</li>
+<li><strong>Агрегация.</strong> Индексы считаются по группам ТН ВЭД на уровнях 2, 4 и 6 знаков, по странам и по всей торговле.</li>
 </ol>
-<p><strong>Результат</strong>: вы видите не только, сколько товара экспортировалась, но и как его объём менялась во времени на всех уровнях ТН ВЭД и отдельных стран.</p>
+<p>Физобъёмы считаются только по фактическим данным, чтобы не смешивать их с прогнозом. Полная методика — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md">documentation_fizob.md</a>.</p>
 </section>
-<section id="этап-3-оперативные-прогнозы-nowcast" class="level3">
-<h3 class="anchored" data-anchor-id="этап-3-оперативные-прогнозы-nowcast">Этап 3: Оперативные прогнозы (Nowcast)</h3>
-<p>Лаг официальной статистики часто составляет месяцы. Мы используем динамические модели (например, динамические факторные модели) для прогнозирования, когда часть месяца уже известна по другим странам для этого же кода ТН ВЭД.:</p>
+<section id="этап-3.-оперативный-прогноз-nowcast" class="level2">
+<h2 class="anchored" data-anchor-id="этап-3.-оперативный-прогноз-nowcast">Этап 3. Оперативный прогноз (nowcast)</h2>
+<p>Национальная статистика выходит с задержкой в несколько месяцев. Чтобы дать оценку раньше, мы используем статистическую модель (динамическую факторную модель):</p>
 <ul>
-<li>Модели обучаются на исторических данных</li>
-<li>На основе косвенных индикаторов прогнозируется оставшаяся часть периода</li>
-<li>Прогнозные значения интегрируются в базу данных с пометкой <code>SOURCE = nowcast</code></li>
+<li>модель обучается на исторических рядах по группам товаров и направлениям;</li>
+<li>по уже известным месяцам оценивается недостающая часть периода;</li>
+<li>прогноз добавляется в базу только там, где ещё нет фактических данных, и всегда помечается: <code>SOURCE = nowcast</code>, <code>TYPE = pred</code>.</li>
 </ul>
-<p><strong>Результат</strong>: вы получаете более оперативную картину реальной торговли, не дожидаясь полного закрытия официальных данных.</p>
+<p>Так прогноз никогда не подменяет факт и легко отделяется от него. Порядок пересчёта и проверки описаны в разделе о nowcast в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md">orchestration.md</a>.</p>
 </section>
+<section id="контроль-качества" class="level2">
+<h2 class="anchored" data-anchor-id="контроль-качества">Контроль качества</h2>
+<p>Перед публикацией база проходит проверки: поиск аномальных значений (см. <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/outlier_detection-docs.md">outlier_detection-docs.md</a>) и набор SQL-проверок — обязательные таблицы и колонки, допустимые значения <code>NAPR</code>, <code>SOURCE</code>, <code>TYPE</code>, отсутствие пустых периодов и пересечения прогноза с фактом. Тесты и покрытые проверки описаны в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md">testing-docs.md</a>.</p>
 </section>
 <section id="структура-данных" class="level2">
 <h2 class="anchored" data-anchor-id="структура-данных">Структура данных</h2>
-<p>Ключевые поля в базе:</p>
+<p>Основные поля базы:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -183,65 +191,64 @@ ul.task-list li input[type="checkbox"] {
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong>STRANA</strong></td>
-<td>Код страны-контрагента (двубуквенный код)</td>
+<td><code>STRANA</code></td>
+<td>Страна-партнёр — двухбуквенный ISO-код</td>
 </tr>
 <tr class="even">
-<td><strong>TNVED</strong></td>
-<td>Код товара по ТН ВЭД</td>
+<td><code>NAPR</code></td>
+<td>Направление: <code>ИМ</code> (импорт) или <code>ЭК</code> (экспорт)</td>
 </tr>
 <tr class="odd">
-<td><strong>NAPR</strong></td>
-<td>Направление: ЭК (экспорт) или ИМ (импорт)</td>
+<td><code>PERIOD</code></td>
+<td>Отчётный период — первый день месяца</td>
 </tr>
 <tr class="even">
-<td><strong>PERIOD</strong></td>
-<td>Дата (месячный или квартальный период)</td>
+<td><code>TNVED</code></td>
+<td>Код товара по ТН ВЭД (плюс уровни <code>TNVED2/4/6/8</code>)</td>
 </tr>
 <tr class="odd">
-<td><strong>STOIM</strong></td>
-<td>Стоимость в USD</td>
+<td><code>STOIM</code></td>
+<td>Стоимость, USD (в единицах, не в тысячах)</td>
 </tr>
 <tr class="even">
-<td><strong>NETTO</strong></td>
-<td>Вес нетто товаров в килограммах</td>
+<td><code>NETTO</code></td>
+<td>Вес нетто, кг</td>
 </tr>
 <tr class="odd">
-<td><strong>KOL</strong></td>
+<td><code>KOL</code></td>
 <td>Количество в дополнительной единице измерения</td>
 </tr>
 <tr class="even">
-<td><strong>EDIZM</strong></td>
-<td>Дополнительная (supplementary) единица измерения</td>
+<td><code>EDIZM</code></td>
+<td>Дополнительная единица измерения</td>
 </tr>
 <tr class="odd">
-<td><strong>fizob</strong></td>
-<td>Индекс физического объёма</td>
+<td><code>SOURCE</code></td>
+<td>Источник ряда: <code>national</code>, <code>comtrade</code> или <code>nowcast</code></td>
 </tr>
 <tr class="even">
-<td><strong>SOURCE</strong></td>
-<td>Источник данных (например, таможня, nowcast)</td>
+<td><code>TYPE</code></td>
+<td>Тип ряда: <code>fact</code> (факт) или <code>pred</code> (прогноз)</td>
 </tr>
 </tbody>
 </table>
-<p>При получении выгрузки вы можете выбрать нужные вам таблицы и уровень агрегации.</p>
+<p>Индексы физобъёмов хранятся отдельно (<code>fizob_index</code>), названия стран и товаров — в справочниках. При выгрузке можно выбрать нужные таблицы и уровень агрегации. Полное описание схемы — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a>.</p>
 </section>
-<section id="где-найти-подробности" class="level2">
-<h2 class="anchored" data-anchor-id="где-найти-подробности">Где найти подробности</h2>
+<section id="документация-и-код" class="level2">
+<h2 class="anchored" data-anchor-id="документация-и-код">Документация и код</h2>
+<p>Проект открыт. Полная документация — в папке <a href="https://github.com/quantviews/mgimo-foreign-trade/tree/main/docs"><code>docs/</code></a> репозитория. Ключевые материалы:</p>
 <ul>
-<li><strong>Формальная документация</strong> — см. папку <code>docs/</code> в репозитории</li>
-<li><code>merge_processed_data-docs.md</code> — описание пайплайна гармонизации</li>
-<li><code>documentation_fizob.md</code> — полное описание методики индексов физических объёмов</li>
-<li>💻 <strong>Код</strong> — доступен в открытом исходнике (репозиторий)
-<ul>
-<li><code>src/fizob_queries.R</code> — расчёт индексов</li>
-<li><code>data_analytics/nowcast.R</code> — реализация прогнозов</li>
-</ul></li>
+<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a> — модель данных и справочники</li>
+<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge_processed_data-docs.md">merge_processed_data-docs.md</a> — пайплайн гармонизации и сборки базы</li>
+<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md">orchestration.md</a> — порядок запуска, nowcast/fizob и проверки качества</li>
+<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md">documentation_fizob.md</a> — методика индексов физических объёмов</li>
+<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md">testing-docs.md</a> — тесты и проверки</li>
 </ul>
+<p>Исходный код: расчёт физобъёмов — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/fizob_queries.R"><code>src/fizob_queries.R</code></a>, оперативный прогноз — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/nowcast.R"><code>src/nowcast.R</code></a>, сборка базы — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/pipelines/merge_pipeline.py"><code>src/pipelines/merge_pipeline.py</code></a>.</p>
 </section>
 <section id="вопросы" class="level2">
-<h2 class="anchored" data-anchor-id="вопросы">Вопросы?</h2>
-<p>Если вам нужна специфическая глубинка по методологии или у вас есть особые требования к структуре данных, свяжитесь с проектной командой.</p>
+<h2 class="anchored" data-anchor-id="вопросы">Вопросы</h2>
+<p>Если нужна методологическая деталь или особые требования к структуре данных — <a href="../site/index.html#как-начать">свяжитесь с командой</a>.</p>
 
 
 </section>
