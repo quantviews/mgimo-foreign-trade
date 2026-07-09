@@ -75,7 +75,7 @@ jobs:
       - name: Verify bulletin data snapshots
         run: |
           missing=0
-          for f in bulletin_fo tab_stoim_oil df_groups data_oilgas hs4_labels; do
+          for f in bulletin_fo tab_stoim_oil df_groups data_oilgas bulletin_headline hs4_labels; do
             if [ ! -f "site/data/${f}.parquet" ]; then
               echo "Missing site/data/${f}.parquet"
               missing=1

@@ -106,13 +106,13 @@ tab_stoim_oil <- dbGetQuery(
     STRANA = if_else(STRANA %in% c("IN", "TR", "CN"), STRANA, "OTHER")
   ) %>%
   reframe(STOIM = sum(STOIM, na.rm = TRUE), .by = c(STRANA, NAPR, PERIOD, type)) %>%
-  mutate(STOIM = if_else(STRANA == "IN", STOIM / 10^6, STOIM / 10^9))
+  mutate(STOIM = STOIM / 10^9)
 
 df_groups <- dbGetQuery(
   con,
   "SELECT STRANA, NAPR, PERIOD, STOIM, NETTO, KOL, TNVED4 FROM unified_trade_data"
 ) %>%
-  mutate(STOIM = if_else(STRANA == "IN", STOIM / 10^6, STOIM / 10^9)) %>%
+  mutate(STOIM = STOIM / 10^9) %>%
   reframe(
     across(c(STOIM, NETTO, KOL), ~ sum(.x, na.rm = TRUE)),
     .by = c(TNVED4, NAPR, PERIOD)
@@ -168,6 +168,50 @@ if (!file.exists(hs4_json)) {
 }
 hs4_labels <- fromJSON(hs4_json, flatten = TRUE) %>% as_tibble()
 
+# Заголовочные показатели.
+# Стоимость: сумма STOIM по всем странам базы (USD -> млрд), nowcast включён;
+# факт считаем отдельно, чтобы показать долю прогноза.
+# Физобъём: изменение физического объёма год к году по основным партнёрам
+# (Китай, Индия, Турция), согласовано с графиком раздела 1. OTHER/Comtrade
+# в индекс не берём: их свежие месяцы обваливаются из-за лага данных.
+# Показатели fizob несопоставимы между странами по масштабу, поэтому берём
+# YoY по каждой стране отдельно и усредняем с весом по товарообороту (STOIM):
+# так вклад страны отражает её долю в торговле, а не масштаб её ряда fizob.
+fo_index_headline <- dbGetQuery(
+  con,
+  "SELECT STRANA, NAPR, PERIOD, fizob FROM fizob_index WHERE tn_level = 0"
+) %>%
+  filter(STRANA %in% c("CN", "IN", "TR")) %>%
+  arrange(STRANA, NAPR, PERIOD) %>%
+  mutate(fo_yoy_c = fizob / lag(fizob, 12) - 1, .by = c(STRANA, NAPR)) %>%
+  left_join(tab_stoim, by = c("STRANA", "NAPR", "PERIOD")) %>%
+  filter(!is.na(fo_yoy_c), !is.na(STOIM), STOIM > 0) %>%
+  reframe(fo_yoy = sum(fo_yoy_c * STOIM) / sum(STOIM), .by = c(NAPR, PERIOD)) %>%
+  select(NAPR, PERIOD, fo_yoy)
+
+bulletin_headline <- dbGetQuery(
+  con,
+  "SELECT NAPR, PERIOD, STOIM, NETTO, TYPE FROM unified_trade_data"
+) %>%
+  mutate(is_fact = TYPE != "pred") %>%
+  reframe(
+    stoim_bn      = sum(STOIM, na.rm = TRUE) / 1e9,
+    stoim_bn_fact = sum(STOIM[is_fact], na.rm = TRUE) / 1e9,
+    netto_mt      = sum(NETTO, na.rm = TRUE) / 1e9,
+    netto_mt_fact = sum(NETTO[is_fact], na.rm = TRUE) / 1e9,
+    .by = c(NAPR, PERIOD)
+  ) %>%
+  arrange(NAPR, PERIOD) %>%
+  mutate(
+    nowcast_share = if_else(stoim_bn > 0, 1 - stoim_bn_fact / stoim_bn, NA_real_),
+    stoim_mom = stoim_bn / lag(stoim_bn) - 1,
+    stoim_yoy = stoim_bn / lag(stoim_bn, 12) - 1,
+    netto_mom = netto_mt / lag(netto_mt) - 1,
+    netto_yoy = netto_mt / lag(netto_mt, 12) - 1,
+    .by = NAPR
+  ) %>%
+  left_join(fo_index_headline, by = c("NAPR", "PERIOD"))
+
 write_outputs <- function(df, name) {
   path <- file.path(data_dir, name)
   write_parquet(df, path)
@@ -178,6 +222,7 @@ write_outputs(bulletin_fo, "bulletin_fo.parquet")
 write_outputs(tab_stoim_oil, "tab_stoim_oil.parquet")
 write_outputs(df_groups, "df_groups.parquet")
 write_outputs(data_oilgas, "data_oilgas.parquet")
+write_outputs(bulletin_headline, "bulletin_headline.parquet")
 write_outputs(hs4_labels, "hs4_labels.parquet")
 
 message("bulletin_data_prep: done")

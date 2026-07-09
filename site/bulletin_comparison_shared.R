@@ -115,6 +115,7 @@ rename_countries <- function(df) {
 bulletin_fo <- arrow::read_parquet("data/bulletin_fo.parquet")
 tab_stoim_oil <- arrow::read_parquet("data/tab_stoim_oil.parquet")
 df_groups <- arrow::read_parquet("data/df_groups.parquet")
+bulletin_headline <- arrow::read_parquet("data/bulletin_headline.parquet")
 names_4 <-
   read_parquet("data/hs4_labels.parquet") %>%
   select(
