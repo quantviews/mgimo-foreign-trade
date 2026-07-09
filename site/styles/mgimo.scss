@@ -244,6 +244,20 @@ nav[aria-label="Table of contents"] ul li.active a {
   img:last-child { height: 32px; }
 }
 
+// Вводная подпись над графиком (бюллетень): светлая подложка
+.chart-lead {
+  background: #f0f7ff;
+  padding: 0.55rem 0.9rem;
+  margin: 0.4rem 0 1.1rem;
+  border-radius: 6px;
+  color: #2c3e50;
+  font-size: 1.05rem;
+  line-height: 1.45;
+
+  p { margin: 0; }
+  strong { color: #003d7a; }
+}
+
 // Quarto renders Mermaid as inline SVG; ensure readable size on light background.
 .quarto-layout-panel .cell-output-display svg.mermaid,
 figure > svg.mermaid {

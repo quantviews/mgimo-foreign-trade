@@ -43,6 +43,26 @@ report_month <- stri_datetime_format(
   locale = "ru"
 )
 
+# Заголовочные показатели (как в HTML-версии), с окраской динамики в цвете палитры.
+hl_latest <- max(bulletin_headline$PERIOD)
+hl_exp <- bulletin_headline %>% filter(PERIOD == hl_latest, NAPR == "ЭК")
+hl_imp <- bulletin_headline %>% filter(PERIOD == hl_latest, NAPR == "ИМ")
+
+fmt_num <- function(x, d = 1) sub("\\.", ",", formatC(x, format = "f", digits = d))
+fmt_bn_tex <- function(x) sprintf("\\textbf{%s млрд \\$}", fmt_num(x))
+fmt_pct_tex <- function(x) {
+  if (is.na(x)) return("н/д")
+  s <- paste0(if (x >= 0) "+" else "−", fmt_num(abs(100 * x)), "\\%")
+  col <- if (x >= 0) "mgimogreen" else "mgimored"
+  sprintf("\\textcolor{%s}{\\textbf{%s}}", col, s)
+}
+
+# Динамический диапазон для секции «структура по товарам» (12 мес vs 12 мес до).
+p_max <- max(bulletin_fo$PERIOD)
+fmt_mon <- function(d) stri_datetime_format(d, format = "LLL yyyy", locale = "ru")
+rng_last <- paste0(fmt_mon(p_max %m-% months(11)), "–", fmt_mon(p_max))
+rng_prev <- paste0(fmt_mon(p_max %m-% months(23)), "–", fmt_mon(p_max %m-% months(12)))
+
 save_chart <- function(plot, name, width, height) {
   path <- file.path("pdf_figures", paste0(name, ".png"))
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
@@ -57,7 +77,10 @@ fig_import <- save_chart(plot_import_pdf, "04-import", 5.35, 5.35)
 ```
 
 \begin{bulletinintro}
-\textbf{Данные за `r report_month`.}
+\textbf{Главное за `r report_month`.}\quad
+Наблюдаемый экспорт — `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), физобъём `r fmt_pct_tex(hl_exp$fo_yoy)` г/г.\quad
+Импорт — `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м), физобъём `r fmt_pct_tex(hl_imp$fo_yoy)` г/г.\\[2pt]
+{\footnotesize\color{mgimomuted}Стоимость — по странам базы, с учётом nowcast: в `r report_month` прогноз даёт около `r round(100 * hl_exp$nowcast_share)`\,\% стоимости экспорта и `r round(100 * hl_imp$nowcast_share)`\,\% импорта. Индекс физобъёма — год к году по основным партнёрам (Китай, Индия, Турция), взвешенно по товарообороту, только по факту.}
 \end{bulletinintro}
 
 \begin{bulletinpageone}
@@ -99,7 +122,7 @@ fig_import <- save_chart(plot_import_pdf, "04-import", 5.35, 5.35)
 
 \begin{sectionbar}
 {\bfseries Структура по товарам (ТН ВЭД-4)}\\
-\small Изменение объёмов торговли: май 2025–апрель 2026 \textit{vs} май 2024–апрель 2025;\\
+\small Изменение объёмов торговли: `r rng_last` \textit{vs} `r rng_prev`;\\
 \textcolor{mgimogreen}{\textbf{зелёный}} — рост, \textcolor{mgimored}{\textbf{красный}} — снижение.
 \end{sectionbar}
 
