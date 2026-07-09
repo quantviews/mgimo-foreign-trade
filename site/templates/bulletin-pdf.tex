@@ -27,6 +27,9 @@
 \definecolor{mgimoline}{HTML}{D7E2F0}
 \definecolor{mgimoaccent}{HTML}{E8F0FA}
 
+% Логотип и прочие относительные изображения ищем в assets/ (cwd = site/ или корень)
+\graphicspath{{assets/}{site/assets/}}
+
 $if(geometry)$
 \usepackage[$for(geometry)$$geometry$$sep$,$endfor$]{geometry}
 $else$
@@ -82,12 +85,16 @@ $endif$
     arc=0pt,
     left=10pt, right=10pt, top=8pt, bottom=8pt
   ]
-  \begin{minipage}[c]{0.68\textwidth}
+  \begin{minipage}[c]{0.11\textwidth}
+    \colorbox{white}{\includegraphics[height=1.15cm]{mgimo-logo.png}}
+  \end{minipage}%
+  \hspace{8pt}%
+  \begin{minipage}[c]{0.55\textwidth}
     {\color{white}\sffamily\bfseries\fontsize{16}{18}\selectfont $title$}\\[3pt]
     {\color{white!85}\small\sffamily $if(subtitle)$$subtitle$$endif$}
   \end{minipage}%
   \hfill
-  \begin{minipage}[c]{0.28\textwidth}
+  \begin{minipage}[c]{0.26\textwidth}
     \raggedleft
     {\color{white!90}\small\sffamily Ежемесячный аналитический выпуск}\\[2pt]
     {\color{white}\footnotesize\sffamily $if(date)$$date$$endif$}
