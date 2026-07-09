@@ -15,18 +15,32 @@ project:
 website:
   title: "Национальная торговая статистика"
   navbar:
+    logo: site/assets/mgimo-logo.svg
+    logo-alt: "МГИМО"
     left:
       - text: "Главная"
         href: site/index.qmd
       - text: "Техническая документация"
         href: site/technical.qmd
-      - text: "Бюллетень (ежемесячный)"
+      - text: "Месячный бюллетень"
         href: site/bulletin_comparison.qmd
+      - text: "Занятия"
+        menu:
+          - text: "1. Введение в таможенную статистику"
+            href: lessons/lesson_01_intro.qmd
+          - text: "2. Старая и новая статистика"
+            href: lessons/lesson_02_old_new_stats.qmd
+          - text: "3. DuckDB и SQL"
+            href: lessons/lesson_03_duckdb.qmd
+          - text: "4. Superset и дашборды"
+            href: lessons/lesson_04_superset.qmd
 
 format:
   html:
     theme:
       - cosmo
       - site/styles/mgimo.scss
+    mermaid:
+      theme: neutral
     toc: false
     lang: ru
