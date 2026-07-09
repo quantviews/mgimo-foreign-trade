@@ -41,9 +41,9 @@ def main():
         print("Построение графика...")
         plt.figure(figsize=(10, 5))
         plt.plot(df["PERIOD"], df["total"])
-        plt.title("Динамика импорта (тыс. USD)")
+        plt.title("Динамика импорта (USD)")
         plt.xlabel("Период")
-        plt.ylabel("Стоимость, тыс. USD")
+        plt.ylabel("Стоимость, USD")
         plt.xticks(rotation=45)
         plt.tight_layout()
         out_path = OUT_DIR / "import_dynamics.png"

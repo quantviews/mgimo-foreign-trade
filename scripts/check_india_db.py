@@ -24,7 +24,7 @@ LIMIT 18
 rows = con.execute(q).fetchall()
 con.close()
 
-print("Индия (STRANA='IN') в unified_trade_data — STOIM по месяцам (тыс. USD):")
+print("Индия (STRANA='IN') в unified_trade_data — STOIM по месяцам (USD):")
 print(f"{'month':<8} {'total_stoim':>18} {'rows':>8}")
 print("-" * 36)
 for month, total_stoim, row_count in rows:

@@ -44,7 +44,7 @@ def main():
     print()
 
     print("=" * 60)
-    print("ПРАКТИКА 4: Импорт по странам (сумма STOIM, тыс. USD)")
+    print("ПРАКТИКА 4: Импорт по странам (сумма STOIM, USD)")
     print("=" * 60)
     import_by_country = (
         df[df["NAPR"] == "ИМ"]
@@ -53,9 +53,9 @@ def main():
         .sort_values(ascending=False)
         .head(10)
     )
-    # STOIM в тыс. USD — показываем в млрд для читаемости
+    # STOIM в USD — показываем в млрд для читаемости
     for country, val in import_by_country.items():
-        print(f"  {country}: {val/1e6:,.1f} млрд USD")
+        print(f"  {country}: {val/1e9:,.1f} млрд USD")
     print()
 
     print("=" * 60)

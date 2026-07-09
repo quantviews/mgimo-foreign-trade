@@ -55,7 +55,7 @@ EXPECTED_SCHEMA = {
     'TNVED': 'object',          # VARCHAR - код ТН ВЭД (8-10 знаков)
     'EDIZM': 'object',          # VARCHAR - единица измерения
     'EDIZM_ISO': 'object',      # VARCHAR - ISO код единицы измерения (опционально)
-    'STOIM': 'float64',         # DECIMAL - стоимость в ТЫСЯЧАХ USD
+    'STOIM': 'float64',         # DECIMAL - стоимость в USD (в единицах, не в тысячах)
     'NETTO': 'float64',         # DECIMAL - вес нетто в кг
     'KOL': 'float64',           # DECIMAL - количество в дополнительной единице
     'TNVED4': 'object',         # VARCHAR - первые 4 знака TNVED

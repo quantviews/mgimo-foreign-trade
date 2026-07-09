@@ -203,7 +203,7 @@ df = conn.execute("""
 
 plt.figure(figsize=(10, 5))
 plt.plot(df['PERIOD'], df['total'])
-plt.title('Динамика импорта (тыс. USD)')
+plt.title('Динамика импорта (USD)')
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.savefig('import_dynamics.png')

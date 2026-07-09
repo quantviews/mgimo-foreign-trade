@@ -106,7 +106,7 @@ def main():
         ax.plot(dynamics["PERIOD"], dynamics["import_val"], label="Импорт")
         ax.plot(dynamics["PERIOD"], dynamics["export_val"], label="Экспорт")
         ax.legend()
-        ax.set_title("Динамика импорта и экспорта (тыс. USD)")
+        ax.set_title("Динамика импорта и экспорта (USD)")
         plt.xticks(rotation=45)
         plt.tight_layout()
         out_path = PROJECT_ROOT / "lessons" / "practices" / "dynamics_plot.png"

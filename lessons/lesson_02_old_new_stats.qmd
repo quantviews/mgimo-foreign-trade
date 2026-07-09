@@ -107,7 +107,7 @@ top_import_2021 = conn.execute("""
     LIMIT 10
 """).df()
 
-print("Топ-10 стран по импорту в 2021 (тыс. USD):")
+print("Топ-10 стран по импорту в 2021 (USD):")
 print(top_import_2021)
 ```
 
@@ -200,7 +200,7 @@ fig, ax = plt.subplots(figsize=(12, 5))
 ax.plot(dynamics['PERIOD'], dynamics['import_val'], label='Импорт')
 ax.plot(dynamics['PERIOD'], dynamics['export_val'], label='Экспорт')
 ax.legend()
-ax.set_title('Динамика импорта и экспорта (тыс. USD)')
+ax.set_title('Динамика импорта и экспорта (USD)')
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
