@@ -57,6 +57,15 @@ fmt_pct_tex <- function(x) {
   sprintf("\\textcolor{%s}{\\textbf{%s}}", col, s)
 }
 
+# Изменение физобъёма (г/г) по стране и направлению за последний месяц — из bulletin_fo.
+fo_val <- function(strana, napr) {
+  v <- bulletin_fo %>%
+    filter(STRANA == strana, NAPR == napr) %>%
+    filter(PERIOD == max(PERIOD)) %>%
+    pull(fizob)
+  if (length(v) == 0) NA_real_ else v[1]
+}
+
 # Динамический диапазон для секции «структура по товарам» (12 мес vs 12 мес до).
 p_max <- max(bulletin_fo$PERIOD)
 fmt_mon <- function(d) stri_datetime_format(d, format = "LLL yyyy", locale = "ru")
@@ -100,9 +109,9 @@ fig_import <- save_chart(plot_import_pdf, "04-import", 5.35, 5.35)
 \bulletincols{%
 \begin{insightbox}{Главное · физобъёмы}
 \begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
-\item Торговля с \textbf{Турцией} продолжает сокращаться; отрицательная динамика — с ноября 2023 г.
-\item Экспорт в \textbf{Индию} снизился на 12,5\% — в основном из‑за нефти и нефтепродуктов.
-\item Импорт из \textbf{Китая} за год +12\%, экспорт лишь +2\%.
+\item Импорт из \textbf{Турции} продолжает снижаться — `r fmt_pct_tex(fo_val('TR','ИМ'))` г/г.
+\item Экспорт в \textbf{Индию} — `r fmt_pct_tex(fo_val('IN','ЭК'))` г/г, в основном из‑за нефти и нефтепродуктов.
+\item Импорт из \textbf{Китая} за год `r fmt_pct_tex(fo_val('CN','ИМ'))`, экспорт — лишь `r fmt_pct_tex(fo_val('CN','ЭК'))`.
 \end{itemize}
 \end{insightbox}
 }{%

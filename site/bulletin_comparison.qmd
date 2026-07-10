@@ -383,6 +383,15 @@ fmt_pct_col <- function(x) {
   col <- if (x >= 0) mgimo_colors[["accent1"]] else mgimo_colors[["secondary"]]
   sprintf('<span style="color:%s;font-weight:600">%s</span>', col, fmt_pct(x))
 }
+
+# Изменение физобъёма (г/г) по стране и направлению за последний месяц — из bulletin_fo.
+fo_val <- function(strana, napr) {
+  v <- bulletin_fo %>%
+    filter(STRANA == strana, NAPR == napr) %>%
+    filter(PERIOD == max(PERIOD)) %>%
+    pull(fizob)
+  if (length(v) == 0) NA_real_ else v[1]
+}
 ```
 
 ## Главное за `r hl_month`
@@ -409,9 +418,9 @@ ggplotly(pl_fizob, dynamicTicks = FALSE) %>%
 
 **Главное:**
 
-- Физический объём торговли с Турцией продолжил сокращаться. Отрицательная динамика наблюдается с ноября 2023 г.
-- За `r stri_datetime_format(max(bulletin_fo$PERIOD), format = "LLLL yyyy", locale = "ru")` физобъём экспорта в Индию снизился на 12.5%. Основная причина - снижение поставок нефти и нефтепродуктов. 
-- Физобъём импорт из Китая за год увеличился на +12%, а экспорт лишь на +2%.
+- Физобъём импорта из Турции продолжает снижаться — `r fmt_pct_col(fo_val('TR','ИМ'))` г/г.
+- Физобъём экспорта в Индию — `r fmt_pct_col(fo_val('IN','ЭК'))` г/г; основная причина — снижение поставок нефти и нефтепродуктов.
+- Физобъём импорта из Китая за год `r fmt_pct_col(fo_val('CN','ИМ'))`, а экспорта — лишь `r fmt_pct_col(fo_val('CN','ЭК'))`.
 
 ## 2. Экспорт: нефть и газ vs прочие товары
 
