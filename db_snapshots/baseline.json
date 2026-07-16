@@ -1,0 +1,2213 @@
+{
+  "created_at": "2026-07-16T16:01:54+00:00",
+  "db_path": "E:\\YandexDisk\\HSE\\mgimo-foreign_trade\\db\\unified_trade_data.duckdb",
+  "table": "unified_trade_data",
+  "total_rows": 7099431,
+  "period_min": "2019-01-01",
+  "period_max": "2026-05-01",
+  "unique_countries": 141,
+  "rows_by_source": {
+    "comtrade": 4880739,
+    "national": 1349820,
+    "nowcast": 868872
+  },
+  "type_counts": {
+    "fact": 6230559,
+    "pred": 868872
+  },
+  "pred_share_pct": 12.2386,
+  "edizm_unmapped_rows": 5728444,
+  "edizm_unmapped_share_pct": 80.6888,
+  "by_country_napr": [
+    {
+      "STRANA": "AD",
+      "NAPR": "ИМ",
+      "rows": 1354,
+      "stoim_sum": 1270073.7680000002,
+      "netto_sum": 12554.641,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "AD",
+      "NAPR": "ЭК",
+      "rows": 551,
+      "stoim_sum": 361121.67269817134,
+      "netto_sum": 18078.269687261327,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "AE",
+      "NAPR": "ИМ",
+      "rows": 9069,
+      "stoim_sum": 887504540.6699996,
+      "netto_sum": 98635978.57600003,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "AE",
+      "NAPR": "ЭК",
+      "rows": 8110,
+      "stoim_sum": 2794414182.6289997,
+      "netto_sum": 1779368789.2000005,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "AG",
+      "NAPR": "ЭК",
+      "rows": 76,
+      "stoim_sum": 30491.335999999996,
+      "netto_sum": 961.925,
+      "kol_sum": 13287.0
+    },
+    {
+      "STRANA": "AM",
+      "NAPR": "ИМ",
+      "rows": 106418,
+      "stoim_sum": 14840120269.113192,
+      "netto_sum": 3490180011.0584307,
+      "kol_sum": 1587070785.3500001
+    },
+    {
+      "STRANA": "AM",
+      "NAPR": "ЭК",
+      "rows": 172207,
+      "stoim_sum": 25423358681.44198,
+      "netto_sum": 24741656168.474083,
+      "kol_sum": 20249622454.963993
+    },
+    {
+      "STRANA": "AO",
+      "NAPR": "ИМ",
+      "rows": 463,
+      "stoim_sum": 1601147.728,
+      "netto_sum": 229970.53600000002,
+      "kol_sum": 50.051
+    },
+    {
+      "STRANA": "AO",
+      "NAPR": "ЭК",
+      "rows": 4822,
+      "stoim_sum": 571197528.1517493,
+      "netto_sum": 503080567.149059,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "AR",
+      "NAPR": "ИМ",
+      "rows": 1882,
+      "stoim_sum": 3521215387.252598,
+      "netto_sum": 1825871545.7558362,
+      "kol_sum": 22506448.0
+    },
+    {
+      "STRANA": "AR",
+      "NAPR": "ЭК",
+      "rows": 7771,
+      "stoim_sum": 1922210165.0304306,
+      "netto_sum": 3168496723.993226,
+      "kol_sum": 11987432.030000001
+    },
+    {
+      "STRANA": "AT",
+      "NAPR": "ИМ",
+      "rows": 15257,
+      "stoim_sum": 1947122201.0770001,
+      "netto_sum": 194587310.15100002,
+      "kol_sum": 36287566.0
+    },
+    {
+      "STRANA": "AT",
+      "NAPR": "ЭК",
+      "rows": 6204,
+      "stoim_sum": 322556546.6999998,
+      "netto_sum": 350573537.71899986,
+      "kol_sum": 8827416.0
+    },
+    {
+      "STRANA": "AU",
+      "NAPR": "ИМ",
+      "rows": 6505,
+      "stoim_sum": 1318239027.1793323,
+      "netto_sum": 590639646.1977246,
+      "kol_sum": 53446912.72
+    },
+    {
+      "STRANA": "AU",
+      "NAPR": "ЭК",
+      "rows": 9331,
+      "stoim_sum": 1459041982.5591912,
+      "netto_sum": 2519587775.97801,
+      "kol_sum": 932834367.8940002
+    },
+    {
+      "STRANA": "AZ",
+      "NAPR": "ИМ",
+      "rows": 22600,
+      "stoim_sum": 7387043211.097339,
+      "netto_sum": 8664664337.992474,
+      "kol_sum": 641062210.6079999
+    },
+    {
+      "STRANA": "AZ",
+      "NAPR": "ЭК",
+      "rows": 103544,
+      "stoim_sum": 20614498174.969395,
+      "netto_sum": 32873189878.01618,
+      "kol_sum": 3299107679.533
+    },
+    {
+      "STRANA": "BA",
+      "NAPR": "ИМ",
+      "rows": 2849,
+      "stoim_sum": 436857303.8668226,
+      "netto_sum": 81519904.40783507,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "BA",
+      "NAPR": "ЭК",
+      "rows": 16376,
+      "stoim_sum": 1889018702.3369875,
+      "netto_sum": 3032774455.5757675,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "BB",
+      "NAPR": "ИМ",
+      "rows": 68,
+      "stoim_sum": 65211.30304758766,
+      "netto_sum": 433.43836036369584,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "BB",
+      "NAPR": "ЭК",
+      "rows": 231,
+      "stoim_sum": 516262.37791119074,
+      "netto_sum": 370652.55871453026,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "BE",
+      "NAPR": "ИМ",
+      "rows": 84264,
+      "stoim_sum": 20129387437.203094,
+      "netto_sum": 2735895067.56008,
+      "kol_sum": 204786378.08
+    },
+    {
+      "STRANA": "BE",
+      "NAPR": "ЭК",
+      "rows": 25469,
+      "stoim_sum": 40550590241.34051,
+      "netto_sum": 63310251476.321594,
+      "kol_sum": 293047745.5
+    },
+    {
+      "STRANA": "BF",
+      "NAPR": "ИМ",
+      "rows": 63,
+      "stoim_sum": 2615051.7540000007,
+      "netto_sum": 1748476.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "BF",
+      "NAPR": "ЭК",
+      "rows": 1490,
+      "stoim_sum": 2571359321.4059997,
+      "netto_sum": 3311004894.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "BG",
+      "NAPR": "ИМ",
+      "rows": 28468,
+      "stoim_sum": 3444603601.8209367,
+      "netto_sum": 423223269.0382264,
+      "kol_sum": 66828056.0
+    },
+    {
+      "STRANA": "BG",
+      "NAPR": "ЭК",
+      "rows": 29006,
+      "stoim_sum": 20761534962.658653,
+      "netto_sum": 39229785976.68496,
+      "kol_sum": 251525193.0
+    },
+    {
+      "STRANA": "BH",
+      "NAPR": "ИМ",
+      "rows": 622,
+      "stoim_sum": 18513769.12,
+      "netto_sum": 4061016.852,
+      "kol_sum": 14172.675
+    },
+    {
+      "STRANA": "BH",
+      "NAPR": "ЭК",
+      "rows": 3453,
+      "stoim_sum": 64589918.132999994,
+      "netto_sum": 83203807.58400004,
+      "kol_sum": 2112965.489
+    },
+    {
+      "STRANA": "BI",
+      "NAPR": "ИМ",
+      "rows": 81,
+      "stoim_sum": 30444.136000000002,
+      "netto_sum": 26135.0,
+      "kol_sum": 6667.0
+    },
+    {
+      "STRANA": "BI",
+      "NAPR": "ЭК",
+      "rows": 280,
+      "stoim_sum": 43944702.164,
+      "netto_sum": 135760485.0,
+      "kol_sum": 7876.5
+    },
+    {
+      "STRANA": "BJ",
+      "NAPR": "ИМ",
+      "rows": 87,
+      "stoim_sum": 2645669.803,
+      "netto_sum": 8448977.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "BJ",
+      "NAPR": "ЭК",
+      "rows": 484,
+      "stoim_sum": 380421855.77,
+      "netto_sum": 1145074064.61,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "BM",
+      "NAPR": "ЭК",
+      "rows": 60,
+      "stoim_sum": 34791.60999999999,
+      "netto_sum": 40.285,
+      "kol_sum": 65.0
+    },
+    {
+      "STRANA": "BN",
+      "NAPR": "ЭК",
+      "rows": 410,
+      "stoim_sum": 680358225.0149999,
+      "netto_sum": 1145348623.55,
+      "kol_sum": 362.0
+    },
+    {
+      "STRANA": "BO",
+      "NAPR": "ИМ",
+      "rows": 409,
+      "stoim_sum": 73204119.89545043,
+      "netto_sum": 8261261.133551601,
+      "kol_sum": 287823.84
+    },
+    {
+      "STRANA": "BO",
+      "NAPR": "ЭК",
+      "rows": 6647,
+      "stoim_sum": 823803610.3856374,
+      "netto_sum": 386385573.8374617,
+      "kol_sum": 277453233.95000005
+    },
+    {
+      "STRANA": "BR",
+      "NAPR": "ИМ",
+      "rows": 25957,
+      "stoim_sum": 11683715805.979147,
+      "netto_sum": 12186645325.447824,
+      "kol_sum": 418972983.0
+    },
+    {
+      "STRANA": "BR",
+      "NAPR": "ЭК",
+      "rows": 14299,
+      "stoim_sum": 60974127174.24838,
+      "netto_sum": 122427403954.16745,
+      "kol_sum": 71285498.0
+    },
+    {
+      "STRANA": "BT",
+      "NAPR": "ИМ",
+      "rows": 9,
+      "stoim_sum": 16006.46212219856,
+      "netto_sum": 19.514058894892216,
+      "kol_sum": 3950.0
+    },
+    {
+      "STRANA": "BT",
+      "NAPR": "ЭК",
+      "rows": 4,
+      "stoim_sum": 154756.16245541043,
+      "netto_sum": 1623.029067066851,
+      "kol_sum": 4.0
+    },
+    {
+      "STRANA": "BW",
+      "NAPR": "ИМ",
+      "rows": 106,
+      "stoim_sum": 11826761.38,
+      "netto_sum": 287058.85000000003,
+      "kol_sum": 7546.46
+    },
+    {
+      "STRANA": "BW",
+      "NAPR": "ЭК",
+      "rows": 507,
+      "stoim_sum": 477586666.015,
+      "netto_sum": 716459.6699999999,
+      "kol_sum": 125361.46
+    },
+    {
+      "STRANA": "BY",
+      "NAPR": "ИМ",
+      "rows": 127706,
+      "stoim_sum": 44520776500.0,
+      "netto_sum": 50525979553.07501,
+      "kol_sum": 9275630503.800003
+    },
+    {
+      "STRANA": "BY",
+      "NAPR": "ЭК",
+      "rows": 151294,
+      "stoim_sum": 55927450000.0,
+      "netto_sum": 107630038131.376,
+      "kol_sum": 4259193639.299999
+    },
+    {
+      "STRANA": "BZ",
+      "NAPR": "ИМ",
+      "rows": 8,
+      "stoim_sum": 5414.755,
+      "netto_sum": 172.51999999999998,
+      "kol_sum": 330.0
+    },
+    {
+      "STRANA": "BZ",
+      "NAPR": "ЭК",
+      "rows": 157,
+      "stoim_sum": 1559482.6498447815,
+      "netto_sum": 2771279.541090765,
+      "kol_sum": 5652.0
+    },
+    {
+      "STRANA": "CA",
+      "NAPR": "ИМ",
+      "rows": 27579,
+      "stoim_sum": 1782365032.180428,
+      "netto_sum": 199235864.72626406,
+      "kol_sum": 79579576.0
+    },
+    {
+      "STRANA": "CA",
+      "NAPR": "ЭК",
+      "rows": 29602,
+      "stoim_sum": 4803664982.16703,
+      "netto_sum": 5346998354.410312,
+      "kol_sum": 1724485137.0
+    },
+    {
+      "STRANA": "CD",
+      "NAPR": "ИМ",
+      "rows": 194,
+      "stoim_sum": 88680.075,
+      "netto_sum": 50658.0,
+      "kol_sum": 76.0
+    },
+    {
+      "STRANA": "CD",
+      "NAPR": "ЭК",
+      "rows": 1190,
+      "stoim_sum": 631069056.8330001,
+      "netto_sum": 1664877490.07,
+      "kol_sum": 34764.0
+    },
+    {
+      "STRANA": "CG",
+      "NAPR": "ИМ",
+      "rows": 41,
+      "stoim_sum": 69208.975,
+      "netto_sum": 9817.009999999998,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "CG",
+      "NAPR": "ЭК",
+      "rows": 200,
+      "stoim_sum": 37775512.518999994,
+      "netto_sum": 133498379.28,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "CH",
+      "NAPR": "ИМ",
+      "rows": 61461,
+      "stoim_sum": 21987158867.69153,
+      "netto_sum": 612804556.4344143,
+      "kol_sum": 838937025.0
+    },
+    {
+      "STRANA": "CH",
+      "NAPR": "ЭК",
+      "rows": 37608,
+      "stoim_sum": 13125356979.736052,
+      "netto_sum": 594130017.20693,
+      "kol_sum": 52035032.0
+    },
+    {
+      "STRANA": "CI",
+      "NAPR": "ИМ",
+      "rows": 269,
+      "stoim_sum": 7573863.109999999,
+      "netto_sum": 7444903.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "CI",
+      "NAPR": "ЭК",
+      "rows": 985,
+      "stoim_sum": 115197260.299,
+      "netto_sum": 270161810.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "CL",
+      "NAPR": "ИМ",
+      "rows": 3120,
+      "stoim_sum": 4003017310.9007807,
+      "netto_sum": 1142887138.6551893,
+      "kol_sum": 88580776.945
+    },
+    {
+      "STRANA": "CL",
+      "NAPR": "ЭК",
+      "rows": 6972,
+      "stoim_sum": 563899783.3440201,
+      "netto_sum": 1552492171.1872983,
+      "kol_sum": 3676740.572
+    },
+    {
+      "STRANA": "CM",
+      "NAPR": "ИМ",
+      "rows": 37,
+      "stoim_sum": 128113160.986,
+      "netto_sum": 227917905.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "CM",
+      "NAPR": "ЭК",
+      "rows": 896,
+      "stoim_sum": 254774311.96400005,
+      "netto_sum": 404158935.752,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "CN",
+      "NAPR": "ИМ",
+      "rows": 405926,
+      "stoim_sum": 624143529300.4965,
+      "netto_sum": 222954016837.62918,
+      "kol_sum": 83471155277.0
+    },
+    {
+      "STRANA": "CN",
+      "NAPR": "ЭК",
+      "rows": 88383,
+      "stoim_sum": 754351565509.3439,
+      "netto_sum": 1684062748249.6501,
+      "kol_sum": 171837043232.0
+    },
+    {
+      "STRANA": "CO",
+      "NAPR": "ИМ",
+      "rows": 2670,
+      "stoim_sum": 578514239.8821273,
+      "netto_sum": 240678544.86283204,
+      "kol_sum": 499310298.27
+    },
+    {
+      "STRANA": "CO",
+      "NAPR": "ЭК",
+      "rows": 9858,
+      "stoim_sum": 2060097799.985664,
+      "netto_sum": 3258630685.065587,
+      "kol_sum": 2789548.9299999997
+    },
+    {
+      "STRANA": "CR",
+      "NAPR": "ИМ",
+      "rows": 81,
+      "stoim_sum": 9881042.66,
+      "netto_sum": 17591938.080000002,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "CR",
+      "NAPR": "ЭК",
+      "rows": 245,
+      "stoim_sum": 12894329.79,
+      "netto_sum": 41038823.318,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "CV",
+      "NAPR": "ЭК",
+      "rows": 12,
+      "stoim_sum": 1315955.5140000002,
+      "netto_sum": 5038891.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "CY",
+      "NAPR": "ИМ",
+      "rows": 2691,
+      "stoim_sum": 261229075.56000003,
+      "netto_sum": 13744020.266,
+      "kol_sum": 565982.0
+    },
+    {
+      "STRANA": "CY",
+      "NAPR": "ЭК",
+      "rows": 9554,
+      "stoim_sum": 499078535.6689999,
+      "netto_sum": 827147311.314,
+      "kol_sum": 5527517.0
+    },
+    {
+      "STRANA": "CZ",
+      "NAPR": "ИМ",
+      "rows": 85029,
+      "stoim_sum": 16683148860.31389,
+      "netto_sum": 2187412409.779497,
+      "kol_sum": 1882416109.0
+    },
+    {
+      "STRANA": "CZ",
+      "NAPR": "ЭК",
+      "rows": 57196,
+      "stoim_sum": 33575596107.32869,
+      "netto_sum": 54278394696.60934,
+      "kol_sum": 270383100.0
+    },
+    {
+      "STRANA": "DE",
+      "NAPR": "ИМ",
+      "rows": 210271,
+      "stoim_sum": 134525063392.96599,
+      "netto_sum": 13763640043.343843,
+      "kol_sum": 4270563674.0
+    },
+    {
+      "STRANA": "DE",
+      "NAPR": "ЭК",
+      "rows": 90840,
+      "stoim_sum": 109101829066.27003,
+      "netto_sum": 224061077716.97858,
+      "kol_sum": 1717718624.0
+    },
+    {
+      "STRANA": "DK",
+      "NAPR": "ИМ",
+      "rows": 41886,
+      "stoim_sum": 3345552144.507239,
+      "netto_sum": 606352962.7966293,
+      "kol_sum": 131680615.0
+    },
+    {
+      "STRANA": "DK",
+      "NAPR": "ЭК",
+      "rows": 11238,
+      "stoim_sum": 6763186021.589413,
+      "netto_sum": 14107615964.619106,
+      "kol_sum": 55211136.0
+    },
+    {
+      "STRANA": "DO",
+      "NAPR": "ИМ",
+      "rows": 1155,
+      "stoim_sum": 55201225.456999995,
+      "netto_sum": 17620483.935,
+      "kol_sum": 277218569.75
+    },
+    {
+      "STRANA": "DO",
+      "NAPR": "ЭК",
+      "rows": 3405,
+      "stoim_sum": 477312588.70003057,
+      "netto_sum": 830024587.0058075,
+      "kol_sum": 49876116.72
+    },
+    {
+      "STRANA": "EC",
+      "NAPR": "ИМ",
+      "rows": 1487,
+      "stoim_sum": 3706484416.7000003,
+      "netto_sum": 5971552390.290001,
+      "kol_sum": 10037092.0
+    },
+    {
+      "STRANA": "EC",
+      "NAPR": "ЭК",
+      "rows": 5953,
+      "stoim_sum": 1231949420.353,
+      "netto_sum": 2408657977.704,
+      "kol_sum": 10206562.645
+    },
+    {
+      "STRANA": "EE",
+      "NAPR": "ИМ",
+      "rows": 84939,
+      "stoim_sum": 8608550496.233932,
+      "netto_sum": 2884771490.27923,
+      "kol_sum": 306580172.34800005
+    },
+    {
+      "STRANA": "EE",
+      "NAPR": "ЭК",
+      "rows": 61646,
+      "stoim_sum": 8780971682.995289,
+      "netto_sum": 17170471034.548515,
+      "kol_sum": 778826891.1580001
+    },
+    {
+      "STRANA": "EG",
+      "NAPR": "ИМ",
+      "rows": 8711,
+      "stoim_sum": 4201185992.2095013,
+      "netto_sum": 3941533372.28395,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "EG",
+      "NAPR": "ЭК",
+      "rows": 19601,
+      "stoim_sum": 33081416076.13869,
+      "netto_sum": 44918697835.77243,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "ES",
+      "NAPR": "ИМ",
+      "rows": 79450,
+      "stoim_sum": 11176623193.520426,
+      "netto_sum": 2564987441.734654,
+      "kol_sum": 719771097.919
+    },
+    {
+      "STRANA": "ES",
+      "NAPR": "ЭК",
+      "rows": 29927,
+      "stoim_sum": 29915604825.16698,
+      "netto_sum": 59035222099.10375,
+      "kol_sum": 459598830.021
+    },
+    {
+      "STRANA": "FI",
+      "NAPR": "ИМ",
+      "rows": 103351,
+      "stoim_sum": 15568955900.475163,
+      "netto_sum": 4917256555.192487,
+      "kol_sum": 229452579.0
+    },
+    {
+      "STRANA": "FI",
+      "NAPR": "ЭК",
+      "rows": 36362,
+      "stoim_sum": 36898318218.53814,
+      "netto_sum": 74249752471.26144,
+      "kol_sum": 467096647.0
+    },
+    {
+      "STRANA": "FJ",
+      "NAPR": "ИМ",
+      "rows": 12,
+      "stoim_sum": 115706.238,
+      "netto_sum": 13752.0,
+      "kol_sum": 13740.0
+    },
+    {
+      "STRANA": "FJ",
+      "NAPR": "ЭК",
+      "rows": 118,
+      "stoim_sum": 583546.724,
+      "netto_sum": 10601.385,
+      "kol_sum": 1943.0
+    },
+    {
+      "STRANA": "FO",
+      "NAPR": "ИМ",
+      "rows": 172,
+      "stoim_sum": 250291701.26562586,
+      "netto_sum": 105026461.40640275,
+      "kol_sum": 3120425.0
+    },
+    {
+      "STRANA": "FO",
+      "NAPR": "ЭК",
+      "rows": 126,
+      "stoim_sum": 153659.53885726703,
+      "netto_sum": 20293.418885721883,
+      "kol_sum": 807.0
+    },
+    {
+      "STRANA": "FR",
+      "NAPR": "ИМ",
+      "rows": 103544,
+      "stoim_sum": 27481081312.665997,
+      "netto_sum": 2435114494.7019997,
+      "kol_sum": 462764966.0
+    },
+    {
+      "STRANA": "FR",
+      "NAPR": "ЭК",
+      "rows": 50501,
+      "stoim_sum": 52244982149.83599,
+      "netto_sum": 91836962785.84,
+      "kol_sum": 1103605512.0
+    },
+    {
+      "STRANA": "GB",
+      "NAPR": "ИМ",
+      "rows": 60418,
+      "stoim_sum": 13568276203.246265,
+      "netto_sum": 1182897153.0161257,
+      "kol_sum": 476587477.0
+    },
+    {
+      "STRANA": "GB",
+      "NAPR": "ЭК",
+      "rows": 21213,
+      "stoim_sum": 72463107877.02974,
+      "netto_sum": 51236972522.389465,
+      "kol_sum": 2443879576.0
+    },
+    {
+      "STRANA": "GD",
+      "NAPR": "ИМ",
+      "rows": 10,
+      "stoim_sum": 20850.742,
+      "netto_sum": 2401.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "GD",
+      "NAPR": "ЭК",
+      "rows": 20,
+      "stoim_sum": 136008.53,
+      "netto_sum": 1173.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "GE",
+      "NAPR": "ИМ",
+      "rows": 15364,
+      "stoim_sum": 4481573205.843727,
+      "netto_sum": 3049064465.631152,
+      "kol_sum": 1707596337.6309996
+    },
+    {
+      "STRANA": "GE",
+      "NAPR": "ЭК",
+      "rows": 102595,
+      "stoim_sum": 11073695599.54485,
+      "netto_sum": 16954973499.967594,
+      "kol_sum": 1778664122.3999999
+    },
+    {
+      "STRANA": "GH",
+      "NAPR": "ИМ",
+      "rows": 492,
+      "stoim_sum": 205234749.5419485,
+      "netto_sum": 59325088.91245359,
+      "kol_sum": 42276.344
+    },
+    {
+      "STRANA": "GH",
+      "NAPR": "ЭК",
+      "rows": 3258,
+      "stoim_sum": 1951588657.2476134,
+      "netto_sum": 3594716181.109475,
+      "kol_sum": 1384795226.125
+    },
+    {
+      "STRANA": "GM",
+      "NAPR": "ЭК",
+      "rows": 41,
+      "stoim_sum": 12270478.829,
+      "netto_sum": 16962183.201,
+      "kol_sum": 3813.0
+    },
+    {
+      "STRANA": "GR",
+      "NAPR": "ИМ",
+      "rows": 16529,
+      "stoim_sum": 1139244659.2471583,
+      "netto_sum": 618490903.0598859,
+      "kol_sum": 87442487.0
+    },
+    {
+      "STRANA": "GR",
+      "NAPR": "ЭК",
+      "rows": 8958,
+      "stoim_sum": 29223800669.28028,
+      "netto_sum": 49565966853.71621,
+      "kol_sum": 98310989.0
+    },
+    {
+      "STRANA": "GT",
+      "NAPR": "ИМ",
+      "rows": 700,
+      "stoim_sum": 96028700.38778855,
+      "netto_sum": 55338378.13285179,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "GT",
+      "NAPR": "ЭК",
+      "rows": 3091,
+      "stoim_sum": 1301930583.4273329,
+      "netto_sum": 2454798568.475911,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "GY",
+      "NAPR": "ИМ",
+      "rows": 449,
+      "stoim_sum": 10856183.0659651,
+      "netto_sum": 1486708.3256549826,
+      "kol_sum": 16863.0
+    },
+    {
+      "STRANA": "GY",
+      "NAPR": "ЭК",
+      "rows": 502,
+      "stoim_sum": 5770677.985051891,
+      "netto_sum": 164616135.40330607,
+      "kol_sum": 1368265367.75
+    },
+    {
+      "STRANA": "HK",
+      "NAPR": "ИМ",
+      "rows": 36518,
+      "stoim_sum": 20989323253.308235,
+      "netto_sum": 230595153.99378127,
+      "kol_sum": 1543723864.0
+    },
+    {
+      "STRANA": "HK",
+      "NAPR": "ЭК",
+      "rows": 9813,
+      "stoim_sum": 36192129075.658165,
+      "netto_sum": 3748334204.510516,
+      "kol_sum": 68769616.0
+    },
+    {
+      "STRANA": "HR",
+      "NAPR": "ИМ",
+      "rows": 15756,
+      "stoim_sum": 1832562440.1717541,
+      "netto_sum": 223858814.95554584,
+      "kol_sum": 68949048.24800001
+    },
+    {
+      "STRANA": "HR",
+      "NAPR": "ЭК",
+      "rows": 8687,
+      "stoim_sum": 2136660488.3776011,
+      "netto_sum": 4914824571.392014,
+      "kol_sum": 83711503.747
+    },
+    {
+      "STRANA": "HU",
+      "NAPR": "ИМ",
+      "rows": 44513,
+      "stoim_sum": 10843094716.467329,
+      "netto_sum": 1097874095.3990128,
+      "kol_sum": 799405237.327
+    },
+    {
+      "STRANA": "HU",
+      "NAPR": "ЭК",
+      "rows": 24195,
+      "stoim_sum": 38919259629.80744,
+      "netto_sum": 68492090616.379555,
+      "kol_sum": 171362006.21899998
+    },
+    {
+      "STRANA": "ID",
+      "NAPR": "ИМ",
+      "rows": 22149,
+      "stoim_sum": 8554599695.983468,
+      "netto_sum": 7160270352.23869,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "ID",
+      "NAPR": "ЭК",
+      "rows": 14686,
+      "stoim_sum": 13565909492.438105,
+      "netto_sum": 45434676974.663635,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "IE",
+      "NAPR": "ИМ",
+      "rows": 16193,
+      "stoim_sum": 5178227990.467841,
+      "netto_sum": 4578033992.3272295,
+      "kol_sum": 1052100371.0
+    },
+    {
+      "STRANA": "IE",
+      "NAPR": "ЭК",
+      "rows": 23611,
+      "stoim_sum": 2089897981.0020337,
+      "netto_sum": 5722899927.705732,
+      "kol_sum": 209828015.0
+    },
+    {
+      "STRANA": "IL",
+      "NAPR": "ИМ",
+      "rows": 21580,
+      "stoim_sum": 4643078830.7046385,
+      "netto_sum": 1130491780.6610668,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "IL",
+      "NAPR": "ЭК",
+      "rows": 28100,
+      "stoim_sum": 16289894456.732445,
+      "netto_sum": 21763611139.3553,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "IN",
+      "NAPR": "ИМ",
+      "rows": 402285,
+      "stoim_sum": 27162677809.030685,
+      "netto_sum": 6778639440.547268,
+      "kol_sum": 2425923365.0
+    },
+    {
+      "STRANA": "IN",
+      "NAPR": "ЭК",
+      "rows": 154920,
+      "stoim_sum": 263009597493.56622,
+      "netto_sum": 510952865138.71924,
+      "kol_sum": 132564042.0
+    },
+    {
+      "STRANA": "IS",
+      "NAPR": "ИМ",
+      "rows": 1291,
+      "stoim_sum": 139848105.82199997,
+      "netto_sum": 39935088.94800001,
+      "kol_sum": 12.0
+    },
+    {
+      "STRANA": "IS",
+      "NAPR": "ЭК",
+      "rows": 7760,
+      "stoim_sum": 159586058.4754134,
+      "netto_sum": 109762234.15482561,
+      "kol_sum": 16357.0
+    },
+    {
+      "STRANA": "IT",
+      "NAPR": "ИМ",
+      "rows": 145608,
+      "stoim_sum": 48134631377.118324,
+      "netto_sum": 5331432437.776341,
+      "kol_sum": 1667024860.0
+    },
+    {
+      "STRANA": "IT",
+      "NAPR": "ЭК",
+      "rows": 27906,
+      "stoim_sum": 87465476882.52249,
+      "netto_sum": 169442433370.2431,
+      "kol_sum": 644107535.0
+    },
+    {
+      "STRANA": "JO",
+      "NAPR": "ИМ",
+      "rows": 100,
+      "stoim_sum": 4296668.564,
+      "netto_sum": 1113037.707,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "JO",
+      "NAPR": "ЭК",
+      "rows": 1120,
+      "stoim_sum": 155572349.07600003,
+      "netto_sum": 156787931.88399997,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "JP",
+      "NAPR": "ИМ",
+      "rows": 51969,
+      "stoim_sum": 34116142490.063103,
+      "netto_sum": 3889475215.0598917,
+      "kol_sum": 541452662.0
+    },
+    {
+      "STRANA": "JP",
+      "NAPR": "ЭК",
+      "rows": 18247,
+      "stoim_sum": 75336786776.44283,
+      "netto_sum": 159522282065.3008,
+      "kol_sum": 81992128.0
+    },
+    {
+      "STRANA": "KE",
+      "NAPR": "ИМ",
+      "rows": 1080,
+      "stoim_sum": 284178969.908,
+      "netto_sum": 117187005.144,
+      "kol_sum": 336401.0
+    },
+    {
+      "STRANA": "KE",
+      "NAPR": "ЭК",
+      "rows": 2828,
+      "stoim_sum": 1651288775.352,
+      "netto_sum": 4270907229.1800003,
+      "kol_sum": 2611360.2399999998
+    },
+    {
+      "STRANA": "KG",
+      "NAPR": "ИМ",
+      "rows": 27625,
+      "stoim_sum": 4194221391.562778,
+      "netto_sum": 1940290463.2161703,
+      "kol_sum": 596829108.0
+    },
+    {
+      "STRANA": "KG",
+      "NAPR": "ЭК",
+      "rows": 116121,
+      "stoim_sum": 14381468344.987482,
+      "netto_sum": 20762015873.677998,
+      "kol_sum": 951208334903.0
+    },
+    {
+      "STRANA": "KH",
+      "NAPR": "ИМ",
+      "rows": 2635,
+      "stoim_sum": 127155601.61999997,
+      "netto_sum": 14901012.817000002,
+      "kol_sum": 18265925.0
+    },
+    {
+      "STRANA": "KH",
+      "NAPR": "ЭК",
+      "rows": 1153,
+      "stoim_sum": 127934467.58999999,
+      "netto_sum": 390018234.3009999,
+      "kol_sum": 197116.88999999998
+    },
+    {
+      "STRANA": "KR",
+      "NAPR": "ИМ",
+      "rows": 88272,
+      "stoim_sum": 41628014038.0,
+      "netto_sum": 8497731971.587005,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "KR",
+      "NAPR": "ЭК",
+      "rows": 37211,
+      "stoim_sum": 73128706728.0,
+      "netto_sum": 226811313694.76105,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "KW",
+      "NAPR": "ИМ",
+      "rows": 429,
+      "stoim_sum": 4496347.16,
+      "netto_sum": 432426.205,
+      "kol_sum": 1463.0
+    },
+    {
+      "STRANA": "KW",
+      "NAPR": "ЭК",
+      "rows": 5585,
+      "stoim_sum": 351849876.26900005,
+      "netto_sum": 499026881.33299994,
+      "kol_sum": 810353.0
+    },
+    {
+      "STRANA": "KZ",
+      "NAPR": "ИМ",
+      "rows": 96255,
+      "stoim_sum": 37460237593.662994,
+      "netto_sum": 202141259678.13196,
+      "kol_sum": 8050564708.6
+    },
+    {
+      "STRANA": "KZ",
+      "NAPR": "ЭК",
+      "rows": 238313,
+      "stoim_sum": 81257542493.34892,
+      "netto_sum": 124639438999.82315,
+      "kol_sum": 129262105022.19997
+    },
+    {
+      "STRANA": "LA",
+      "NAPR": "ИМ",
+      "rows": 95,
+      "stoim_sum": 3214039.64,
+      "netto_sum": 225376.32,
+      "kol_sum": 6096.902
+    },
+    {
+      "STRANA": "LA",
+      "NAPR": "ЭК",
+      "rows": 476,
+      "stoim_sum": 30148025.65,
+      "netto_sum": 10800307.076,
+      "kol_sum": 284547.92
+    },
+    {
+      "STRANA": "LS",
+      "NAPR": "ЭК",
+      "rows": 45,
+      "stoim_sum": 2070679.0000000002,
+      "netto_sum": 8394337.425999999,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "LT",
+      "NAPR": "ИМ",
+      "rows": 163881,
+      "stoim_sum": 19951233215.358234,
+      "netto_sum": 3022557389.133009,
+      "kol_sum": 2294747959.842
+    },
+    {
+      "STRANA": "LT",
+      "NAPR": "ЭК",
+      "rows": 52671,
+      "stoim_sum": 17324807225.597935,
+      "netto_sum": 37449217436.69993,
+      "kol_sum": 806960936.6569998
+    },
+    {
+      "STRANA": "LU",
+      "NAPR": "ИМ",
+      "rows": 10539,
+      "stoim_sum": 537957736.4995983,
+      "netto_sum": 136107039.3579642,
+      "kol_sum": 2236733.0
+    },
+    {
+      "STRANA": "LU",
+      "NAPR": "ЭК",
+      "rows": 9233,
+      "stoim_sum": 217344396.58234775,
+      "netto_sum": 130730387.60437198,
+      "kol_sum": 1725693.6789999995
+    },
+    {
+      "STRANA": "LV",
+      "NAPR": "ИМ",
+      "rows": 85476,
+      "stoim_sum": 9250034316.064585,
+      "netto_sum": 1195656337.0139189,
+      "kol_sum": 832289966.0
+    },
+    {
+      "STRANA": "LV",
+      "NAPR": "ЭК",
+      "rows": 55575,
+      "stoim_sum": 7435006543.619222,
+      "netto_sum": 14341215942.994083,
+      "kol_sum": 523847999.0
+    },
+    {
+      "STRANA": "MA",
+      "NAPR": "ИМ",
+      "rows": 4876,
+      "stoim_sum": 928034018.0092049,
+      "netto_sum": 1100002300.1943395,
+      "kol_sum": 17771.0
+    },
+    {
+      "STRANA": "MA",
+      "NAPR": "ЭК",
+      "rows": 7921,
+      "stoim_sum": 8396388640.946452,
+      "netto_sum": 44582231190.02506,
+      "kol_sum": 670445412.57
+    },
+    {
+      "STRANA": "MD",
+      "NAPR": "ИМ",
+      "rows": 12350,
+      "stoim_sum": 1325020102.0780447,
+      "netto_sum": 1398822982.929568,
+      "kol_sum": 98595662.0
+    },
+    {
+      "STRANA": "MD",
+      "NAPR": "ЭК",
+      "rows": 62656,
+      "stoim_sum": 4301864332.101103,
+      "netto_sum": 5106098267.197825,
+      "kol_sum": 503118477.0
+    },
+    {
+      "STRANA": "ME",
+      "NAPR": "ИМ",
+      "rows": 792,
+      "stoim_sum": 7266815.864,
+      "netto_sum": 5498246.640000001,
+      "kol_sum": 16284.9
+    },
+    {
+      "STRANA": "ME",
+      "NAPR": "ЭК",
+      "rows": 11299,
+      "stoim_sum": 56570472.53199999,
+      "netto_sum": 30331775.699999996,
+      "kol_sum": 20908451.042999998
+    },
+    {
+      "STRANA": "MG",
+      "NAPR": "ИМ",
+      "rows": 329,
+      "stoim_sum": 12908345.579999996,
+      "netto_sum": 14881047.229999999,
+      "kol_sum": 912.3399999999999
+    },
+    {
+      "STRANA": "MG",
+      "NAPR": "ЭК",
+      "rows": 639,
+      "stoim_sum": 51097985.04799999,
+      "netto_sum": 147403828.42,
+      "kol_sum": 434.0
+    },
+    {
+      "STRANA": "MK",
+      "NAPR": "ИМ",
+      "rows": 2007,
+      "stoim_sum": 336744492.2805712,
+      "netto_sum": 139967829.41329682,
+      "kol_sum": 1261029.0
+    },
+    {
+      "STRANA": "MK",
+      "NAPR": "ЭК",
+      "rows": 10249,
+      "stoim_sum": 1316552006.6762428,
+      "netto_sum": 1936910312.526608,
+      "kol_sum": 38782407.0
+    },
+    {
+      "STRANA": "MM",
+      "NAPR": "ИМ",
+      "rows": 3629,
+      "stoim_sum": 172519380.456,
+      "netto_sum": 43586043.24400001,
+      "kol_sum": 27724175.562000003
+    },
+    {
+      "STRANA": "MM",
+      "NAPR": "ЭК",
+      "rows": 1066,
+      "stoim_sum": 118561861.43,
+      "netto_sum": 358509735.522,
+      "kol_sum": 1566979.647
+    },
+    {
+      "STRANA": "MN",
+      "NAPR": "ИМ",
+      "rows": 2989,
+      "stoim_sum": 238151973.81999996,
+      "netto_sum": 526682069.153,
+      "kol_sum": 10769631.72
+    },
+    {
+      "STRANA": "MN",
+      "NAPR": "ЭК",
+      "rows": 35247,
+      "stoim_sum": 5084937818.84,
+      "netto_sum": 7717696205.490001,
+      "kol_sum": 531769946.55200005
+    },
+    {
+      "STRANA": "MO",
+      "NAPR": "ИМ",
+      "rows": 87,
+      "stoim_sum": 3537041.573,
+      "netto_sum": 14906.912,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "MO",
+      "NAPR": "ЭК",
+      "rows": 1850,
+      "stoim_sum": 53035345.23034236,
+      "netto_sum": 6992446.4913804885,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "MR",
+      "NAPR": "ИМ",
+      "rows": 59,
+      "stoim_sum": 95855437.59400001,
+      "netto_sum": 127736017.8,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "MR",
+      "NAPR": "ЭК",
+      "rows": 66,
+      "stoim_sum": 164959922.649,
+      "netto_sum": 462975393.32,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "MT",
+      "NAPR": "ИМ",
+      "rows": 832,
+      "stoim_sum": 22004550.387000002,
+      "netto_sum": 69705.887,
+      "kol_sum": 72959.0
+    },
+    {
+      "STRANA": "MT",
+      "NAPR": "ЭК",
+      "rows": 5381,
+      "stoim_sum": 345828159.256,
+      "netto_sum": 872866515.872,
+      "kol_sum": 50032.0
+    },
+    {
+      "STRANA": "MU",
+      "NAPR": "ИМ",
+      "rows": 271,
+      "stoim_sum": 11882148.393599395,
+      "netto_sum": 10550846.58441819,
+      "kol_sum": 26238.0
+    },
+    {
+      "STRANA": "MU",
+      "NAPR": "ЭК",
+      "rows": 1649,
+      "stoim_sum": 11239617.245306542,
+      "netto_sum": 9118956.07506179,
+      "kol_sum": 4327978.0
+    },
+    {
+      "STRANA": "MW",
+      "NAPR": "ИМ",
+      "rows": 100,
+      "stoim_sum": 68759144.46100001,
+      "netto_sum": 22786786.3,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "MW",
+      "NAPR": "ЭК",
+      "rows": 360,
+      "stoim_sum": 94731562.756,
+      "netto_sum": 200940684.50000003,
+      "kol_sum": 39093.74
+    },
+    {
+      "STRANA": "MX",
+      "NAPR": "ИМ",
+      "rows": 448,
+      "stoim_sum": 1370925507.5657682,
+      "netto_sum": 14488661.405777652,
+      "kol_sum": 2235541.0
+    },
+    {
+      "STRANA": "MX",
+      "NAPR": "ЭК",
+      "rows": 2075,
+      "stoim_sum": 11130605008.437366,
+      "netto_sum": 8077700108.929122,
+      "kol_sum": 7520148.0
+    },
+    {
+      "STRANA": "MY",
+      "NAPR": "ИМ",
+      "rows": 19121,
+      "stoim_sum": 5597588565.758227,
+      "netto_sum": 1462629906.482906,
+      "kol_sum": 716146971.771
+    },
+    {
+      "STRANA": "MY",
+      "NAPR": "ЭК",
+      "rows": 9889,
+      "stoim_sum": 11463878688.97739,
+      "netto_sum": 33319796010.72099,
+      "kol_sum": 55834960.502000004
+    },
+    {
+      "STRANA": "MZ",
+      "NAPR": "ИМ",
+      "rows": 561,
+      "stoim_sum": 24203797.32,
+      "netto_sum": 27242092.0,
+      "kol_sum": 400611650.0
+    },
+    {
+      "STRANA": "MZ",
+      "NAPR": "ЭК",
+      "rows": 664,
+      "stoim_sum": 398839103.00400007,
+      "netto_sum": 1040559482.0,
+      "kol_sum": 147005739.0
+    },
+    {
+      "STRANA": "NA",
+      "NAPR": "ИМ",
+      "rows": 834,
+      "stoim_sum": 19456861.367999997,
+      "netto_sum": 3653358.3499999996,
+      "kol_sum": 1057206.4
+    },
+    {
+      "STRANA": "NA",
+      "NAPR": "ЭК",
+      "rows": 2165,
+      "stoim_sum": 195035321.77699995,
+      "netto_sum": 517922041.737,
+      "kol_sum": 1391644.49
+    },
+    {
+      "STRANA": "NG",
+      "NAPR": "ИМ",
+      "rows": 218,
+      "stoim_sum": 22422224.81217847,
+      "netto_sum": 28395942.577081487,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "NG",
+      "NAPR": "ЭК",
+      "rows": 2799,
+      "stoim_sum": 6312210720.513825,
+      "netto_sum": 1290054510.5841253,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "NI",
+      "NAPR": "ИМ",
+      "rows": 414,
+      "stoim_sum": 44978797.55,
+      "netto_sum": 23583354.816999994,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "NI",
+      "NAPR": "ЭК",
+      "rows": 3608,
+      "stoim_sum": 444392678.64000005,
+      "netto_sum": 615625083.961,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "NL",
+      "NAPR": "ИМ",
+      "rows": 104889,
+      "stoim_sum": 34847742640.0055,
+      "netto_sum": 5034854746.459052,
+      "kol_sum": 5190391398.0
+    },
+    {
+      "STRANA": "NL",
+      "NAPR": "ЭК",
+      "rows": 42821,
+      "stoim_sum": 82716482656.38025,
+      "netto_sum": 134336594308.11081,
+      "kol_sum": 208382917.0
+    },
+    {
+      "STRANA": "NO",
+      "NAPR": "ИМ",
+      "rows": 29522,
+      "stoim_sum": 1637013972.4316342,
+      "netto_sum": 1623622554.7256095,
+      "kol_sum": 2602047.0
+    },
+    {
+      "STRANA": "NO",
+      "NAPR": "ЭК",
+      "rows": 19320,
+      "stoim_sum": 8779090602.212519,
+      "netto_sum": 9909263226.729773,
+      "kol_sum": 18169399.0
+    },
+    {
+      "STRANA": "NZ",
+      "NAPR": "ИМ",
+      "rows": 3316,
+      "stoim_sum": 677390579.5005875,
+      "netto_sum": 182612111.09782648,
+      "kol_sum": 6155771.0
+    },
+    {
+      "STRANA": "NZ",
+      "NAPR": "ЭК",
+      "rows": 9055,
+      "stoim_sum": 768144158.0227463,
+      "netto_sum": 1500043506.0759478,
+      "kol_sum": 3175503.0
+    },
+    {
+      "STRANA": "OM",
+      "NAPR": "ИМ",
+      "rows": 1023,
+      "stoim_sum": 29186382.265,
+      "netto_sum": 2804049.8660000004,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "OM",
+      "NAPR": "ЭК",
+      "rows": 1076,
+      "stoim_sum": 990742053.0670002,
+      "netto_sum": 1501019841.592,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "PA",
+      "NAPR": "ИМ",
+      "rows": 92,
+      "stoim_sum": 4536097.405048408,
+      "netto_sum": 2921374.2977010002,
+      "kol_sum": 380098.0
+    },
+    {
+      "STRANA": "PA",
+      "NAPR": "ЭК",
+      "rows": 1946,
+      "stoim_sum": 262606554.42301032,
+      "netto_sum": 509830656.302835,
+      "kol_sum": 1517.0
+    },
+    {
+      "STRANA": "PE",
+      "NAPR": "ИМ",
+      "rows": 1152,
+      "stoim_sum": 391661683.7546905,
+      "netto_sum": 181045090.00920346,
+      "kol_sum": 203557.05000000002
+    },
+    {
+      "STRANA": "PE",
+      "NAPR": "ЭК",
+      "rows": 4959,
+      "stoim_sum": 986125926.9703121,
+      "netto_sum": 2625221954.7740517,
+      "kol_sum": 17910335.469
+    },
+    {
+      "STRANA": "PF",
+      "NAPR": "ИМ",
+      "rows": 4,
+      "stoim_sum": 251.412,
+      "netto_sum": 0.0,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "PF",
+      "NAPR": "ЭК",
+      "rows": 875,
+      "stoim_sum": 689351.2579999999,
+      "netto_sum": 256341.43499999997,
+      "kol_sum": 113865.0
+    },
+    {
+      "STRANA": "PH",
+      "NAPR": "ИМ",
+      "rows": 4634,
+      "stoim_sum": 540351752.5292491,
+      "netto_sum": 105028696.9963659,
+      "kol_sum": 7994495.954000001
+    },
+    {
+      "STRANA": "PH",
+      "NAPR": "ЭК",
+      "rows": 4315,
+      "stoim_sum": 3743729764.2339935,
+      "netto_sum": 8190066702.961065,
+      "kol_sum": 302789460.97400004
+    },
+    {
+      "STRANA": "PK",
+      "NAPR": "ИМ",
+      "rows": 6143,
+      "stoim_sum": 785177455.5323081,
+      "netto_sum": 590373242.8209326,
+      "kol_sum": 72398914.0
+    },
+    {
+      "STRANA": "PK",
+      "NAPR": "ЭК",
+      "rows": 4195,
+      "stoim_sum": 3648741453.5263863,
+      "netto_sum": 10696402807.898127,
+      "kol_sum": 14218446.0
+    },
+    {
+      "STRANA": "PL",
+      "NAPR": "ИМ",
+      "rows": 178601,
+      "stoim_sum": 39501618679.18754,
+      "netto_sum": 7792884617.81071,
+      "kol_sum": 2897620169.0
+    },
+    {
+      "STRANA": "PL",
+      "NAPR": "ЭК",
+      "rows": 61097,
+      "stoim_sum": 70626955581.01639,
+      "netto_sum": 137103857116.52393,
+      "kol_sum": 4008484320.0
+    },
+    {
+      "STRANA": "PS",
+      "NAPR": "ИМ",
+      "rows": 61,
+      "stoim_sum": 1860946.0,
+      "netto_sum": 604995.461,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "PS",
+      "NAPR": "ЭК",
+      "rows": 2210,
+      "stoim_sum": 208316554.51699996,
+      "netto_sum": 196680234.331,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "PT",
+      "NAPR": "ИМ",
+      "rows": 19366,
+      "stoim_sum": 1022028442.0461004,
+      "netto_sum": 286352247.20085996,
+      "kol_sum": 189332727.58
+    },
+    {
+      "STRANA": "PT",
+      "NAPR": "ЭК",
+      "rows": 18904,
+      "stoim_sum": 4631360203.744989,
+      "netto_sum": 8061624444.145505,
+      "kol_sum": 80478881.78999999
+    },
+    {
+      "STRANA": "PY",
+      "NAPR": "ИМ",
+      "rows": 946,
+      "stoim_sum": 2841181084.937038,
+      "netto_sum": 3552194611.955936,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "PY",
+      "NAPR": "ЭК",
+      "rows": 2049,
+      "stoim_sum": 1096659549.0397482,
+      "netto_sum": 1940884732.8214648,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "QA",
+      "NAPR": "ИМ",
+      "rows": 69,
+      "stoim_sum": 38456398.97299999,
+      "netto_sum": 135591.34,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "QA",
+      "NAPR": "ЭК",
+      "rows": 2367,
+      "stoim_sum": 918590540.166,
+      "netto_sum": 428955171.0949999,
+      "kol_sum": 24419454.0
+    },
+    {
+      "STRANA": "RO",
+      "NAPR": "ИМ",
+      "rows": 26329,
+      "stoim_sum": 4394293684.512597,
+      "netto_sum": 921431348.3574202,
+      "kol_sum": 28824385.90000001
+    },
+    {
+      "STRANA": "RO",
+      "NAPR": "ЭК",
+      "rows": 26130,
+      "stoim_sum": 17613980655.561604,
+      "netto_sum": 34349824391.936794,
+      "kol_sum": 327338632.95
+    },
+    {
+      "STRANA": "RS",
+      "NAPR": "ИМ",
+      "rows": 51644,
+      "stoim_sum": 7508647836.287469,
+      "netto_sum": 2257548467.227816,
+      "kol_sum": 801460953.0
+    },
+    {
+      "STRANA": "RS",
+      "NAPR": "ЭК",
+      "rows": 39519,
+      "stoim_sum": 14242616934.256348,
+      "netto_sum": 24692930597.849133,
+      "kol_sum": 1256576838.0
+    },
+    {
+      "STRANA": "RW",
+      "NAPR": "ИМ",
+      "rows": 115,
+      "stoim_sum": 16746474.950000003,
+      "netto_sum": 5994381.2,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "RW",
+      "NAPR": "ЭК",
+      "rows": 679,
+      "stoim_sum": 176090410.12,
+      "netto_sum": 445837960.59000003,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "SA",
+      "NAPR": "ИМ",
+      "rows": 2538,
+      "stoim_sum": 406160823.2495492,
+      "netto_sum": 104133550.43139672,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "SA",
+      "NAPR": "ЭК",
+      "rows": 15508,
+      "stoim_sum": 15850420535.911066,
+      "netto_sum": 29879976719.819435,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "SC",
+      "NAPR": "ИМ",
+      "rows": 63,
+      "stoim_sum": 268697.066,
+      "netto_sum": 42087.649999999994,
+      "kol_sum": 9058.0
+    },
+    {
+      "STRANA": "SC",
+      "NAPR": "ЭК",
+      "rows": 2544,
+      "stoim_sum": 4454324.302000001,
+      "netto_sum": 1620169.4069999997,
+      "kol_sum": 1178036.6369999999
+    },
+    {
+      "STRANA": "SE",
+      "NAPR": "ИМ",
+      "rows": 50998,
+      "stoim_sum": 11733577281.346977,
+      "netto_sum": 1708738177.514989,
+      "kol_sum": 167828425.0
+    },
+    {
+      "STRANA": "SE",
+      "NAPR": "ЭК",
+      "rows": 22566,
+      "stoim_sum": 9068291375.224169,
+      "netto_sum": 19698772959.42023,
+      "kol_sum": 433234415.0
+    },
+    {
+      "STRANA": "SG",
+      "NAPR": "ИМ",
+      "rows": 20817,
+      "stoim_sum": 2131376901.7926557,
+      "netto_sum": 169743792.4159935,
+      "kol_sum": 43920846.14
+    },
+    {
+      "STRANA": "SG",
+      "NAPR": "ЭК",
+      "rows": 14104,
+      "stoim_sum": 22191879393.949398,
+      "netto_sum": 42093022714.00164,
+      "kol_sum": 2031646.2600000002
+    },
+    {
+      "STRANA": "SI",
+      "NAPR": "ИМ",
+      "rows": 38815,
+      "stoim_sum": 8713020712.729576,
+      "netto_sum": 564832577.646521,
+      "kol_sum": 76648831.47600001
+    },
+    {
+      "STRANA": "SI",
+      "NAPR": "ЭК",
+      "rows": 27004,
+      "stoim_sum": 3644579113.3252125,
+      "netto_sum": 5056652867.186388,
+      "kol_sum": 122354556.74099998
+    },
+    {
+      "STRANA": "SK",
+      "NAPR": "ИМ",
+      "rows": 34742,
+      "stoim_sum": 5985573404.554257,
+      "netto_sum": 860865164.4350467,
+      "kol_sum": 565395175.0
+    },
+    {
+      "STRANA": "SK",
+      "NAPR": "ЭК",
+      "rows": 28835,
+      "stoim_sum": 39058131030.103,
+      "netto_sum": 81954982302.8712,
+      "kol_sum": 1128746457.0
+    },
+    {
+      "STRANA": "SN",
+      "NAPR": "ИМ",
+      "rows": 45,
+      "stoim_sum": 6350270.514,
+      "netto_sum": 24495495.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "SN",
+      "NAPR": "ЭК",
+      "rows": 1214,
+      "stoim_sum": 993675753.0679998,
+      "netto_sum": 3026692648.0,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "ST",
+      "NAPR": "ЭК",
+      "rows": 56,
+      "stoim_sum": 99570.727,
+      "netto_sum": 13644.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "SV",
+      "NAPR": "ИМ",
+      "rows": 167,
+      "stoim_sum": 1281832.52,
+      "netto_sum": 739289.02,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "SV",
+      "NAPR": "ЭК",
+      "rows": 2076,
+      "stoim_sum": 380279566.49666846,
+      "netto_sum": 659434051.7777505,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "SZ",
+      "NAPR": "ИМ",
+      "rows": 41,
+      "stoim_sum": 1805582.63,
+      "netto_sum": 2965491.0,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "SZ",
+      "NAPR": "ЭК",
+      "rows": 115,
+      "stoim_sum": 1420765.1800000002,
+      "netto_sum": 5348057.3100000005,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "TG",
+      "NAPR": "ИМ",
+      "rows": 21,
+      "stoim_sum": 13714403.717112113,
+      "netto_sum": 40465125.8384341,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "TG",
+      "NAPR": "ЭК",
+      "rows": 506,
+      "stoim_sum": 268266805.19254583,
+      "netto_sum": 802794855.0326378,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "TH",
+      "NAPR": "ИМ",
+      "rows": 44253,
+      "stoim_sum": 5196139022.478998,
+      "netto_sum": 1308943179.3180003,
+      "kol_sum": 1136085267.0
+    },
+    {
+      "STRANA": "TH",
+      "NAPR": "ЭК",
+      "rows": 18710,
+      "stoim_sum": 8379968251.825999,
+      "netto_sum": 13999941578.872,
+      "kol_sum": 7605179110.0
+    },
+    {
+      "STRANA": "TN",
+      "NAPR": "ИМ",
+      "rows": 831,
+      "stoim_sum": 35313498.564,
+      "netto_sum": 16764151.0,
+      "kol_sum": 977811.0
+    },
+    {
+      "STRANA": "TN",
+      "NAPR": "ЭК",
+      "rows": 2155,
+      "stoim_sum": 1433375604.7860003,
+      "netto_sum": 2291743365.0,
+      "kol_sum": 600941912.0
+    },
+    {
+      "STRANA": "TR",
+      "NAPR": "ИМ",
+      "rows": 267759,
+      "stoim_sum": 52673574579.64256,
+      "netto_sum": 28379809507.439003,
+      "kol_sum": 2508885604.0
+    },
+    {
+      "STRANA": "TR",
+      "NAPR": "ЭК",
+      "rows": 83213,
+      "stoim_sum": 278316776180.1571,
+      "netto_sum": 417795668399.1299,
+      "kol_sum": 4472763654.0
+    },
+    {
+      "STRANA": "TT",
+      "NAPR": "ИМ",
+      "rows": 268,
+      "stoim_sum": 3964136.4650000003,
+      "netto_sum": 2675969.0,
+      "kol_sum": 317144.0
+    },
+    {
+      "STRANA": "TT",
+      "NAPR": "ЭК",
+      "rows": 672,
+      "stoim_sum": 120663411.86899999,
+      "netto_sum": 87463055.878,
+      "kol_sum": 939060.0
+    },
+    {
+      "STRANA": "TZ",
+      "NAPR": "ИМ",
+      "rows": 561,
+      "stoim_sum": 31726851.559999995,
+      "netto_sum": 16333503.249000002,
+      "kol_sum": 242.82
+    },
+    {
+      "STRANA": "TZ",
+      "NAPR": "ЭК",
+      "rows": 2303,
+      "stoim_sum": 884595222.02,
+      "netto_sum": 2433920125.166,
+      "kol_sum": 8248792.68
+    },
+    {
+      "STRANA": "UA",
+      "NAPR": "ИМ",
+      "rows": 48608,
+      "stoim_sum": 9609228044.950003,
+      "netto_sum": 22835488163.255,
+      "kol_sum": 1467404099.0709996
+    },
+    {
+      "STRANA": "UA",
+      "NAPR": "ЭК",
+      "rows": 54872,
+      "stoim_sum": 18548347742.429024,
+      "netto_sum": 63649726200.40427,
+      "kol_sum": 844370121.5790001
+    },
+    {
+      "STRANA": "UG",
+      "NAPR": "ИМ",
+      "rows": 150,
+      "stoim_sum": 10447214.620000001,
+      "netto_sum": 5581932.0,
+      "kol_sum": 108281.0
+    },
+    {
+      "STRANA": "UG",
+      "NAPR": "ЭК",
+      "rows": 899,
+      "stoim_sum": 94701441.59,
+      "netto_sum": 301780597.6,
+      "kol_sum": 354.0
+    },
+    {
+      "STRANA": "US",
+      "NAPR": "ИМ",
+      "rows": 62291,
+      "stoim_sum": 20189105567.139435,
+      "netto_sum": 1450509178.2585146,
+      "kol_sum": 4046358002.9400005
+    },
+    {
+      "STRANA": "US",
+      "NAPR": "ЭК",
+      "rows": 38380,
+      "stoim_sum": 100294449336.30127,
+      "netto_sum": 155009526644.7879,
+      "kol_sum": 12230189505.018
+    },
+    {
+      "STRANA": "UY",
+      "NAPR": "ИМ",
+      "rows": 1450,
+      "stoim_sum": 498078303.0,
+      "netto_sum": 182771567.80099997,
+      "kol_sum": 2424027.27
+    },
+    {
+      "STRANA": "UY",
+      "NAPR": "ЭК",
+      "rows": 2674,
+      "stoim_sum": 356877802.18000007,
+      "netto_sum": 730488358.313,
+      "kol_sum": 667137.3559999999
+    },
+    {
+      "STRANA": "UZ",
+      "NAPR": "ИМ",
+      "rows": 44743,
+      "stoim_sum": 18090934418.76175,
+      "netto_sum": 12495590971.782465,
+      "kol_sum": 16909464126.229
+    },
+    {
+      "STRANA": "UZ",
+      "NAPR": "ЭК",
+      "rows": 131214,
+      "stoim_sum": 43407463376.533134,
+      "netto_sum": 48189936741.61448,
+      "kol_sum": 11047281183.901003
+    },
+    {
+      "STRANA": "VC",
+      "NAPR": "ЭК",
+      "rows": 27,
+      "stoim_sum": 591528.624,
+      "netto_sum": 1094950.64,
+      "kol_sum": null
+    },
+    {
+      "STRANA": "VN",
+      "NAPR": "ИМ",
+      "rows": 26357,
+      "stoim_sum": 11773688573.578997,
+      "netto_sum": 1552026078.3280003,
+      "kol_sum": 0.0
+    },
+    {
+      "STRANA": "VN",
+      "NAPR": "ЭК",
+      "rows": 16450,
+      "stoim_sum": 9556197139.942999,
+      "netto_sum": 28592966097.105995,
+      "kol_sum": 1892.0
+    },
+    {
+      "STRANA": "YE",
+      "NAPR": "ЭК",
+      "rows": 221,
+      "stoim_sum": 182626850.36399996,
+      "netto_sum": 670289806.0,
+      "kol_sum": 11060.0
+    },
+    {
+      "STRANA": "ZA",
+      "NAPR": "ИМ",
+      "rows": 11110,
+      "stoim_sum": 2557077631.9435587,
+      "netto_sum": 3640253210.6212654,
+      "kol_sum": 67073248.37999999
+    },
+    {
+      "STRANA": "ZA",
+      "NAPR": "ЭК",
+      "rows": 15684,
+      "stoim_sum": 3940021808.675591,
+      "netto_sum": 6688967532.600251,
+      "kol_sum": 463349449.1600001
+    },
+    {
+      "STRANA": "ZM",
+      "NAPR": "ИМ",
+      "rows": 129,
+      "stoim_sum": 3310720.6049999995,
+      "netto_sum": 2957846.591,
+      "kol_sum": 1.0
+    },
+    {
+      "STRANA": "ZM",
+      "NAPR": "ЭК",
+      "rows": 1139,
+      "stoim_sum": 120123028.992,
+      "netto_sum": 177957597.93300003,
+      "kol_sum": 82718.1
+    },
+    {
+      "STRANA": "ZW",
+      "NAPR": "ИМ",
+      "rows": 206,
+      "stoim_sum": 6632248.075999999,
+      "netto_sum": 1653398.5799999998,
+      "kol_sum": 99.0
+    },
+    {
+      "STRANA": "ZW",
+      "NAPR": "ЭК",
+      "rows": 737,
+      "stoim_sum": 332572998.9990001,
+      "netto_sum": 345819294.04999995,
+      "kol_sum": 915.8
+    }
+  ],
+  "aux_row_counts": {
+    "fizob_index": 39057027,
+    "country_reference": 254,
+    "hs4_reference": 1480,
+    "tnved_reference": 55210
+  }
+}
