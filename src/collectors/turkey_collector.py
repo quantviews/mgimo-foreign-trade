@@ -3,11 +3,31 @@
 сохраняются отдельно в виде json файлов.
 """
 
-import argparse, asyncio, re, json, time
+import argparse, asyncio, re, json, time, sys
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Error
 from pathlib import Path
 from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from collectors._base import get_project_root, valid_year as _valid_year_str
+
+# Константы коллектора (модульная область — модуль импортируем и тестируем)
+DATA_URL = "https://biruni.tuik.gov.tr/disticaretapp/disticaret_ing.zul?param1=4&param2=24&sitcrev=0&isicrev=0&sayac=5902"
+COUNTRY_ID = "75"  # 75 - Россия
+BATCH_SIZE = 25  # максимальное количество кодов в одном отчете - 25
+PROJECT_ROOT = get_project_root()
+HS_CODES_DIR = PROJECT_ROOT / "data_raw" / "turkey" / "hs_codes_json"
+
+
+def codes_file_path(year: str) -> Path:
+    """json-файл с HS8 кодами за год."""
+    return HS_CODES_DIR / f"turkey_codes_{year}.json"
+
+
+def html_tables_dir(year: str) -> Path:
+    """Папка с сырыми html-таблицами за год."""
+    return PROJECT_ROOT / "data_raw" / "turkey" / "raw_html_tables" / f"turkey_html_data_{year}"
 
 
 def parse_arguments():
@@ -26,16 +46,7 @@ def parse_arguments():
     )
 
     def valid_year(value):
-        if not value.isdigit():
-            raise argparse.ArgumentTypeError(
-                f"Year should be a number in range 2005-{current_year}"
-            )
-        year = int(value)
-        if year < 2005 or year > current_year:
-            raise argparse.ArgumentTypeError(
-                f"Year should be a number in range 2005-{current_year}"
-            )
-        return year
+        return int(_valid_year_str(value))
 
     parser.add_argument(
         "-y",
@@ -125,11 +136,12 @@ async def download_and_save_codes(playwright, year: str) -> dict:
         print(f"Downloading HS2 {two_digits}; Total: {len(hs_codes)}")
 
     # сохраняем результат в json-file
+    codes_file = codes_file_path(year)
     HS_CODES_DIR.mkdir(parents=True, exist_ok=True)
-    with open(CODES_FILE_PATH, "w", encoding="utf-8") as file:
+    with open(codes_file, "w", encoding="utf-8") as file:
         json.dump(hs_codes, file, indent=4)
 
-    print(f"Codes were saved in {CODES_FILE_PATH.name}")
+    print(f"Codes were saved in {codes_file.name}")
 
     await browser.close()
     return hs_codes
@@ -143,21 +155,23 @@ async def load_codes(playwright, year: str) -> dict:
     :param year:
     :return hs_codes:
     """
+    codes_file = codes_file_path(year)
+
     def _read_codes_from_file() -> dict:
-        with CODES_FILE_PATH.open("r", encoding="utf-8") as f:
+        with codes_file.open("r", encoding="utf-8") as f:
             loaded = json.load(f)
         if not isinstance(loaded, dict) or not loaded:
             raise ValueError("codes file is empty or has invalid structure")
         return loaded
 
-    if CODES_FILE_PATH.exists():
+    if codes_file.exists():
         try:
             print("HS8 codes were already downloaded and will be used for downloading data.")
             return _read_codes_from_file()
         except Exception as e:
-            print(f"Codes file is corrupted or unreadable ({CODES_FILE_PATH.name}): {e}")
+            print(f"Codes file is corrupted or unreadable ({codes_file.name}): {e}")
             print("Will re-download HS8 codes...")
-            CODES_FILE_PATH.unlink(missing_ok=True)
+            codes_file.unlink(missing_ok=True)
 
     try:
         await download_and_save_codes(playwright, year)
@@ -219,11 +233,12 @@ async def collect_data(playwright, year: str, hs_codes: dict):
 
     html_filename_pattern = re.compile(r"\d{8}-\d{8}-20\d{2}\.html")
 
-    HTML_TABLES_DIR.mkdir(parents=True, exist_ok=True)
+    tables_dir = html_tables_dir(year)
+    tables_dir.mkdir(parents=True, exist_ok=True)
 
     files_with_html = [
         p
-        for p in HTML_TABLES_DIR.iterdir()
+        for p in tables_dir.iterdir()
         if p.is_file() and html_filename_pattern.match(p.name)
     ]
 
@@ -265,7 +280,7 @@ async def collect_data(playwright, year: str, hs_codes: dict):
             output = await new_page.content()
 
             # Сохранение HTML файла с отчетом
-            filename = HTML_TABLES_DIR / f"{batch[0]}-{batch[-1]}-{year}.html"
+            filename = tables_dir / f"{batch[0]}-{batch[-1]}-{year}.html"
             filename.write_text(output, encoding="utf-8")
             print(f"{filename.name} is ready")
 
@@ -279,36 +294,22 @@ async def collect_data(playwright, year: str, hs_codes: dict):
 
 async def main(args):
 
+    year = str(args.codes) if args.codes is not None else str(args.year)
+
     if args.codes:
         async with async_playwright() as playwright:
-            await load_codes(playwright, YEAR)
+            await load_codes(playwright, year)
 
     elif args.year:
         async with async_playwright() as playwright:
-            hs_codes = await load_codes(playwright, YEAR)
+            hs_codes = await load_codes(playwright, year)
             print("Downloading data ...")
             try:
-                await collect_data(playwright, YEAR, hs_codes)
+                await collect_data(playwright, year, hs_codes)
                 print("Raw data download completed.")
             except Error as e:
                 print(f"Error: {e}\nTry to run the script again a bit later.")
 
 
 if __name__ == "__main__":
-    DATA_URL = "https://biruni.tuik.gov.tr/disticaretapp/disticaret_ing.zul?param1=4&param2=24&sitcrev=0&isicrev=0&sayac=5902"
-    COUNTRY_ID = "75"  ## 75 - Россия
-    BATCH_SIZE = 25  # максимальное количество кодов в одном отчете - 25
-    project_root = Path(__file__).resolve().parent.parent.parent
-    HS_CODES_DIR = project_root / "data_raw" / "turkey" / "hs_codes_json"
-
-    args = parse_arguments()
-    if args.codes is not None:
-        YEAR = str(args.codes)
-    elif args.year is not None:
-        YEAR = str(args.year)
-
-    CODES_FILE_PATH = HS_CODES_DIR / f"turkey_codes_{YEAR}.json"
-    HTML_TABLES_DIR = (
-        project_root / "data_raw" / "turkey" / "raw_html_tables" / f"turkey_html_data_{YEAR}"
-    )
-    asyncio.run(main(args))
+    asyncio.run(main(parse_arguments()))

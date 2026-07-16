@@ -4,8 +4,10 @@ import sys
 import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from collectors._base import get_project_root
 from core.country_processor_contract import (
     CountryProcessorInput,
+    assert_country_output_contract,
     finalize_country_output,
     save_country_output,
 )
@@ -147,10 +149,6 @@ def process_and_merge_china_data(
             
             if 'STRANA' in df.columns:
                 df['STRANA'] = 'CN'
-            
-            # Convert STOIM from thousands USD to USD
-            #if 'STOIM' in df.columns:
-            #    df['STOIM'] = df['STOIM'] * 1000
 
             # Rename columns to match the old notebook's standard
             df = df.rename(columns={
@@ -158,11 +156,10 @@ def process_and_merge_china_data(
                 # We no longer need 'Supplementary Unit' as EDIZM will be derived
             })
 
-            # Ensure TNVED codes are zero-padded strings
-            tnved_cols = {'TNVED': 8, 'TNVED2': 2, 'TNVED4': 4, 'TNVED6': 6}
-            for col, length in tnved_cols.items():
-                if col in df.columns:
-                    df[col] = df[col].astype(str).str.zfill(length)
+            # Ensure the TNVED code is a zero-padded 8-digit string.
+            # TNVED2/4/6 are recomputed from TNVED by finalize_country_output.
+            if 'TNVED' in df.columns:
+                df['TNVED'] = df['TNVED'].astype(str).str.zfill(8)
             
             # Initialize EDIZM and EDIZM_ISO columns
             df['EDIZM_ISO'] = '?'
@@ -225,6 +222,7 @@ def process_and_merge_china_data(
         country_code=processor_input.country_code,
         sort_by=("PERIOD", "NAPR", "TNVED"),
     )
+    assert_country_output_contract(final_df, expected_strana=processor_input.country_code)
 
     # 5. Check for missing months in the time series
     logger.info("Checking for gaps in the time series...")
@@ -271,7 +269,7 @@ def main():
     """
     Main function to run the China data processing script.
     """
-    project_root = Path(__file__).resolve().parent.parent.parent
+    project_root = get_project_root()
     raw_data_dir = project_root / 'data_raw' / 'china'
     codes_dir = project_root / 'metadata' / 'china-codes'
     edizm_file = project_root / 'metadata' / 'edizm.csv'

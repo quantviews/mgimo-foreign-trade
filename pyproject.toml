@@ -13,14 +13,14 @@ requires-python = ">=3.11"
 [tool.setuptools]
 package-dir = {"" = "src"}
 # Отдельные модули верхнего уровня из src/, которые импортируют тесты.
-# Коллекторы (src/collectors/) станут пакетом в Итерации 3 плана рефакторинга.
 py-modules = ["merge_processed_data", "load_fts_csv"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["core*", "pipelines*", "orchestration*"]
+include = ["core*", "pipelines*", "orchestration*", "collectors*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# src/collectors — до Итерации 3 процессоры импортируются как модули верхнего уровня
+# src/collectors — тесты импортируют процессоры как модули верхнего уровня
+# (import china_processor), сами скрипты запускаются напрямую из flows.py.
 pythonpath = ["src", "src/collectors"]

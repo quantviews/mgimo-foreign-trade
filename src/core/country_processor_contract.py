@@ -47,6 +47,12 @@ NAPR_NORMALIZATION = {
     "ЭК": "ЭК",
 }
 
+# Partner-country flow -> RF perspective: what the partner exports, Russia imports.
+NAPR_MIRROR = {
+    "ИМ": "ЭК",
+    "ЭК": "ИМ",
+}
+
 
 @dataclass(frozen=True)
 class CountryProcessorInput:
@@ -86,6 +92,12 @@ def normalize_napr_value(value: object) -> object:
         return value
     value_str = str(value).strip().upper()
     return NAPR_NORMALIZATION.get(value_str, value)
+
+
+def mirror_napr_value(value: object) -> object:
+    """Mirror a partner-country flow into the RF perspective (ИМ<->ЭК)."""
+    normalized = normalize_napr_value(value)
+    return NAPR_MIRROR.get(normalized, normalized)
 
 
 def finalize_country_output(

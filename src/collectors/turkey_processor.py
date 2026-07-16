@@ -12,7 +12,13 @@ import numpy as np
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from core.country_processor_contract import finalize_country_output
+from collectors._base import get_project_root, valid_year
+from core.country_processor_contract import (
+    CountryProcessorInput,
+    assert_country_output_contract,
+    finalize_country_output,
+    save_country_output,
+)
 from core.edizm import resolve_edizm_records
 
 
@@ -28,18 +34,6 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Module processes raw data, compiles normalized dataset and saves result into a parquet file"
     )
-
-    def valid_year(value):
-        if not value.isdigit():
-            raise argparse.ArgumentTypeError(
-                f"Year should be a number in range 2005-{current_year}"
-            )
-        year = int(value)
-        if year < 2005 or year > current_year:
-            raise argparse.ArgumentTypeError(
-                f"Year should be a number in range 2005-{current_year}"
-            )
-        return value
 
     # Позиционные аргументы (обязательные)
 
@@ -57,8 +51,6 @@ def parse_arguments():
         action="store_true",
         help="process data for the all available years",
     )
-
-    # parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
 
     # Парсинг аргументов
     args = parser.parse_args()
@@ -143,8 +135,6 @@ def table_clean(df: pd.DataFrame, year) -> pd.DataFrame:
     df.drop_duplicates(inplace=True)
     df.reset_index(drop=True, inplace=True)
 
-    # print(df[df["HS8"].str.len() < 8]["HS8"]) # найти и напечатать слишком короткие коды
-
     return df
 
 
@@ -211,15 +201,14 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
         lambda record: record.get("NAME") if isinstance(record, dict) and record.get("NAME") else "?"
     )
 
-    # TNVED разбивка без многократного обращения к колонке
-    df["TNVED4"] = df["TNVED"].str[:4]
-    df["TNVED6"] = df["TNVED"].str[:6]
-    df["TNVED2"] = df["TNVED"].str[:2]
+    # TNVED2/4/6 выводит finalize_country_output из TNVED — здесь не дублируем.
 
     # Маски выборки: вместо index/loc — boolean index
     mask_in = df["Export\xa0Dollar"] != "0"
     mask_out = df["Import\xa0Dollar"] != "0"
 
+    # Зеркалирование потока страна<->РФ (см. NAPR_MIRROR в контракте):
+    # экспорт Турции = импорт РФ (ИМ), импорт Турции = экспорт РФ (ЭК).
     # inbound (ИМ)
     df_in = df[mask_in].copy()
     df_in.drop(
@@ -257,25 +246,7 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
     # Итоговое объединение
     result = pd.concat([df_in, df_out], ignore_index=True)
 
-    cols = [
-        "NAPR",
-        "PERIOD",
-        "STRANA",
-        "TNVED",
-        "EDIZM",
-        "EDIZM_ISO",
-        "STOIM",
-        "NETTO",
-        "KOL",
-        "TNVED4",
-        "TNVED6",
-        "TNVED2",
-    ]
-    result = result[cols]
-    result.sort_values(by="PERIOD", inplace=True)
-    result.reset_index(drop=True, inplace=True)
-
-    # Преобразование типов
+    # Турецкий числовой формат ("1.234,56") — страновая чистка, до finalize
     for col in ["STOIM", "NETTO", "KOL"]:
         clean_col = (
             result[col]
@@ -284,7 +255,10 @@ def harmonize_df(df: pd.DataFrame, year: str) -> pd.DataFrame:
         )
         result[col] = pd.to_numeric(clean_col, errors="coerce").fillna(0).astype(float)
 
-    return finalize_country_output(result, country_code="TR", sort_by=("PERIOD",))
+    # Отбор/порядок колонок, сортировку и TNVED2/4/6 делает контракт
+    result = finalize_country_output(result, country_code="TR", sort_by=("PERIOD",))
+    assert_country_output_contract(result, expected_strana="TR")
+    return result
 
 
 def build_for_year(year):
@@ -295,8 +269,8 @@ def build_for_year(year):
     :param year:
     :return: pd.DataFrame или None если данных нет
     """
-    # Определяем путь относительно расположения скрипта
-    script_dir = Path(__file__).resolve().parent.parent.parent
+    # Определяем путь относительно корня проекта
+    script_dir = get_project_root()
     html_files_path = script_dir / "data_raw" / "turkey" / "raw_html_tables" / f"turkey_html_data_{year}"
 
     if not html_files_path.is_dir():
@@ -341,20 +315,21 @@ def build_for_year(year):
 def main():
     args = parse_arguments()
 
-    # Определяем путь относительно расположения скрипта для сохранения файлов
-    script_dir = Path(__file__).resolve().parent.parent.parent
-    
+    # Определяем путь относительно корня проекта для сохранения файлов
+    script_dir = get_project_root()
+    raw_data_dir = script_dir / "data_raw" / "turkey"
+
     if args.all:
 
         pattern = re.compile(r"turkey_html_data_(20\d{2})")
 
         # Находим все папки с данными по годам
-        working_dir = script_dir / "data_raw" / "turkey" / "raw_html_tables"
-        
+        working_dir = raw_data_dir / "raw_html_tables"
+
         if not working_dir.is_dir():
             print(f"Directory {working_dir} does not exist.")
             return
-        
+
         # Извлекаем годы из имен папок вида turkey_html_data_YYYY
         years = []
         for p in working_dir.iterdir():
@@ -376,14 +351,16 @@ def main():
                     print(f"Skipping {year}: no data available")
 
             if dfs:
+                processor_input = CountryProcessorInput.from_paths(
+                    raw_data_dir,
+                    script_dir / "data_processed" / "tr_full.parquet",
+                    country_code="TR",
+                )
                 full_df = pd.concat(dfs, axis=0, ignore_index=True)
-                # Создаем директорию data_processed если её нет
-                output_dir = script_dir / "data_processed"
-                output_dir.mkdir(exist_ok=True)
-                output_path = output_dir / "tr_full.parquet"
-                full_df.to_parquet(output_path)
+                assert_country_output_contract(full_df, expected_strana="TR")
+                save_country_output(full_df, processor_input.output_file)
                 print(
-                    f'Data consolidation and harmonization completed. \nFile "{output_path}" was saved.'
+                    f'Data consolidation and harmonization completed. \nFile "{processor_input.output_file}" was saved.'
                 )
             else:
                 print("No data to process for any year.")
@@ -393,24 +370,25 @@ def main():
 
     elif args.year:
         df = build_for_year(args.year)
-        
+
         if df is None or df.empty:
             print(f"No data available for year {args.year}. Cannot proceed.")
             return
-        
+
         df = harmonize_df(df, args.year)
-        
+
         if df is None or df.empty:
             print(f"Failed to harmonize data for year {args.year}.")
             return
 
-        # Создаем директорию data_processed если её нет
-        output_dir = script_dir / "data_processed"
-        output_dir.mkdir(exist_ok=True)
-        output_path = output_dir / f"turkey_{args.year}_processed.parquet"
-        df.to_parquet(output_path)
+        processor_input = CountryProcessorInput.from_paths(
+            raw_data_dir,
+            script_dir / "data_processed" / f"turkey_{args.year}_processed.parquet",
+            country_code="TR",
+        )
+        save_country_output(df, processor_input.output_file)
         print(
-            f'Data consolidation and harmonization completed. \nFile "{output_path}" was saved.'
+            f'Data consolidation and harmonization completed. \nFile "{processor_input.output_file}" was saved.'
         )
     else:
         print(

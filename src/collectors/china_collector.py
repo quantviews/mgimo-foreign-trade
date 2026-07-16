@@ -1,15 +1,14 @@
 import os
 import argparse
+import sys
 import pandas as pd
 from pathlib import Path
-import time
-# from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-# from selenium.webdriver.chrome.service import Service as ChromeService
-# from webdriver_manager.chrome import ChromeDriverManager
 import undetected_chromedriver as uc
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from collectors._base import get_project_root
+from core.country_processor_contract import mirror_napr_value
 
 
 def get_download_path():
@@ -62,17 +61,12 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
     options = uc.ChromeOptions()
     # Stealth options to avoid bot detection
     options.add_argument('--disable-blink-features=AutomationControlled')
-    # options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    # options.add_experimental_option('useAutomationExtension', False)
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
-    
+
     options.add_argument('--start-maximized')
     options.add_argument('--ignore-certificate-errors')
     options.add_argument('--allow-running-insecure-content')
     options.add_argument('--disable-extensions')
-    # You might need to adjust preferences depending on your setup
-    # prefs = {"download.default_directory": str(download_dir)}
-    # options.add_experimental_option("prefs", prefs)
 
     # Pin the driver to the installed Chrome major version. Without this,
     # undetected_chromedriver may reuse a cached driver built for a newer Chrome
@@ -83,8 +77,6 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
     else:
         print("Could not detect Chrome version; letting undetected_chromedriver auto-resolve.")
     driver = uc.Chrome(options=options, version_main=chrome_major)
-    # Evade detection
-    # driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
     try:
         print("Opening browser to the Chinese customs statistics website...")
@@ -190,25 +182,24 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
 
         # Apply transformations from the notebook
         df['PERIOD'] = f"{year}-{month}"
+        # TNVED2/4/6 не пишем в raw: их выводит finalize_country_output из TNVED
         df['TNVED'] = df['TNVED'].astype(str).str.zfill(8)
-        df['TNVED2'] = df['TNVED'].str.slice(0, 2)
-        df['TNVED4'] = df['TNVED'].str.slice(0, 4)
-        df['TNVED6'] = df['TNVED'].str.slice(0, 6)
-        
+
         # Ensure STOIM is numeric, handling potential commas
         if df['STOIM'].dtype == 'object':
             df['STOIM'] = df['STOIM'].str.replace(",", "").astype(float)
-        
+
         df['STRANA'] = 'CN'  # ISO 3166-1 alpha-2 code for China
 
         month_str = str(month).zfill(2)
-        
-        # Mirror the trade flow for Russia's perspective
+
+        # Mirror the trade flow for Russia's perspective (единая точка — контракт)
+        mirrored = mirror_napr_value(flow)
         if flow == 'ИМ':
-            df['NAPR'] = 'ЭК'
+            df['NAPR'] = mirrored
             output_path = export_path
         elif flow == 'ЭК':
-            df['NAPR'] = 'ИМ'
+            df['NAPR'] = mirrored
             output_path = import_path
         else:
             print(f"Error: Invalid flow type '{flow}'. Use 'ИМ' or 'ЭК'.")
@@ -216,9 +207,8 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
             
         # Select and order the final columns
         final_columns = [
-            'Date of data', 'TNVED', 'NETTO', 'Supplementary Quantity', 
-            'Supplementary Unit', 'STOIM', 'PERIOD', 'TNVED2', 'TNVED4', 
-            'TNVED6', 'STRANA', 'NAPR'
+            'Date of data', 'TNVED', 'NETTO', 'Supplementary Quantity',
+            'Supplementary Unit', 'STOIM', 'PERIOD', 'STRANA', 'NAPR'
         ]
         
         # Filter out any columns that might not exist in the source
@@ -242,8 +232,7 @@ def main():
     """
     Main function to run the data collection and processing script for China.
     """
-    # The project root is two levels up from the script location (src/collectors)
-    project_root = Path(__file__).resolve().parent.parent.parent
+    project_root = get_project_root()
     default_output = project_root / 'data_raw' / 'china'
 
     parser = argparse.ArgumentParser(description="Process Chinese customs data.")
@@ -272,7 +261,7 @@ if __name__ == "__main__":
     # 1. Ensure you have Google Chrome installed.
     # 2. Run this script from the terminal. It will open a Chrome window.
     #    Example:
-    #    python src/collectors/china-collector.py 2025 7 ИМ --partner 344
+    #    python src/collectors/china_collector.py 2025 7 ИМ --partner 344
     # 3. Manually fill the form, solve CAPTCHA, and download the data.
     # 4. After the download is complete, press Enter in your terminal.
     # 5. The script will then process and save the final data file.
