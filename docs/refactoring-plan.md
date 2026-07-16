@@ -1,6 +1,8 @@
-# План рефакторинга
+# План рефакторинга (архив)
 
 Актуализировано: 2026-06-14.
+
+> **Архивный документ.** Заменён планом [`docs/refactoring-plan-2026-07.md`](refactoring-plan-2026-07.md) (ревизия 2026-07-06), в котором отмечается фактический прогресс итераций.
 
 > Статус: исторический рабочий план. Итерации 1–2 в основном выполнены: `save_to_duckdb()` адаптирован под Windows/YandexDisk, правило масштаба Индии зафиксировано тестами, Python-тесты зелёные (`88 passed, 1 xfailed`), добавлен `.github/workflows/python-tests.yml`, `merge_processed_data.py` сокращён до orchestration-wrapper, nowcast-ingest вынесен в `src/pipelines/nowcast_ingest.py` с тестами (`tests/test_nowcast_ingest.py`). Расчёт nowcast остаётся в `src/nowcast.R`. Актуальное состояние — в коде, `docs/testing-docs.md`, `docs/merge_processed_data-docs.md` и `docs/country-collector-guide.md`.
 

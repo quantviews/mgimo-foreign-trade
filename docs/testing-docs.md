@@ -13,7 +13,7 @@ pytest -q
 Ожидаемый результат на текущей ветке:
 
 ```text
-88 passed, 1 xfailed
+92 passed, 1 xfailed
 ```
 
 Дополнительно для изменений orchestration/merge:
@@ -30,7 +30,10 @@ Python-зависимости проекта зафиксированы в `requ
 
 ```bash
 python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
+
+Пакет проекта описан в `pyproject.toml` (`core`, `pipelines`, `orchestration`, `collectors` + модули `merge_processed_data`, `load_fts_csv`). `pytest` резолвит импорты через `pythonpath = ["src", "src/collectors"]` в `[tool.pytest.ini_options]` — ручных `sys.path.insert` в тестах больше нет.
 
 Зачем нужны пакеты:
 
@@ -175,7 +178,7 @@ STOIM, NETTO, KOL, TNVED2, TNVED4, TNVED6
 
 Он запускается:
 
-- на `push` в `main`, если менялись `src/**/*.py`, `tests/**/*.py` или сам workflow;
+- на `push` в `main`, если менялись `src/**/*.py`, `tests/**/*.py`, `pyproject.toml` или сам workflow;
 - на `pull_request` с такими же path-фильтрами;
 - вручную через `workflow_dispatch`.
 
@@ -184,7 +187,7 @@ Workflow использует:
 - `ubuntu-latest`;
 - Python `3.11`;
 - `actions/setup-python@v5` с pip cache;
-- установку минимальных test dependencies;
+- установку пакета через `pip install -e .` плюс минимальные test dependencies;
 - команду `pytest -q`.
 
 Quarto publish workflow остается отдельно в `.github/workflows/publish.yml` и не смешивается с Python ETL checks.
@@ -228,7 +231,7 @@ HTML-отчет будет доступен в `htmlcov/index.html`.
 
 ## Смежная Документация
 
-- `docs/refactoring-plan.md` — исторический план технического рефакторинга от 2026-05-06; актуальное состояние проверяйте по коду, тестам и этой документации.
+- `docs/refactoring-plan-2026-07.md` — актуальный план рефакторинга с отметками о выполненных итерациях (`docs/refactoring-plan.md` — архивный предшественник).
 - `docs/orchestration.md` — Prefect 3 flow, повторный merge после nowcast/fizob и SQL quality checks.
 - `docs/merge_processed_data-docs.md` — документация по объединению данных и DuckDB.
 - `docs/india-processor-docs.md` — детали обработки Индии, включая масштаб `STOIM`.

@@ -10,7 +10,7 @@
 
 ## Архитектура после рефакторинга
 
-`src/merge_processed_data.py` теперь является совместимой CLI-оберткой: старый запуск `python src/merge_processed_data.py` сохраняется, но основная логика находится в `src/pipelines/merge_pipeline.py`.
+`src/merge_processed_data.py` теперь является совместимой CLI-оберткой: старый запуск `python src/merge_processed_data.py` сохраняется. Реализация живёт в тематических модулях `src/core/*`, а `src/pipelines/merge_pipeline.py` — тонкий оркестратор стадий (discover → load → append → merge → save).
 
 Nowcast разделён на два явных слоя:
 
@@ -39,7 +39,13 @@ Nowcast разделён на два явных слоя:
 
 *   `src/core/normalization_rules.py` — нормализация `TNVED`, генерация `TNVED2/4/6/8`, нормализация `EDIZM`, alias-правила страновых processors и спецкейсы единиц.
 *   `src/core/country_processor_contract.py` — единый контракт страновых processors: стандартные входы, обязательный выходной DataFrame и post-processing.
-*   `src/core/duckdb_writer.py`, `src/core/schema.py`, `src/core/tnved.py`, `src/core/edizm.py`, `src/core/reference_tables.py` — публичные тематические фасады для core-логики (включая `load_hs4_labels()` и `build_unified_trade_data_enriched_view_sql()`).
+*   `src/core/schema.py` — `EXPECTED_SCHEMA`, `validate_schema()`, `smoke_check_merged_dataset()`, `load_and_validate_file()`; от этой схемы производится `NOWCAST_UNIFIED_COLUMNS` в `nowcast_ingest.py` (единый источник истины).
+*   `src/core/duckdb_writer.py` — `save_to_duckdb()` с атомарной записью и Windows/YandexDisk-retry.
+*   `src/core/reference_tables.py` — загрузчики справочников (`load_tnved_mapping()`, `load_strana_mapping()`, `load_partner_mapping()`, `load_hs4_labels()`), `save_reference_tables()`, `refresh_hs4_reference*()` и `build_unified_trade_data_enriched_view_sql()`.
+*   `src/core/edizm.py` — `load_common_edizm_mapping()`, `load_edizm_mapping()` и реэкспорт normalize/resolve-функций.
+*   `src/core/comtrade.py` — `load_and_transform_comtrade()`.
+*   `src/core/fizob.py` — `transform_fizob_to_unified()`.
+*   `src/core/tnved.py` — тонкий фасад над `normalization_rules` и `reference_tables`.
 *   `src/pipelines/nowcast_ingest.py` — Python-ingest R-nowcast: `transform_nowcast_to_unified()`, `append_nowcast_data()`, `drop_nowcast_rows_superseded_by_facts()`.
 
 ## Оркестрация полного refresh

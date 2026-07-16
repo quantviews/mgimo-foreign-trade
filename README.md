@@ -4,10 +4,11 @@
 
 ## Быстрый старт
 
-Установить Python-зависимости:
+Установить Python-зависимости и пакет проекта (editable):
 
 ```bash
 python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
 
 Собрать текущую базу через совместимый CLI:

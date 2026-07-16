@@ -82,16 +82,25 @@ STOIM, NETTO, KOL, TNVED4, TNVED6, TNVED2
 Не нужно вручную повторять сортировку, типизацию и генерацию обязательных колонок. Используйте:
 
 ```python
-from core.country_processor_contract import finalize_country_output, save_country_output
+from core.country_processor_contract import (
+    assert_country_output_contract,
+    finalize_country_output,
+    save_country_output,
+)
 
 final_df = finalize_country_output(raw_df, country_code="XX")
+assert_country_output_contract(final_df, expected_strana="XX")
 save_country_output(final_df, processor_input.output_file, logger=logger)
 ```
+
+Контракт проверяется **в рантайме** (`assert_country_output_contract` после финализации), а не только в тестах — так делают все три существующих процессора.
 
 `finalize_country_output()` делает:
 
 *   добавляет отсутствующие обязательные колонки;
 *   нормализует `NAPR` (`IMPORT` -> `ИМ`, `EXPORT` -> `ЭК`, `1` -> `ИМ`, `2` -> `ЭК`);
+    для зеркалирования потока страна↔РФ (экспорт партнёра = импорт РФ) используйте
+    `mirror_napr_value()` / `NAPR_MIRROR` из того же контракта;
 *   приводит `PERIOD` к datetime и нормализует время;
 *   проставляет `STRANA`;
 *   приводит `STOIM`, `NETTO`, `KOL` к numeric;
@@ -133,26 +142,35 @@ df = add_tnved_columns(df)
 
 Если processor использует `finalize_country_output()`, отдельный вызов `add_tnved_columns()` чаще всего не нужен: контрактный post-processing пересчитает `TNVED2/4/6`.
 
+## Общие хелперы коллекторов
+
+В `src/collectors/_base.py` лежат общие утилиты — не дублируйте их в страновых модулях:
+
+*   `get_project_root()` — корень репозитория (вместо `Path(__file__).resolve().parent.parent.parent`);
+*   `setup_logging(name)` — единый формат логирования;
+*   `valid_year(value)` — argparse-тип для валидации года (2005–текущий).
+
 ## Минимальный шаблон processor-а
 
 ```python
 from pathlib import Path
-import logging
 import sys
 
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from collectors._base import get_project_root, setup_logging
 from core.country_processor_contract import (
     CountryProcessorInput,
+    assert_country_output_contract,
     finalize_country_output,
     save_country_output,
 )
 from core.edizm import load_common_edizm_mapping, resolve_edizm_records
 
 
-logger = logging.getLogger(__name__)
+logger = setup_logging(__name__)
 
 
 def process_and_merge_example_data(raw_data_dir: Path, output_file: Path, edizm_file: Path):
@@ -191,6 +209,7 @@ def process_and_merge_example_data(raw_data_dir: Path, output_file: Path, edizm_
         pd.concat(frames, ignore_index=True),
         country_code=processor_input.country_code,
     )
+    assert_country_output_contract(final_df, expected_strana=processor_input.country_code)
     save_country_output(final_df, processor_input.output_file, logger=logger)
 ```
 
@@ -231,7 +250,9 @@ def test_example_processor_contract(tmp_path):
 *   Все новые unit aliases добавлены в `src/core/normalization_rules.py`.
 *   Processor использует `CountryProcessorInput`.
 *   Processor завершает работу через `finalize_country_output()`.
-*   Processor сохраняет результат через `save_country_output()`.
+*   После финализации вызывается `assert_country_output_contract()` (рантайм-проверка).
+*   Processor сохраняет результат через `save_country_output()` — прямых `to_parquet` нет.
+*   Общие утилиты (корень проекта, logging, валидация года) берутся из `collectors/_base.py`.
 *   Есть контрактный тест в `tests/test_processor_contracts.py`.
 *   `pytest -q` проходит.
 *   Документация страны добавлена в `docs/<country>-collector-docs.md` или `docs/<country>-processor-docs.md`.
