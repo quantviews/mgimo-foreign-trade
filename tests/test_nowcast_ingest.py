@@ -2,13 +2,9 @@
 """Tests for nowcast parquet ingest into the unified merge schema."""
 
 import logging
-import sys
-from pathlib import Path
 
 import pandas as pd
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from pipelines.nowcast_ingest import (
     NOWCAST_UNIFIED_COLUMNS,

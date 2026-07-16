@@ -8,13 +8,8 @@ import pandas as pd
 import numpy as np
 import tempfile
 import json
-from pathlib import Path
 from unittest.mock import patch, MagicMock
-import sys
 import duckdb
-
-# Add src to path to import the module
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from merge_processed_data import (
     apply_special_edizm_cases,

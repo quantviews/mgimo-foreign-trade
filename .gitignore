@@ -118,6 +118,11 @@ __pycache__/
 *.temp
 *.log
 
+# Python packaging artifacts
+*.egg-info/
+build/
+dist/
+
 # DuckDB artifacts
 *.duckdb.wal
 *.duckdb.tmp

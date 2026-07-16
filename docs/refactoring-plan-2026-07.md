@@ -84,22 +84,32 @@
 
 Приоритет: `P1` · Сложность: `Низкая` · Объём: `0.5–1 день`
 
+> **Статус 2026-07-16: выполнено.**
+
 Сейчас нет `pyproject.toml`/`setup.py`; импорты `core`/`pipelines` держатся на том,
 что `src/` оказывается в `sys.path` (запуск скрипта из `src/`, ручной
 `sys.path.insert(...,"src")` в каждом тест-файле — см. `tests/test_processor_contracts.py:18`).
 Это хрупко и мешает и рефакторингу, и CI.
 
-1. Добавить `pyproject.toml` с пакетом (`src`-layout или явный `packages=[core, pipelines, orchestration]`).
-2. Настроить `pytest` (`pythonpath = ["src"]` в `[tool.pytest.ini_options]`) и убрать
-   `sys.path.insert` из тестов.
-3. Проверить, что `python src/merge_processed_data.py` и `src/orchestration/flows.py`
-   продолжают работать (flows запускает merge как `sys.executable src/...`).
+1. ✅ Добавлен `pyproject.toml`: setuptools, `package-dir={"":"src"}`, пакеты
+   `core/pipelines/orchestration` + py-modules `merge_processed_data`, `load_fts_csv`.
+   Зависимости остаются в `requirements.txt`, пакет их не тянет.
+2. ✅ `pytest` настроен через `[tool.pytest.ini_options]`:
+   `pythonpath = ["src", "src/collectors"]` (второй путь — временно, до Итерации 3,
+   т.к. процессоры импортируются тестами как модули верхнего уровня);
+   `sys.path.insert` убран из всех четырёх тест-файлов.
+3. ✅ `python src/merge_processed_data.py --help` работает; `flows.py` парсится, его
+   запуск не зависит от упаковки (merge вызывается по пути `src/...`); импорт
+   `orchestration.flows` требует `prefect`, которого нет в локальном окружении —
+   так было и до итерации.
+4. ✅ CI ставит пакет через `pip install -e .`; `*.egg-info/`, `build/`, `dist/`
+   добавлены в `.gitignore`; `pyproject.toml` добавлен в path-триггеры workflow.
 
 **Не делать:** не переименовывать `china-collector.py` в этой итерации (дефис ломает
 импорт как модуля) — это отдельная задача Итерации 3.
 
 **Готово, когда:** `pip install -e .` ставит пакет; `pytest` проходит без ручных
-`sys.path`; CI использует установленный пакет.
+`sys.path` (92 passed, 1 xfailed); CI использует установленный пакет.
 
 ---
 

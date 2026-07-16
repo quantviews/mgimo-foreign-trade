@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """Tests for SQL quality checks against the final DuckDB artifact."""
 
-import sys
 from pathlib import Path
 
 import duckdb
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from orchestration.checks import SqlQualityCheckError, run_sql_quality_checks
 

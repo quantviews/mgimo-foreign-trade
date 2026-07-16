@@ -10,13 +10,8 @@ schema expected by merge_processed_data.py:
   - STOIM, NETTO, KOL are numeric (float)
   - TNVED2/4/6 are consistent length-2/4/6 prefixes of TNVED
 """
-import sys
 import pytest
 import pandas as pd
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "collectors"))
 
 import load_fts_csv
 import china_processor
