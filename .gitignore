@@ -127,6 +127,7 @@ __pycache__/
 *.parquet
 !site/data/*.parquet
 Rplots.pdf
+site/bulletin_comparison_pdf.pdf
 
 # OS / editor
 .DS_Store
