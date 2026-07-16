@@ -26,8 +26,8 @@ from merge_processed_data import (
     standardize_edizm_columns,
     EXPECTED_SCHEMA
 )
+from core.reference_tables import build_unified_trade_data_enriched_view_sql
 from pipelines.merge_pipeline import (
-    build_unified_trade_data_enriched_view_sql,
     parse_merge_args,
     resolve_merge_paths,
 )

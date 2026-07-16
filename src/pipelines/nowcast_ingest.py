@@ -10,6 +10,7 @@ from typing import List, Optional
 import pandas as pd
 
 from core.normalization_rules import add_tnved_columns, normalize_tnved_code
+from core.schema import EXPECTED_SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -17,23 +18,8 @@ NOWCAST_REQUIRED_COLUMNS = frozenset(
     {"STRANA", "PERIOD", "TNVED", "NAPR", "TYPE", "STOIM", "NETTO"}
 )
 
-# Matches merge pipeline EXPECTED_SCHEMA column order plus TYPE.
-NOWCAST_UNIFIED_COLUMNS = (
-    "NAPR",
-    "PERIOD",
-    "STRANA",
-    "TNVED",
-    "EDIZM",
-    "EDIZM_ISO",
-    "STOIM",
-    "NETTO",
-    "KOL",
-    "TNVED4",
-    "TNVED6",
-    "TNVED8",
-    "TNVED2",
-    "TYPE",
-)
+# EXPECTED_SCHEMA column order plus TYPE — single source of truth is core.schema.
+NOWCAST_UNIFIED_COLUMNS = tuple(EXPECTED_SCHEMA) + ("TYPE",)
 
 
 def transform_nowcast_to_unified(
