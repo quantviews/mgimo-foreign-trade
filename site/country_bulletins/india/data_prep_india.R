@@ -82,7 +82,7 @@ data_oil <- dbGetQuery(
   con,
   "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'IN' AND TNVED4 = '2709'"
 ) %>%
-  mutate(STOIM = STOIM / 1e6, NETTO = NETTO / 1e6) %>%
+  mutate(STOIM = STOIM / 1e9, NETTO = NETTO / 1e9) %>%  # млрд $ и млн т
   reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, PERIOD)) %>%
   left_join(hs4_labels, by = "TNVED4")
 write_parquet(data_oil, file.path(out_dir, "data_oil_export_india.parquet"))
