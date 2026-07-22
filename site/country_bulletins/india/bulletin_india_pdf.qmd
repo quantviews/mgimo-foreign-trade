@@ -1,26 +1,28 @@
 ---
-title: "Бюллетень: торговля с Индией"
-subtitle: "Ежемесячный выпуск — печатная версия"
+title: "Внешняя торговля с Индией"
+subtitle: "Ежемесячный аналитический выпуск"
 date: last-modified
+date-format: long
+lang: ru
 format:
   pdf:
-    template: ../../templates/bulletin-country-pdf.tex
+    template: ../../templates/bulletin-pdf.tex
     documentclass: scrartcl
     classoption:
       - DIV=12
       - numbers=noenddot
     papersize: a4
-    fontsize: 9pt
+    fontsize: 10pt
     pdf-engine: xelatex
     mainfont: "Arial"
     sansfont: "Arial"
     monofont: "Courier New"
     geometry:
       - landscape
-      - top=8mm
-      - bottom=6mm
-      - left=10mm
-      - right=10mm
+      - top=12mm
+      - bottom=10mm
+      - left=13mm
+      - right=13mm
     toc: false
     number-sections: false
     keep-tex: false
@@ -91,26 +93,43 @@ theme_pdf_groups <- function() {
 title_box_theme <- theme(
   plot.title.position = "plot",
   plot.title = ggtext::element_textbox_simple(
-    size = 9.5,
-    face = "bold",
-    color = mgimo_colors[["primary"]],
-    halign = 0.05,
-    padding = margin(2, 6, 2, 6),
-    margin = margin(0, 0, 2, 0),
-    fill = "transparent",
-    box.color = mgimo_colors[["primary"]],
-    linewidth = 1,
-    r = unit(3, "pt")
+    size = 9.5, face = "bold", color = mgimo_colors[["primary"]],
+    halign = 0.05, padding = margin(2, 6, 2, 6), margin = margin(0, 0, 2, 0),
+    fill = "transparent", box.color = mgimo_colors[["primary"]],
+    linewidth = 1, r = unit(3, "pt")
   )
 )
 
 trade_balance <- read_parquet("data/trade_balance_india.parquet")
 df_groups <- read_parquet("data/data_4_india.parquet")
 data_oil <- read_parquet("data/data_oil_export_india.parquet")
+headline <- read_parquet("data/headline_india.parquet")
 
 date_min <- min(trade_balance$PERIOD)
 date_max <- max(trade_balance$PERIOD)
 report_month <- stri_datetime_format(date_max, format = "LLLL yyyy", locale = "ru")
+
+# --- Заголовочные показатели и хелперы (как в общем бюллетене) ---
+hl_exp <- headline %>% filter(PERIOD == date_max, NAPR == "ЭК")
+hl_imp <- headline %>% filter(PERIOD == date_max, NAPR == "ИМ")
+hl_balance <- hl_exp$stoim_bn - hl_imp$stoim_bn
+nc_exp <- hl_exp$nowcast_share
+
+fmt_num <- function(x, d = 1) sub("\\.", ",", formatC(x, format = "f", digits = d))
+fmt_bn_tex <- function(x) sprintf("\\textbf{%s млрд \\$}", fmt_num(x))
+fmt_pct_tex <- function(x) {
+  if (length(x) == 0 || is.na(x)) return("н/д")
+  s <- paste0(if (x >= 0) "+" else "−", fmt_num(abs(100 * x)), "\\%")
+  col <- if (x >= 0) "mgimogreen" else "mgimored"
+  sprintf("\\textcolor{%s}{\\textbf{%s}}", col, s)
+}
+fo_val <- function(napr) {
+  v <- headline %>% filter(NAPR == napr, PERIOD == max(PERIOD)) %>% pull(fo_yoy)
+  if (length(v) == 0) NA_real_ else v[1]
+}
+
+oil_last <- data_oil %>% filter(NAPR == "ЭК") %>% filter(PERIOD == max(PERIOD)) %>% pull(NETTO)
+oil_last <- if (length(oil_last) == 0) NA_real_ else oil_last[1]
 
 pl_trade_balance <-
   trade_balance %>%
@@ -119,17 +138,17 @@ pl_trade_balance <-
     Показатель = case_when(
       NAPR == "ЭК" ~ "Экспорт",
       NAPR == "ИМ" ~ "Импорт",
-      NAPR == "ТБ" ~ "Торговый баланс"
+      NAPR == "ТБ" ~ "Сальдо"
     )
   ) %>%
   rename(Дата = PERIOD) %>%
   ggplot() +
   geom_col(
-    data = ~ filter(.x, Показатель == "Торговый баланс"),
+    data = ~ filter(.x, Показатель == "Сальдо"),
     aes(Дата, `Стоимость, млрд долл.`, fill = Показатель)
   ) +
   geom_line(
-    data = ~ filter(.x, Показатель != "Торговый баланс"),
+    data = ~ filter(.x, Показатель != "Сальдо"),
     aes(Дата, `Стоимость, млрд долл.`, color = Показатель),
     linewidth = I(1)
   ) +
@@ -137,14 +156,8 @@ pl_trade_balance <-
     values = c("Экспорт" = mgimo_colors[["secondary"]], "Импорт" = mgimo_colors[["primary"]]),
     name = NULL
   ) +
-  scale_fill_manual(
-    values = c("Торговый баланс" = mgimo_colors[["accent1"]]),
-    name = NULL
-  ) +
-  scale_x_date(
-    breaks = seq(date_min, date_max, by = "year"),
-    labels = scales::label_date("%Y")
-  ) +
+  scale_fill_manual(values = c("Сальдо" = mgimo_colors[["accent1"]]), name = NULL) +
+  scale_x_date(breaks = seq(date_min, date_max, by = "year"), labels = scales::label_date("%Y")) +
   labs(x = NULL, y = NULL) +
   theme_pdf_timeseries() +
   coord_cartesian(clip = "off")
@@ -156,64 +169,36 @@ pl_oil_export <-
   ggplot(aes(x = Дата, y = `Экспорт, млн т`)) +
   geom_line(color = mgimo_colors[["primary"]], linewidth = I(1)) +
   geom_point(shape = 21, fill = "white", color = mgimo_colors[["primary"]], size = 1.3) +
-  scale_x_date(
-    breaks = seq(date_min, date_max, by = "year"),
-    labels = scales::label_date("%Y")
-  ) +
+  scale_x_date(breaks = seq(date_min, date_max, by = "year"), labels = scales::label_date("%Y")) +
   labs(x = NULL, y = NULL) +
   theme_pdf_timeseries() +
   theme(legend.position = "none")
 
-plot_export <- df_groups %>%
-  filter(NAPR == "ЭК", TNVED4 != "2709") %>%
-  mutate(
-    across(c(STOIM_last12, STOIM_year_before, STOIM_diff), ~ .x * 1000),
-    STOIM_diff_abs = abs(STOIM_diff),
-    type = if_else(STOIM_diff > 0, "positive", "negative"),
-    position_label = (STOIM_last12 + STOIM_year_before) / 2,
-    label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
-  ) %>%
-  arrange(-STOIM_diff_abs) %>%
-  head(12) %>%
-  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
-  ggplot(aes(color = type)) +
-  geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string), linewidth = 0.45) +
-  geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = "white", shape = 21, size = 1.4) +
-  scale_color_manual(
-    values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]),
-    breaks = c("positive", "negative")
-  ) +
-  geom_text(aes(x = position_label, y = TNVED4_string, label = label), nudge_y = 0.32, size = 2.5) +
-  coord_cartesian(clip = "off") +
-  theme_pdf_groups() +
-  labs(y = NULL, x = "млн долл.", title = "Экспорт")
+build_groups <- function(napr) {
+  df_groups %>%
+    filter(NAPR == napr, TNVED4 != "2709") %>%
+    mutate(
+      across(c(STOIM_last12, STOIM_year_before, STOIM_diff), ~ .x * 1000),
+      STOIM_diff_abs = abs(STOIM_diff),
+      type = if_else(STOIM_diff > 0, "positive", "negative"),
+      position_label = (STOIM_last12 + STOIM_year_before) / 2,
+      label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
+    ) %>%
+    arrange(-STOIM_diff_abs) %>%
+    head(14) %>%
+    mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
+    ggplot(aes(color = type)) +
+    geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string), linewidth = 0.5) +
+    geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = "white", shape = 21, size = 1.6) +
+    scale_color_manual(values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]), breaks = c("positive", "negative")) +
+    geom_text(aes(x = position_label, y = TNVED4_string, label = label), nudge_y = 0.38, size = 2.7) +
+    coord_cartesian(clip = "off") +
+    theme_pdf_groups() +
+    labs(y = NULL, x = "млн долл.")
+}
 
-plot_import <- df_groups %>%
-  filter(NAPR == "ИМ") %>%
-  mutate(
-    across(c(STOIM_last12, STOIM_year_before, STOIM_diff), ~ .x * 1000),
-    STOIM_diff_abs = abs(STOIM_diff),
-    type = if_else(STOIM_diff > 0, "positive", "negative"),
-    position_label = (STOIM_last12 + STOIM_year_before) / 2,
-    label = if_else(STOIM_diff > 0, paste0("+", round(STOIM_diff, 1)), paste0(round(STOIM_diff, 1)))
-  ) %>%
-  arrange(-STOIM_diff_abs) %>%
-  head(12) %>%
-  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
-  ggplot(aes(color = type)) +
-  geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string), linewidth = 0.45) +
-  geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = "white", shape = 21, size = 1.4) +
-  scale_color_manual(
-    values = c(mgimo_colors[["accent1"]], mgimo_colors[["secondary"]]),
-    breaks = c("positive", "negative")
-  ) +
-  geom_text(aes(x = position_label, y = TNVED4_string, label = label), nudge_y = 0.32, size = 2.5) +
-  coord_cartesian(clip = "off") +
-  theme_pdf_groups() +
-  labs(y = NULL, x = "млн долл.", title = "Импорт")
-
-groups_ft <- (plot_export + title_box_theme) / (plot_import + title_box_theme) +
-  plot_layout(heights = c(1, 1))
+plot_export <- build_groups("ЭК")
+plot_import <- build_groups("ИМ")
 
 save_chart <- function(plot, name, width, height) {
   path <- file.path("pdf_figures", paste0(name, ".png"))
@@ -222,30 +207,103 @@ save_chart <- function(plot, name, width, height) {
   normalizePath(path, winslash = "/", mustWork = FALSE)
 }
 
-fig_balance <- save_chart(pl_trade_balance, "01-balance", 5.2, 2.65)
-fig_oil <- save_chart(pl_oil_export, "02-oil", 5.2, 2.65)
-fig_groups <- save_chart(groups_ft, "03-groups", 5.2, 5.6)
+fig_balance <- save_chart(pl_trade_balance, "01-balance", 5.35, 3.0)
+fig_oil <- save_chart(pl_oil_export, "02-oil", 5.35, 3.0)
+fig_export <- save_chart(plot_export, "03-export", 5.35, 5.35)
+fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 ```
 
-\countrypagebanner{`r report_month`}
+\bulletinbanner{Выпуск за `r report_month`}
+\thispagestyle{plain}
 
-\begin{countrypageone}
-\noindent
-\begin{minipage}[t]{0.485\textwidth}
+\begin{bulletinintro}
+\textbf{Главное за `r report_month`.}\quad
+Экспорт из России в Индию — `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), индекс физобъёма `r fmt_pct_tex(hl_exp$fo_yoy)` г/г.\quad
+Импорт из Индии — `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м).\quad
+Сальдо — \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России.\\[3pt]
+\textbf{\color{mgimoblue}Вывод месяца.} Торговля с Индией почти полностью держится на экспорте российской нефти; импорт из Индии в разы меньше, поэтому сальдо стабильно складывается в пользу России. Главное, за чем стоит следить, — динамика нефтяных поставок.
+\end{bulletinintro}
+
+\begin{bulletinpageone}
 \vspace{0pt}
-\begin{chartpanel}{01}{Импорт, экспорт и торговый баланс, млрд \$}
-\includegraphics[width=\linewidth,height=0.335\textheight,keepaspectratio]{`r fig_balance`}
+\bulletincols{%
+\begin{chartpanel}{01}{Экспорт, импорт и сальдо, млрд \$}
+\includegraphics[width=\linewidth]{`r fig_balance`}
 \end{chartpanel}
-\vspace{2pt}
-\begin{chartpanel}{02}{Экспорт нефти, млн т}
-\includegraphics[width=\linewidth,height=0.335\textheight,keepaspectratio]{`r fig_oil`}
+}{%
+\begin{chartpanel}{02}{Экспорт нефти в Индию, млн т}
+\includegraphics[width=\linewidth]{`r fig_oil`}
 \end{chartpanel}
-\end{minipage}%
-\hfill
-\begin{minipage}[t]{0.485\textwidth}
-\vspace{0pt}
-\begin{chartpanel}{03}{Экспорт и импорт по категориям, млн \$}
-\includegraphics[width=\linewidth,height=0.82\textheight,keepaspectratio]{`r fig_groups`}
+}
+
+\vspace{4pt}
+\nopagebreak[4]
+\bulletincols{%
+\begin{insightbox}{Главное · стоимость и сальдо}
+\begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
+\item Экспорт из России — `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), почти целиком нефть и нефтепродукты.
+\item Импорт из Индии — `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м): в разы меньше экспорта.
+\item Сальдо — \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России.
+\end{itemize}
+\end{insightbox}
+}{%
+\begin{insightbox}{Главное · объёмы и оперативность}
+\begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
+\item Индекс физобъёма экспорта — `r fmt_pct_tex(fo_val('ЭК'))` г/г.
+\item Экспорт нефти — около \textbf{`r fmt_num(oil_last)` млн т} за месяц.
+\item Официальная статистика Индии за `r report_month` ещё не поступила: приведена оперативная оценка (nowcast), покрывающая около `r round(100 * nc_exp)`\,\% стоимости.
+\end{itemize}
+\end{insightbox}
+}
+\end{bulletinpageone}
+
+```{=latex}
+\clearpage
+```
+
+\begin{sectionbar}
+{\bfseries Экспорт и импорт по категориям}\\
+\small Товарные группы (кроме нефти), изменение стоимости за последние 12 месяцев; \textcolor{mgimogreen}{\textbf{зелёный}} — рост, \textcolor{mgimored}{\textbf{красный}} — снижение.
+\end{sectionbar}
+
+\vspace{3pt}
+\bulletincols{%
+\begin{chartpanel}{03}{Экспорт — топ-14 категорий, млн \$}
+\includegraphics[width=\linewidth]{`r fig_export`}
 \end{chartpanel}
-\end{minipage}
-\end{countrypageone}
+}{%
+\begin{chartpanel}{04}{Импорт — топ-14 категорий, млн \$}
+\includegraphics[width=\linewidth]{`r fig_import`}
+\end{chartpanel}
+}
+
+```{=latex}
+\clearpage
+```
+
+\begin{sectionbar}
+{\bfseries Как читать этот бюллетень}\\
+\small Короткий комментарий простым языком — без специальной подготовки.
+\end{sectionbar}
+
+\vspace{6pt}
+\bulletincols{%
+{\bfseries\color{mgimoblue}О чём этот выпуск.} Бюллетень описывает внешнюю торговлю России с Индией: экспорт (в основном нефть и нефтепродукты), импорт из Индии и торговое сальдо — по месяцам и по товарным категориям.
+
+\vspace{6pt}
+{\bfseries\color{mgimoblue}Откуда данные.} Официальная российская статистика сейчас не публикуется оперативно. Мы восстанавливаем картину по статистике Индии и международной базе ООН (UN~Comtrade), приводя всё к единому виду.
+
+\vspace{6pt}
+{\bfseries\color{mgimoblue}Оперативная оценка (nowcast).} Индийская статистика выходит с задержкой в 1–2 месяца. Чтобы не ждать, самые свежие месяцы мы оцениваем статистической моделью и помечаем отдельно. Поэтому цифры за последний месяц — предварительные.
+}{%
+{\bfseries\color{mgimoblue}Деньги и физические объёмы.} Стоимость в долларах смешивает изменение цен и изменение поставок. Поэтому мы считаем и реальный объём — тонны. «Индекс физобъёма» показывает, как изменился именно физический поток, без влияния цен.
+
+\vspace{6pt}
+{\bfseries\color{mgimoblue}«Год к году» и «месяц к месяцу».} «г/г» — сравнение с тем же месяцем год назад: убирает сезонность. «м/м» — с предыдущим месяцем: ловит свежий разворот, но сильнее колеблется.
+
+\vspace{6pt}
+{\bfseries\color{mgimoblue}Нужны данные под вашу задачу?} Полная база, выгрузки и интерактивные дашборды — по запросу. Подберём разрез по странам, товарам и периодам и настроим регулярное обновление.
+}
+
+\vspace{10pt}
+{\footnotesize\sffamily\color{mgimomuted}Источник: расчёты на приведённых к единой классификации данных национальной и международной статистики. Национальная торговая статистика · МГИМО.}

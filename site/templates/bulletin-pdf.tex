@@ -27,8 +27,9 @@
 \definecolor{mgimoline}{HTML}{D7E2F0}
 \definecolor{mgimoaccent}{HTML}{E8F0FA}
 
-% Логотип и прочие относительные изображения ищем в assets/ (cwd = site/ или корень)
-\graphicspath{{assets/}{site/assets/}}
+% Логотип и прочие относительные изображения ищем в assets/
+% (cwd = site/, корень, или папка странового бюллетеня site/country_bulletins/<c>/)
+\graphicspath{{assets/}{site/assets/}{../../assets/}}
 
 $if(geometry)$
 \usepackage[$for(geometry)$$geometry$$sep$,$endfor$]{geometry}

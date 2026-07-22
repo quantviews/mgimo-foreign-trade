@@ -1,134 +1,119 @@
-library(tidyverse)
-library(duckdb)
-library(arrow)
-library(forecast)
-library(plotly)
-library(ggbreak)
-library(ggtext)
+# Готовит parquet-снимки для странового бюллетеня по Индии.
+# Запуск из корня репозитория: Rscript site/country_bulletins/india/data_prep_india.R
+# DuckDB: MGIMO_DUCKDB_PATH или db/unified_trade_data.duckdb в корне репо.
 
-# Какие тут идеи?
-# 1. Импорт/экспорт + торговый баланс (барами)
-# 2-3. Изменение импорта/экспорта на 4 знаке.
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(duckdb)
+  library(arrow)
+})
 
-# 1. Торговый баланс + выкладка?
+`%||%` <- function(x, y) if (!is.null(x) && nzchar(x)) x else y
 
-con <- dbConnect(
-  duckdb::duckdb(),
-  "~/MGIMO-FT/db/unified_trade_data.duckdb",
-  read_only = TRUE
-)
+repo_root <- Sys.getenv("GITHUB_WORKSPACE") %||%
+  normalizePath(
+    if (basename(getwd()) == "india") file.path("..", "..", "..")
+    else if (basename(getwd()) == "site") ".."
+    else getwd(),
+    winslash = "/", mustWork = TRUE
+  )
 
-#dbDisconnect(con, shutdown = TRUE) # На всякий случай оставлю тут
+db_path <- Sys.getenv("MGIMO_DUCKDB_PATH") %||%
+  file.path(repo_root, "db", "unified_trade_data.duckdb")
 
-dbGetQuery(con, '
-           SELECT STRANA, NAPR, PERIOD, STOIM
-           FROM unified_trade_data_enriched') %>%
-  filter(STRANA == 'IN') %>%
-  reframe(
-    STOIM = sum(STOIM, na.rm = TRUE),
-    .by = c(STRANA, NAPR, PERIOD)
-  ) %>%
-  # Создаю табличку с 3 видами по NAPR: ИМ, ЭК, ТБ - это удобно для визуализации
+out_dir <- file.path(repo_root, "site", "country_bulletins", "india", "data")
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+hs4_path <- file.path(repo_root, "site", "data", "hs4_labels.parquet")
+
+if (!file.exists(db_path)) {
+  stop("DuckDB not found: ", db_path,
+       "\nSet MGIMO_DUCKDB_PATH or place db/unified_trade_data.duckdb in the repo root.")
+}
+message("data_prep_india: db=", db_path)
+message("data_prep_india: out=", out_dir)
+
+con <- dbConnect(duckdb::duckdb(), db_path, read_only = TRUE)
+on.exit(dbDisconnect(con, shutdown = TRUE), add = TRUE)
+
+hs4_labels <- read_parquet(hs4_path) %>%
+  select(TNVED4 = hs4, TNVED4_string = name_ru_short)
+
+# 1. Экспорт, импорт и торговый баланс (стоимость; в млрд переводит qmd).
+india_val <- dbGetQuery(
+  con, "SELECT NAPR, PERIOD, STOIM FROM unified_trade_data WHERE STRANA = 'IN'"
+) %>%
+  reframe(STOIM = sum(STOIM, na.rm = TRUE), .by = c(NAPR, PERIOD))
+
+trade_balance <- india_val %>%
   bind_rows(
-    # Табличка с торговым балансом
-    dbGetQuery(con, '
-           SELECT STRANA, NAPR, PERIOD, STOIM
-           FROM unified_trade_data_enriched') %>%
-      filter(STRANA == 'IN') %>%
-      reframe(
-        STOIM = sum(STOIM, na.rm = TRUE),
-        .by = c(STRANA, NAPR, PERIOD)
-      ) %>%
-      pivot_wider(names_from = NAPR,
-                  values_from = STOIM) %>%
-      mutate(STOIM = ЭК - ИМ,
-             NAPR = 'ТБ') %>%
-      select(STRANA, NAPR, PERIOD, STOIM)
+    india_val %>%
+      pivot_wider(names_from = NAPR, values_from = STOIM) %>%
+      mutate(STOIM = ЭК - ИМ, NAPR = "ТБ") %>%
+      select(NAPR, PERIOD, STOIM)
   ) %>%
-  write_parquet('site/country_bulletins/india/data/trade_balance_india.parquet')
+  mutate(STRANA = "IN") %>%
+  select(STRANA, NAPR, PERIOD, STOIM)
+write_parquet(trade_balance, file.path(out_dir, "trade_balance_india.parquet"))
 
-# Данные для графиков по товарным группам
-
-dbGetQuery(con, '
-           SELECT STRANA, NAPR, PERIOD, STOIM, NETTO, TNVED4
-           FROM unified_trade_data') %>%
-  # Страна == Индия!
-  filter(STRANA == 'IN',
-         TNVED4 == '2709') %>%
-  # Переводим в млрд $
-  mutate(
-    STOIM = STOIM / 10^9
-  ) %>%
-  # Cумма по NETTO и STOIM по группам
-  reframe(
-    across(
-      c(STOIM, NETTO),
-      ~ sum(.x, na.rm = T)),
-    .by = c(TNVED4, NAPR, PERIOD)
-  ) %>%
-  # Нужно построит 2 окна, для удобства делаем так
-  mutate(
-    max_1 = max(PERIOD),
-    min_1 = max_1 %m-% months(11),
-    max_2 = min_1 %m-% months(1),
-    min_2 = max_2 %m-% months(11)
-  ) %>%
-  # 2 периода: последние 12 мес и 12 мес до этого
-  mutate(
-    year = case_when(
-      (PERIOD >= min_1) ~ 'last12',
-      (PERIOD >= min_2) & (PERIOD <= max_2) ~ 'year_before',
-      .default = 'other'
-    )
-  ) %>%
-  filter(
-    year %in% c('last12', 'year_before')
-  ) %>%
-  reframe(
-    across(
-      c(STOIM, NETTO),
-      ~ sum(.x, na.rm = T)),
-    .by = c(TNVED4, NAPR, year)
-  ) %>%
-  select(TNVED4, NAPR, year, STOIM, NETTO) %>%
-  pivot_wider(names_from = 'year', values_from = c('STOIM', 'NETTO')) %>%
+# 2. Изменение по товарным группам: все группы, последние 12 мес vs 12 мес до.
+df_groups <- dbGetQuery(
+  con, "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'IN'"
+) %>%
+  mutate(STOIM = STOIM / 1e9) %>%
+  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, PERIOD)) %>%
+  mutate(max_1 = max(PERIOD), min_1 = max_1 %m-% months(11),
+         max_2 = min_1 %m-% months(1), min_2 = max_2 %m-% months(11)) %>%
+  mutate(year = case_when(
+    PERIOD >= min_1 ~ "last12",
+    PERIOD >= min_2 & PERIOD <= max_2 ~ "year_before",
+    .default = "other"
+  )) %>%
+  filter(year %in% c("last12", "year_before")) %>%
+  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, year)) %>%
+  pivot_wider(names_from = year, values_from = c(STOIM, NETTO)) %>%
   mutate(STOIM_diff = STOIM_last12 - STOIM_year_before,
-         STOIM_gr   = -1 + STOIM_last12 / STOIM_year_before 
-  ) %>%
+         STOIM_gr = -1 + STOIM_last12 / STOIM_year_before) %>%
   arrange(-STOIM_diff) %>%
-  left_join(
-    read_parquet('site/data/hs4_labels.parquet') %>%
-      select(TNVED4 = hs4,
-             TNVED4_string = name_ru_short),
-    by = 'TNVED4'
-  ) %>%
-  write_parquet('site/country_bulletins/india/data/data_4_india.parquet')
+  left_join(hs4_labels, by = "TNVED4")
+write_parquet(df_groups, file.path(out_dir, "data_4_india.parquet"))
 
-# Нефтяной экспорт NETTO
+# 3. Экспорт нефти (2709) в натуральном выражении (млн т).
+data_oil <- dbGetQuery(
+  con,
+  "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'IN' AND TNVED4 = '2709'"
+) %>%
+  mutate(STOIM = STOIM / 1e6, NETTO = NETTO / 1e6) %>%
+  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, PERIOD)) %>%
+  left_join(hs4_labels, by = "TNVED4")
+write_parquet(data_oil, file.path(out_dir, "data_oil_export_india.parquet"))
 
-dbGetQuery(con, '
-           SELECT STRANA, NAPR, PERIOD, STOIM, NETTO, TNVED4
-           FROM unified_trade_data') %>%
-  # Страна == Индия!
-  filter(STRANA == 'IN',
-         TNVED4 == '2709') %>%
-  # Переводим в млрд $
-  mutate(
-    STOIM = STOIM / 10^6,
-    NETTO = NETTO / 10^6
-  ) %>%
-  # Cумма по NETTO и STOIM по группам
+# 4. Заголовочные показатели (как в общем бюллетене): стоимость (млрд $), м/м и г/г,
+#    доля nowcast и изменение физобъёма год к году.
+headline <- dbGetQuery(
+  con, "SELECT NAPR, PERIOD, STOIM, TYPE FROM unified_trade_data WHERE STRANA = 'IN'"
+) %>%
+  mutate(is_fact = TYPE != "pred") %>%
   reframe(
-    across(
-      c(STOIM, NETTO),
-      ~ sum(.x, na.rm = T)),
-    .by = c(TNVED4, NAPR, PERIOD)
-  )  %>%
-  left_join(
-    read_parquet('site/data/hs4_labels.parquet') %>%
-      select(TNVED4 = hs4,
-             TNVED4_string = name_ru_short),
-    by = 'TNVED4'
+    stoim_bn      = sum(STOIM, na.rm = TRUE) / 1e9,
+    stoim_bn_fact = sum(STOIM[is_fact], na.rm = TRUE) / 1e9,
+    .by = c(NAPR, PERIOD)
   ) %>%
-  write_parquet('site/country_bulletins/india/data/data_oil_export_india.parquet')
-  
+  arrange(NAPR, PERIOD) %>%
+  mutate(
+    nowcast_share = if_else(stoim_bn > 0, 1 - stoim_bn_fact / stoim_bn, NA_real_),
+    stoim_mom = stoim_bn / lag(stoim_bn) - 1,
+    stoim_yoy = stoim_bn / lag(stoim_bn, 12) - 1,
+    .by = NAPR
+  )
+
+fo_india <- dbGetQuery(
+  con, "SELECT NAPR, PERIOD, fizob FROM fizob_index WHERE STRANA = 'IN' AND tn_level = 0"
+) %>%
+  arrange(NAPR, PERIOD) %>%
+  mutate(fo_yoy = fizob / lag(fizob, 12) - 1, .by = NAPR) %>%
+  select(NAPR, PERIOD, fo_yoy)
+
+headline <- headline %>% left_join(fo_india, by = c("NAPR", "PERIOD"))
+write_parquet(headline, file.path(out_dir, "headline_india.parquet"))
+
+message("data_prep_india: done")
