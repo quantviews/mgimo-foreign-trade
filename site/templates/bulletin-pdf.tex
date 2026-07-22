@@ -75,7 +75,7 @@ $endif$
 \titlespacing*{\subsection}{0pt}{6pt}{4pt}
 \titlespacing*{\subsubsection}{0pt}{4pt}{3pt}
 
-\newcommand{\bulletinbanner}{%
+\newcommand{\bulletinbanner}[1]{% #1 = период выпуска (напр., «Выпуск за май 2026»)
   \noindent
   \begin{tcolorbox}[
     enhanced,
@@ -96,8 +96,8 @@ $endif$
   \hfill
   \begin{minipage}[c]{0.26\textwidth}
     \raggedleft
-    {\color{white!90}\small\sffamily Ежемесячный аналитический выпуск}\\[2pt]
-    {\color{white}\footnotesize\sffamily $if(date)$$date$$endif$}
+    {\color{white}\small\sffamily #1}\\[2pt]
+    {\color{white!80}\footnotesize\sffamily $if(date)$$date$$endif$}
   \end{minipage}
   \end{tcolorbox}
   \vspace{2pt}
@@ -202,6 +202,5 @@ $header-includes$
 $endfor$
 
 \begin{document}
-\bulletinbanner
 $body$
 \end{document}

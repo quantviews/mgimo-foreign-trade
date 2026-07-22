@@ -1,7 +1,9 @@
 ---
-title: "Бюллетень: динамика и структура внешней торговли"
-subtitle: "Ежемесячный выпуск — печатная версия"
+title: "Динамика и структура внешней торговли"
+subtitle: "Ежемесячный аналитический выпуск"
 date: last-modified
+date-format: long
+lang: ru
 format:
   pdf:
     template: templates/bulletin-pdf.tex
@@ -84,6 +86,9 @@ fig_oilgas <- save_chart(pl_oilgas_pdf, "02-oilgas", 5.35, 3.05)
 fig_export <- save_chart(plot_export_pdf, "03-export", 5.35, 5.35)
 fig_import <- save_chart(plot_import_pdf, "04-import", 5.35, 5.35)
 ```
+
+\bulletinbanner{Выпуск за `r report_month`}
+\thispagestyle{plain}
 
 \begin{bulletinintro}
 \textbf{Главное за `r report_month`.}\quad
