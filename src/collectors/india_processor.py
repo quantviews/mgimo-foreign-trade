@@ -33,6 +33,42 @@ def infer_india_stoim_multiplier(stoim: pd.Series) -> float:
     return 1000.0 if total < _STOIM_MILLIONS_USD_SUM_THRESHOLD else 1.0
 
 
+# Plausible band for the median unit value (STOIM in USD / NETTO in kg) after scaling.
+# Observed India monthly medians are ~1.2–7.5 USD/kg across 2018–2026 (incl. the 2026
+# switch to million-USD source, correctly scaled); a 1000x million/thousand misscale
+# would land at ~0.007 or ~7000, far outside this band.
+_INDIA_UNIT_VALUE_MIN_USD_PER_KG = 0.1
+_INDIA_UNIT_VALUE_MAX_USD_PER_KG = 1000.0
+
+
+def assert_india_stoim_unit_value_sane(
+    stoim_usd: pd.Series, netto_kg: pd.Series, *, label: str = ""
+) -> float:
+    """Fail loudly if the median unit value is implausible after STOIM scaling.
+
+    infer_india_stoim_multiplier picks the million/thousand-USD multiplier from file-sum
+    magnitude, which could mis-scale an unusually small or large month. Instead of letting
+    a 1000x misscale enter the data silently, validate the OUTCOME: after STOIM is scaled
+    to USD, the median STOIM/NETTO over positive-NETTO rows must sit inside
+    [_INDIA_UNIT_VALUE_MIN_USD_PER_KG, _INDIA_UNIT_VALUE_MAX_USD_PER_KG]. Catches a misscale
+    in either direction. Returns the median (NaN when there is nothing to check).
+    """
+    stoim = pd.to_numeric(stoim_usd, errors="coerce")
+    netto = pd.to_numeric(netto_kg, errors="coerce")
+    mask = (netto > 0) & stoim.notna() & (stoim > 0)
+    if not mask.any():
+        return float("nan")
+    unit_value = float((stoim[mask] / netto[mask]).median())
+    if not (_INDIA_UNIT_VALUE_MIN_USD_PER_KG <= unit_value <= _INDIA_UNIT_VALUE_MAX_USD_PER_KG):
+        raise ValueError(
+            f"India MEIDB STOIM scale looks wrong for {label or 'this file'}: "
+            f"median unit value {unit_value:,.4f} USD/kg is outside the plausible "
+            f"[{_INDIA_UNIT_VALUE_MIN_USD_PER_KG}, {_INDIA_UNIT_VALUE_MAX_USD_PER_KG}] band "
+            "(likely a 1000x million/thousand-USD misscale). Check the source units."
+        )
+    return unit_value
+
+
 def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_file: Path):
     """
     Сканирует директорию с необработанными данными, обрабатывает каждый CSV-файл,
@@ -90,11 +126,23 @@ def process_and_merge_india_data(raw_data_dir: Path, output_file: Path, edizm_fi
                 multiplier = infer_india_stoim_multiplier(df['STOIM'])
                 if multiplier != 1.0:
                     df['STOIM'] = df['STOIM'] * multiplier
-                logger.info(
-                    f"     MEIDB→тыс. USD: x{multiplier:g} (raw sum={stoim_sum:,.2f})"
-                )
                 # CN/TR в unified parquet и на Superset — STOIM в USD, не в тыс.
                 df['STOIM'] = df['STOIM'] * 1000
+                # Громкая проверка результата: если множитель выбран неверно (мисскейл
+                # 1000x), медианная удельная цена вылетит за коридор и файл будет отвергнут
+                # здесь (ниже except -> ERROR + skip), а не молча испортит данные. На верно
+                # масштабированных файлах это no-op.
+                netto_series = (
+                    df['NETTO'] if 'NETTO' in df.columns
+                    else pd.Series(index=df.index, dtype=float)
+                )
+                median_unit_value = assert_india_stoim_unit_value_sane(
+                    df['STOIM'], netto_series, label=file_path.name
+                )
+                logger.info(
+                    f"     MEIDB→USD: x{multiplier:g}x1000 (raw sum={stoim_sum:,.2f}; "
+                    f"median {median_unit_value:,.3f} USD/kg)"
+                )
 
             # Map units through the common EDIZM normalization layer.
             if 'EDIZM' in df.columns:

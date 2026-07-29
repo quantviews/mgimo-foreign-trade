@@ -222,12 +222,11 @@ df_complete <-
   mutate(price = if_else(fo_constr == 'netto', STOIM / NETTO, STOIM / KOL)) %>%
   group_by(STRANA, TNVED, NAPR) %>%
   arrange(PERIOD) %>%
-  # На самом деле, окно 13 мес.
+  # Окно 12 мес (текущий месяц + 11 предыдущих; .before = 11, .complete = FALSE).
   mutate(
     price_12 = slide_dbl(
       price,
-      .before = 11,#6,
-      #.after  = 6,
+      .before = 11,
       .complete = FALSE,
       .f = ~ {
         x <- .x[is.finite(.x) & .x != 0]
@@ -254,7 +253,7 @@ df_complete <-
     price_edizm = if_else(fo_constr == 'netto', 'Долл./кг', paste0('Долл./', EDIZM))
   ) %>%
   group_by(STRANA, TNVED, NAPR) %>%
-  # На самом деле, окно 13 мес.
+  # Окно 12 мес (текущий месяц + 11 предыдущих; .before = 11, .complete = FALSE).
   mutate(
     kol_12 = slide_dbl(
       KOL, 
@@ -335,6 +334,11 @@ query_fizob_level <- function(con, level) {
   ", code_col, fizob_col, price_col, fizob_bp_col, price_bp_col, share_col))
 }
 
+# ВНИМАНИЕ (методология, намеренно): ALL-уровень агрегирует ТОЛЬКО netto_12, тогда как
+# страновой query_fizob_level использует CASE fo_constr netto/kol. Причина: на ALL-уровне
+# суммируются разные TNVED, а дополнительная единица KOL в разных единицах (шт./л/…) не
+# аддитивна, тогда как NETTO (кг) аддитивен. Поэтому здесь netto — осознанный выбор.
+# НЕ "чинить" под страновой вариант — это фича, а не баг.
 query_fizob_all_level <- function(con, level) {
   code_col <- paste0("TNVED", level)
   fizob_col <- paste0("fizob", level)

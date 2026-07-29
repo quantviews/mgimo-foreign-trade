@@ -150,8 +150,8 @@ class TestIndiaProcessorContract:
     def india_df(self, tmp_path):
         (tmp_path / "india_2024_01.csv").write_text(
             "NAPR,STRANA,TNVED,TNVED2,TNVED4,TNVED6,STOIM,NETTO,KOL,EDIZM,Year,Month\n"
-            "ИМ,IN,0101010000,01,0101,010101,2500000.0,1000.0,5.0,KGS,2024,1\n"
-            "ЭК,IN,8704210000,87,8704,870421,2000000.0,8000.0,3.0,NOS,2024,1\n",
+            "ИМ,IN,0101010000,01,0101,010101,2500000.0,500000000.0,5.0,KGS,2024,1\n"
+            "ЭК,IN,8704210000,87,8704,870421,2000000.0,400000000.0,3.0,NOS,2024,1\n",
             encoding="utf-8",
         )
         # Pass a non-existent edizm file to exercise fallback aliases from the
@@ -178,7 +178,7 @@ class TestIndiaProcessorContract:
         """From 2026-01, source STOIM is in million USD and is scaled to thousand USD."""
         (tmp_path / "india_2026_01.csv").write_text(
             "NAPR,STRANA,TNVED,TNVED2,TNVED4,TNVED6,STOIM,NETTO,KOL,EDIZM,Year,Month\n"
-            "ИМ,IN,0101010000,01,0101,010101,5.0,1000.0,5.0,KGS,2026,1\n",
+            "ИМ,IN,0101010000,01,0101,010101,5.0,1000000.0,5.0,KGS,2026,1\n",
             encoding="utf-8",
         )
         missing_edizm = tmp_path / "edizm_missing.csv"
@@ -199,7 +199,7 @@ class TestIndiaProcessorContract:
         )
         (tmp_path / "india_2026_03.csv").write_text(
             "NAPR,STRANA,TNVED,TNVED2,TNVED4,TNVED6,STOIM,NETTO,KOL,EDIZM,Year,Month\n"
-            "ИМ,IN,0101010000,01,0101,010101,5.0,1000.0,5.0,KGS,2026,3\n",
+            "ИМ,IN,0101010000,01,0101,010101,5.0,1000000.0,5.0,KGS,2026,3\n",
             encoding="utf-8",
         )
         missing_edizm = tmp_path / "edizm_missing.csv"
@@ -214,6 +214,26 @@ class TestIndiaProcessorContract:
         assert india_processor.infer_india_stoim_multiplier(pd.Series([4_500.0, 3_200.0])) == 1000.0
         assert india_processor.infer_india_stoim_multiplier(pd.Series([0.0])) == 1.0
         assert india_processor.infer_india_stoim_multiplier(pd.Series([150_000.0, 50.0])) == 1.0
+
+    def test_stoim_unit_value_guard_passes_plausible(self):
+        """Correctly scaled STOIM (~5-7 USD/kg) passes and returns the median."""
+        stoim = pd.Series([7000.0, 5000.0])  # USD
+        netto = pd.Series([1000.0, 1000.0])  # kg -> 7.0, 5.0 USD/kg
+        uv = india_processor.assert_india_stoim_unit_value_sane(stoim, netto, label="ok")
+        assert 5.0 <= uv <= 7.0
+
+    def test_stoim_unit_value_guard_raises_on_1000x_misscale(self):
+        """A 1000x misscale (median ~7000 USD/kg) fails loudly."""
+        stoim = pd.Series([7_000_000.0, 5_000_000.0])  # 1000x too high
+        netto = pd.Series([1000.0, 1000.0])            # -> ~7000 USD/kg
+        with pytest.raises(ValueError, match="scale looks wrong"):
+            india_processor.assert_india_stoim_unit_value_sane(stoim, netto, label="bad")
+
+    def test_stoim_unit_value_guard_noop_without_positive_netto(self):
+        """No positive NETTO -> nothing to check, returns NaN instead of raising."""
+        stoim = pd.Series([7000.0, 5000.0])
+        netto = pd.Series([0.0, 0.0])
+        assert pd.isna(india_processor.assert_india_stoim_unit_value_sane(stoim, netto))
 
     def test_edizm_iso_mapped_from_dict(self, india_df):
         """EDIZM_ISO is derived from the common EDIZM layer: KGS→166, NOS→796."""
