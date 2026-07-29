@@ -98,6 +98,10 @@ country_last_periods <-
 # use max(last_period), not last(last_period), to avoid order-dependent behavior.
 max_last_period <- country_last_periods %>% pull(last_period) %>% max()
 
+# Forecast window is derived from countries reporting recently. Two tuning constants:
+#   months(11)       -> 12-month recency window (current month + 11 prior months).
+#   cume_dist >= 0.5 -> forecast starts at the median of those countries' last
+#                       reported months, i.e. once >= 50% of them already have data.
 fc_dates <-
   country_last_periods %>%
   filter(last_period > max_last_period %m-% months(11)) %>%
@@ -184,9 +188,12 @@ log_step(sprintf(
 ))
 
 ic <- ICr(df_var_1_train)
+# ic$r.star holds factor-count picks from three Bai-Ng information criteria
+# (ICp1/ICp2/ICp3); [3] takes the third (ICp3), the most parsimonious of them.
 log_step(sprintf("Selected number of factors by IC: %s", fmt_n(ic$r.star[3])))
 
 n_var_lags <- vars::VARselect(ic$F_pca[, 1:ic$r.star[3]])
+# Cap VAR lag order at 2: the monthly factor panel is short, higher lags overfit.
 selected_lags <- min(c(n_var_lags$selection %>% min(), 2))
 log_step(sprintf("Selected VAR lag order: %s", fmt_n(selected_lags)))
 
@@ -221,6 +228,11 @@ forecast_level <-
       select(gr, stoim_last = stoim),
     by = "gr"
   ) %>%
+  # Groups absent from the last training month have no base level -> stoim_last is
+  # NA, which would propagate through cumsum and turn the whole group's forecast to
+  # NA (losing it downstream). Treat a missing base as 0 so the level path stays
+  # finite. Matches forecasting_var.R; only affects previously-NA groups.
+  mutate(stoim_last = coalesce(stoim_last, 0)) %>%
   arrange(gr, PERIOD) %>%
   mutate(
     stoim_level = expm1(log1p(stoim_last) + cumsum(stoim)),
@@ -309,7 +321,9 @@ df_10 <-
     .by = c("TNVED", "STRANA", "NAPR")
   ) %>%
   mutate(
-    # Fallback keeps prediction finite even for sparse groups.
+    # Fallback unit price = 1 (i.e. 1 USD per kg/unit) for sparse groups that never
+    # had a positive observed price, so netto_fc = stoim_fc / price_mean stays finite.
+    # Arbitrary magnitude; only affects those otherwise-priceless groups.
     price_mean = coalesce(price_mean, 1),
     stoim_fc = if_else(type == "pred", STOIM_ALL_2 * share_mean, STOIM_ALL_2 * share),
     netto_fc = if_else(type == "pred", stoim_fc / price_mean, STOIM_ALL_2 / price_mean)
