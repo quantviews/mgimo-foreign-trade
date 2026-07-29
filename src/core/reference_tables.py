@@ -83,10 +83,9 @@ def load_hs4_labels(project_root: Path) -> pd.DataFrame:
     return empty
 
 
-def build_unified_trade_data_enriched_view_sql() -> str:
-    """SQL for the enriched trade view (shared by merge and DB slice utilities)."""
+def _enriched_select_sql() -> str:
+    """SELECT body for the enriched trade dataset (shared by view/table builders)."""
     return """
-        CREATE OR REPLACE VIEW unified_trade_data_enriched AS
         SELECT
             t.*,
             c.STRANA_NAME AS COUNTRY_NAME,
@@ -113,6 +112,210 @@ def build_unified_trade_data_enriched_view_sql() -> str:
     """
 
 
+def build_unified_trade_data_enriched_view_sql() -> str:
+    """SQL creating the enriched dataset as a VIEW (recomputed on every query).
+
+    Kept for lightweight consumers (e.g. DB slice utilities) that don't need a
+    materialized copy. For the shipped Superset DB prefer the table builder below.
+    """
+    return "CREATE OR REPLACE VIEW unified_trade_data_enriched AS" + _enriched_select_sql()
+
+
+def build_unified_trade_data_enriched_table_sql() -> str:
+    """SQL materializing the enriched dataset as a TABLE, physically clustered by
+    PERIOD/STRANA/NAPR.
+
+    As a view, Superset re-ran 7 LEFT JOINs + a DENSE_RANK window over ~7M rows on
+    every chart/filter. Materializing collapses that to a plain columnar scan, and
+    the ORDER BY lets DuckDB's zonemaps prune row groups for the usual period/country
+    filters. Building it here means the DB is fast straight out of the pipeline —
+    no post-build optimize step required.
+    """
+    return (
+        "CREATE OR REPLACE TABLE unified_trade_data_enriched AS"
+        + _enriched_select_sql()
+        + "\n        ORDER BY t.PERIOD, t.STRANA, t.NAPR"
+    )
+
+
+def build_coverage_matrix_table_sql() -> str:
+    """SQL materializing coverage_matrix: a 1/0 data-presence flag per country per
+    month over the last 24 months.
+
+    FACT ONLY — rows with TYPE='pred' (nowcast) are excluded, so the matrix reflects
+    actually reported coverage rather than forecast gap-fill. The 24-month window end
+    (max_month) is also derived from fact data, otherwise nowcast months beyond the
+    last reported period would shift the window onto months that have no facts yet.
+
+    Reads unified_trade_data_enriched (must already be materialized) for COUNTRY_NAME.
+    """
+    return """
+        CREATE OR REPLACE TABLE coverage_matrix AS
+        WITH max_period AS (
+            SELECT date_trunc('month', max(period)) AS max_month
+            FROM unified_trade_data_enriched
+            WHERE period IS NOT NULL
+              AND TYPE = 'fact'
+        ),
+        months AS (
+            SELECT
+                month_start,
+                strftime(month_start, '%Y-%m') AS month_label
+            FROM max_period,
+                 generate_series(
+                     max_month - INTERVAL 23 MONTH,
+                     max_month,
+                     INTERVAL 1 MONTH
+                 ) AS t(month_start)
+        ),
+        countries AS (
+            SELECT DISTINCT trim(country_name) AS country_name
+            FROM unified_trade_data_enriched
+            WHERE country_name IS NOT NULL
+              AND TYPE = 'fact'
+        ),
+        actual_data AS (
+            SELECT
+                trim(country_name) AS country_name,
+                date_trunc('month', period) AS month_start
+            FROM unified_trade_data_enriched, max_period
+            WHERE country_name IS NOT NULL
+              AND period IS NOT NULL
+              AND TYPE = 'fact'
+              AND period >= max_month - INTERVAL 23 MONTH
+              AND period < max_month + INTERVAL 1 MONTH
+            GROUP BY 1, 2
+        )
+        SELECT
+            c.country_name,
+            m.month_start,
+            m.month_label,
+            CASE WHEN a.month_start IS NOT NULL THEN 1 ELSE 0 END AS coverage
+        FROM countries c
+        CROSS JOIN months m
+        LEFT JOIN actual_data a
+            ON c.country_name = a.country_name
+           AND m.month_start = a.month_start
+        ORDER BY c.country_name, m.month_start
+    """
+
+
+def build_trade_mom_kpi_table_sql() -> str:
+    """SQL materializing trade_mom_kpi: month-over-month STOIM/NETTO change per
+    (NAPR, SOURCE, TNVED2), aggregated over the countries comparable between the two
+    months, plus a coverage-based quality_flag.
+
+    Aggregates from base unified_trade_data (enriched labels not needed) and self-joins
+    each month to the previous one. Clustered by PERIOD/NAPR for zonemap pruning.
+    """
+    return """
+        CREATE OR REPLACE TABLE trade_mom_kpi AS
+        WITH base AS (
+            SELECT
+                PERIOD, NAPR, SOURCE, TNVED2, STRANA,
+                SUM(STOIM) AS STOIM,
+                SUM(NETTO) AS NETTO
+            FROM unified_trade_data
+            WHERE STOIM IS NOT NULL
+            GROUP BY 1, 2, 3, 4, 5
+        ),
+        pairs AS (
+            SELECT
+                t.PERIOD, t.NAPR, t.SOURCE, t.TNVED2, t.STRANA,
+                t.STOIM AS stoim_t,
+                t1.STOIM AS stoim_t1,
+                t.NETTO AS netto_t,
+                t1.NETTO AS netto_t1,
+                t1.PERIOD AS period_t1
+            FROM base t
+            JOIN base t1
+              ON t.NAPR = t1.NAPR
+             AND t.SOURCE = t1.SOURCE
+             AND COALESCE(t.TNVED2, '') = COALESCE(t1.TNVED2, '')
+             AND t.STRANA = t1.STRANA
+             AND t1.PERIOD = t.PERIOD - INTERVAL 1 MONTH
+        ),
+        comparable AS (
+            SELECT * FROM pairs WHERE stoim_t1 > 0
+        ),
+        comp_agg AS (
+            SELECT
+                PERIOD, period_t1, NAPR, SOURCE, TNVED2,
+                COUNT(DISTINCT STRANA) AS n_comp_countries,
+                SUM(stoim_t) AS stoim_t,
+                SUM(stoim_t1) AS stoim_t1,
+                SUM(COALESCE(netto_t, 0)) AS netto_t,
+                SUM(COALESCE(netto_t1, 0)) AS netto_t1
+            FROM comparable
+            GROUP BY 1, 2, 3, 4, 5
+        ),
+        total_t AS (
+            SELECT
+                PERIOD, NAPR, SOURCE, TNVED2,
+                COUNT(DISTINCT STRANA) AS n_all_countries_t,
+                SUM(STOIM) AS stoim_all_t
+            FROM base
+            GROUP BY 1, 2, 3, 4
+        )
+        SELECT
+            c.PERIOD, c.period_t1, c.NAPR, c.SOURCE, c.TNVED2,
+            c.n_comp_countries,
+            t.n_all_countries_t,
+            c.stoim_t, c.stoim_t1, c.netto_t, c.netto_t1,
+            c.stoim_t / NULLIF(t.stoim_all_t, 0) AS coverage_stoim_t,
+            CASE
+                WHEN c.n_comp_countries < 3 THEN 'thin'
+                WHEN c.stoim_t / NULLIF(t.stoim_all_t, 0) < 0.7 THEN 'low_coverage'
+                ELSE 'ok'
+            END AS quality_flag,
+            (c.stoim_t / NULLIF(c.stoim_t1, 0)) - 1 AS mom_stoim,
+            (c.netto_t / NULLIF(c.netto_t1, 0)) - 1 AS mom_netto
+        FROM comp_agg c
+        LEFT JOIN total_t t
+          ON c.PERIOD = t.PERIOD
+         AND c.NAPR = t.NAPR
+         AND c.SOURCE = t.SOURCE
+         AND COALESCE(c.TNVED2, '') = COALESCE(t.TNVED2, '')
+        ORDER BY c.PERIOD, c.NAPR
+    """
+
+
+def build_fizob_enriched_table_sql() -> str:
+    """SQL materializing fizob_enriched (the «Физобъемы» tab + native filters) from
+    fizob_index_v joined to reference tables.
+
+    Requires fizob_index_v to exist (fizob enabled during merge); callers must guard.
+    Clustered by PERIOD/STRANA/NAPR for zonemap pruning.
+    """
+    return """
+        CREATE OR REPLACE TABLE fizob_enriched AS
+        SELECT
+            f.STRANA,
+            c.STRANA_NAME AS COUNTRY_NAME,
+            f.NAPR,
+            f.PERIOD,
+            EXTRACT(YEAR FROM f.PERIOD)::INTEGER AS YEAR,
+            f.tn_level,
+            f.tn_code,
+            f.fizob,
+            f.fizob_bp,
+            f.idx,
+            CASE WHEN f.tn_level = 2 THEN f.tn_code END AS TNVED2,
+            CASE WHEN f.tn_level = 4 THEN f.tn_code END AS TNVED4,
+            CASE WHEN f.tn_level = 6 THEN f.tn_code END AS TNVED6,
+            t2.TNVED_NAME AS TNVED2_NAME,
+            t4.TNVED_NAME AS TNVED4_NAME
+        FROM fizob_index_v f
+        LEFT JOIN country_reference c
+            ON f.STRANA = c.STRANA
+        LEFT JOIN tnved_reference t2
+            ON f.tn_level = 2 AND f.tn_code = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
+        LEFT JOIN tnved_reference t4
+            ON f.tn_level = 4 AND f.tn_code = t4.TNVED_CODE AND t4.TNVED_LEVEL = 4
+        ORDER BY f.PERIOD, f.STRANA, f.NAPR
+    """
+
+
 def refresh_hs4_reference(conn: duckdb.DuckDBPyConnection, project_root: Path) -> int:
     """
     Reload only hs4_reference from hs4_labels.json and refresh enriched view.
@@ -133,9 +336,9 @@ def refresh_hs4_reference(conn: duckdb.DuckDBPyConnection, project_root: Path) -
     conn.execute("CREATE INDEX idx_hs4_ref_tnved4 ON hs4_reference(TNVED4)")
     logger.info(f"  ... created hs4_reference table with {len(hs4_df)} rows")
 
-    logger.info("Refreshing unified_trade_data_enriched view...")
-    conn.execute(build_unified_trade_data_enriched_view_sql())
-    logger.info("  ... updated unified_trade_data_enriched view")
+    logger.info("Rematerializing unified_trade_data_enriched table...")
+    conn.execute(build_unified_trade_data_enriched_table_sql())
+    logger.info("  ... updated unified_trade_data_enriched table")
     return len(hs4_df)
 
 
@@ -272,10 +475,32 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
     logger.info(f"  ... created hs4_reference table with {len(hs4_df)} rows")
     conn.execute("CREATE INDEX idx_hs4_ref_tnved4 ON hs4_reference(TNVED4)")
 
-    # Create convenience view that joins main table with reference tables
-    logger.info("Creating convenience view with joined reference data...")
-    conn.execute(build_unified_trade_data_enriched_view_sql())
-    logger.info("  ... created unified_trade_data_enriched view")
+    # Materialize the enriched dataset as a clustered table (fast for Superset).
+    logger.info("Materializing unified_trade_data_enriched table with joined reference data...")
+    conn.execute(build_unified_trade_data_enriched_table_sql())
+    logger.info("  ... created unified_trade_data_enriched table (clustered by PERIOD/STRANA/NAPR)")
+
+    # Materialize coverage_matrix (fact-only, last 24 months) — reads enriched above.
+    logger.info("Materializing coverage_matrix (fact-only, last 24 months)...")
+    conn.execute(build_coverage_matrix_table_sql())
+    logger.info("  ... created coverage_matrix table")
+
+    # Materialize trade_mom_kpi (month-over-month KPIs) from the base table.
+    logger.info("Materializing trade_mom_kpi table...")
+    conn.execute(build_trade_mom_kpi_table_sql())
+    logger.info("  ... created trade_mom_kpi table")
+
+    # Materialize fizob_enriched only when fizob_index_v exists (fizob may be
+    # disabled with --no-fizob, in which case save_fizob_index never created it).
+    fizob_view_exists = conn.execute(
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'fizob_index_v'"
+    ).fetchone()[0]
+    if fizob_view_exists:
+        logger.info("Materializing fizob_enriched table...")
+        conn.execute(build_fizob_enriched_table_sql())
+        logger.info("  ... created fizob_enriched table")
+    else:
+        logger.info("fizob_index_v not present (fizob disabled) — skipping fizob_enriched.")
 
 def load_partner_mapping(project_root: Path) -> Dict[int, str]:
     """Loads Comtrade partner code (M49) to ISO2 mapping from JSON."""
@@ -416,6 +641,10 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
 
 __all__ = [
     "build_unified_trade_data_enriched_view_sql",
+    "build_unified_trade_data_enriched_table_sql",
+    "build_coverage_matrix_table_sql",
+    "build_trade_mom_kpi_table_sql",
+    "build_fizob_enriched_table_sql",
     "load_partner_mapping",
     "load_strana_mapping",
     "load_hs4_labels",

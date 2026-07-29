@@ -26,6 +26,13 @@ EXPECTED_SCHEMA = {
     'TNVED2': 'object'          # VARCHAR - первые 2 знака TNVED
 }
 
+# Canonical column set persisted to unified_trade_data: the schema above plus the
+# pipeline-added SOURCE / TYPE. Anything outside this set (e.g. Turkey-specific
+# ISTPOZ / ISTPOZ_ADI / TNVED_EN_NAME / TNVED_RU_NAME that only warn in
+# validate_schema) is dropped before save so per-country junk never reaches DuckDB
+# or the enriched view (which selects t.*).
+FINAL_DB_COLUMNS = list(EXPECTED_SCHEMA.keys()) + ['SOURCE', 'TYPE']
+
 def validate_schema(df: pd.DataFrame, filename: str) -> bool:
     """
     Validate DataFrame against expected schema.
@@ -213,6 +220,7 @@ def load_and_validate_file(file_path: Path, start_year: int = None) -> pd.DataFr
 
 __all__ = [
     "EXPECTED_SCHEMA",
+    "FINAL_DB_COLUMNS",
     "load_and_validate_file",
     "smoke_check_merged_dataset",
     "validate_schema",

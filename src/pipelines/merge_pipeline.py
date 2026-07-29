@@ -35,7 +35,7 @@ from core.normalization_rules import (
     standardize_edizm_columns,
 )
 from core.reference_tables import save_reference_tables
-from core.schema import load_and_validate_file, smoke_check_merged_dataset
+from core.schema import FINAL_DB_COLUMNS, load_and_validate_file, smoke_check_merged_dataset
 from core.tnved import generate_derived_columns
 from pipelines.nowcast_ingest import (
     append_nowcast_data,
@@ -290,7 +290,20 @@ def build_merged_dataframe(
         logger.error("Could not standardize EDIZM values due to mapping load failure.")
 
     merged_df = add_tnved_columns(merged_df)
-    return apply_special_edizm_cases(merged_df, logger)
+    merged_df = apply_special_edizm_cases(merged_df, logger)
+
+    # Drop any country-specific columns that slipped through per-file validation
+    # (validate_schema only warns about them), e.g. Turkey's ISTPOZ / ISTPOZ_ADI /
+    # TNVED_EN_NAME / TNVED_RU_NAME. Keeps DuckDB and the enriched view (t.*) on the
+    # canonical schema instead of NULL-heavy junk columns.
+    extra_cols = [c for c in merged_df.columns if c not in FINAL_DB_COLUMNS]
+    if extra_cols:
+        logger.info(
+            f"Dropping {len(extra_cols)} non-schema columns before save: {sorted(extra_cols)}"
+        )
+        merged_df = merged_df[[c for c in merged_df.columns if c in FINAL_DB_COLUMNS]]
+
+    return merged_df
 
 
 def save_fizob_index(fizob_index_rows: List[pd.DataFrame], output_db_path: Path) -> None:
