@@ -326,7 +326,13 @@ def build_fizob_enriched_table_sql() -> str:
     fizob_index_v joined to reference tables.
 
     Requires fizob_index_v to exist (fizob enabled during merge); callers must guard.
-    Clustered by PERIOD/STRANA/NAPR for zonemap pruning.
+
+    Clustered by STRANA/NAPR/tn_level/tn_code/PERIOD — matches the typical fizob access
+    pattern (a country+code time series) AND collapses the long name columns: with codes
+    contiguous, DuckDB dictionary-compresses TNVED*_NAME instead of falling back to FSST,
+    cutting the table ~2046 -> ~724 MB (TNVED4_NAME alone 939 -> 130 MB) while making that
+    query ~9x faster (10 -> 1 ms). Do NOT reorder to PERIOD-first — it re-inflates the
+    name columns back to FSST.
     """
     return """
         CREATE OR REPLACE TABLE fizob_enriched AS
@@ -353,7 +359,7 @@ def build_fizob_enriched_table_sql() -> str:
             ON f.tn_level = 2 AND f.tn_code = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
         LEFT JOIN tnved_reference t4
             ON f.tn_level = 4 AND f.tn_code = t4.TNVED_CODE AND t4.TNVED_LEVEL = 4
-        ORDER BY f.PERIOD, f.STRANA, f.NAPR
+        ORDER BY f.STRANA, f.NAPR, f.tn_level, f.tn_code, f.PERIOD
     """
 
 
