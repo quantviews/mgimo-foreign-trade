@@ -121,21 +121,58 @@ def build_unified_trade_data_enriched_view_sql() -> str:
     return "CREATE OR REPLACE VIEW unified_trade_data_enriched AS" + _enriched_select_sql()
 
 
-def build_unified_trade_data_enriched_table_sql() -> str:
-    """SQL materializing the enriched dataset as a TABLE, physically clustered by
-    PERIOD/STRANA/NAPR.
+def build_unified_trade_data_enriched_base_table_sql() -> str:
+    """Lean fact table for the enriched dataset: base columns + the precomputed
+    period_rank window, physically clustered by PERIOD/STRANA/NAPR.
 
-    As a view, Superset re-ran 7 LEFT JOINs + a DENSE_RANK window over ~7M rows on
-    every chart/filter. Materializing collapses that to a plain columnar scan, and
-    the ORDER BY lets DuckDB's zonemaps prune row groups for the usual period/country
-    filters. Building it here means the DB is fast straight out of the pipeline —
-    no post-build optimize step required.
+    Name labels (TNVED*/country names) are NOT stored here — they are joined on demand
+    by the view below. Those labels are pure functions of the codes and live in tiny
+    reference tables (~15 MB); baking them across ~7M rows cost ~1.9 GB for joins that
+    benchmark as free. The expensive DENSE_RANK window IS materialized so queries never
+    recompute it.
     """
-    return (
-        "CREATE OR REPLACE TABLE unified_trade_data_enriched AS"
-        + _enriched_select_sql()
-        + "\n        ORDER BY t.PERIOD, t.STRANA, t.NAPR"
-    )
+    return """
+        CREATE OR REPLACE TABLE unified_trade_data_enriched_base AS
+        SELECT
+            t.*,
+            DENSE_RANK() OVER (
+                PARTITION BY t.STRANA, t.TNVED, t.NAPR
+                ORDER BY t.PERIOD DESC
+            ) AS period_rank
+        FROM unified_trade_data t
+        ORDER BY t.PERIOD, t.STRANA, t.NAPR
+    """
+
+
+def build_unified_trade_data_enriched_view_from_base_sql() -> str:
+    """Enriched VIEW over the lean base table, joining reference tables for all name
+    labels. Same columns and name as before, so Superset is unaffected — the labels
+    just live in the view instead of on disk. Dim joins are cheap (reference tables are
+    tiny) and the heavy window is already materialized in the base table.
+    """
+    return """
+        CREATE OR REPLACE VIEW unified_trade_data_enriched AS
+        SELECT
+            b.* EXCLUDE (period_rank),
+            c.STRANA_NAME AS COUNTRY_NAME,
+            t2.TNVED_NAME AS TNVED2_NAME,
+            t4.TNVED_NAME AS TNVED4_NAME,
+            h.TNVED4_NAME_SHORT AS TNVED4_NAME_SHORT,
+            h.TNVED4_NAME_FULL AS TNVED4_NAME_FULL,
+            t6.TNVED_NAME AS TNVED6_NAME,
+            t8.TNVED_NAME AS TNVED8_NAME,
+            COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
+            COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
+            b.period_rank
+        FROM unified_trade_data_enriched_base b
+        LEFT JOIN country_reference c ON b.STRANA = c.STRANA
+        LEFT JOIN tnved_reference t2 ON b.TNVED2 = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
+        LEFT JOIN tnved_reference t4 ON b.TNVED4 = t4.TNVED_CODE AND t4.TNVED_LEVEL = 4
+        LEFT JOIN hs4_reference h ON b.TNVED4 = h.TNVED4
+        LEFT JOIN tnved_reference t6 ON b.TNVED6 = t6.TNVED_CODE AND t6.TNVED_LEVEL = 6
+        LEFT JOIN tnved_reference t8 ON b.TNVED8 = t8.TNVED_CODE AND t8.TNVED_LEVEL = 8
+        LEFT JOIN tnved_reference t10 ON b.TNVED = t10.TNVED_CODE AND t10.TNVED_LEVEL = 10
+    """
 
 
 def build_coverage_matrix_table_sql() -> str:
@@ -147,15 +184,21 @@ def build_coverage_matrix_table_sql() -> str:
     (max_month) is also derived from fact data, otherwise nowcast months beyond the
     last reported period would shift the window onto months that have no facts yet.
 
-    Reads unified_trade_data_enriched (must already be materialized) for COUNTRY_NAME.
+    Reads unified_trade_data + country_reference for COUNTRY_NAME (no dependency on the
+    enriched view, which is now join-backed).
     """
     return """
         CREATE OR REPLACE TABLE coverage_matrix AS
-        WITH max_period AS (
+        WITH fact AS (
+            SELECT c.STRANA_NAME AS country_name, u.PERIOD AS period
+            FROM unified_trade_data u
+            LEFT JOIN country_reference c ON u.STRANA = c.STRANA
+            WHERE u.TYPE = 'fact'
+        ),
+        max_period AS (
             SELECT date_trunc('month', max(period)) AS max_month
-            FROM unified_trade_data_enriched
+            FROM fact
             WHERE period IS NOT NULL
-              AND TYPE = 'fact'
         ),
         months AS (
             SELECT
@@ -170,18 +213,16 @@ def build_coverage_matrix_table_sql() -> str:
         ),
         countries AS (
             SELECT DISTINCT trim(country_name) AS country_name
-            FROM unified_trade_data_enriched
+            FROM fact
             WHERE country_name IS NOT NULL
-              AND TYPE = 'fact'
         ),
         actual_data AS (
             SELECT
                 trim(country_name) AS country_name,
                 date_trunc('month', period) AS month_start
-            FROM unified_trade_data_enriched, max_period
+            FROM fact, max_period
             WHERE country_name IS NOT NULL
               AND period IS NOT NULL
-              AND TYPE = 'fact'
               AND period >= max_month - INTERVAL 23 MONTH
               AND period < max_month + INTERVAL 1 MONTH
             GROUP BY 1, 2
@@ -324,6 +365,8 @@ def refresh_hs4_reference(conn: duckdb.DuckDBPyConnection, project_root: Path) -
     """
     logger.info("Refreshing hs4_reference...")
     hs4_df = load_hs4_labels(project_root)
+    # The enriched view joins hs4_reference, so drop the view before replacing the table.
+    conn.execute("DROP VIEW IF EXISTS unified_trade_data_enriched")
     conn.execute("DROP TABLE IF EXISTS hs4_reference")
     conn.register("hs4_ref_df", hs4_df)
     conn.execute("""
@@ -336,9 +379,10 @@ def refresh_hs4_reference(conn: duckdb.DuckDBPyConnection, project_root: Path) -
     conn.execute("CREATE INDEX idx_hs4_ref_tnved4 ON hs4_reference(TNVED4)")
     logger.info(f"  ... created hs4_reference table with {len(hs4_df)} rows")
 
-    logger.info("Rematerializing unified_trade_data_enriched table...")
-    conn.execute(build_unified_trade_data_enriched_table_sql())
-    logger.info("  ... updated unified_trade_data_enriched table")
+    # Rebuild the enriched view; refreshed hs4 labels are picked up via the live join.
+    logger.info("Rebuilding unified_trade_data_enriched view...")
+    conn.execute(build_unified_trade_data_enriched_view_from_base_sql())
+    logger.info("  ... updated unified_trade_data_enriched view")
     return len(hs4_df)
 
 
@@ -475,12 +519,17 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
     logger.info(f"  ... created hs4_reference table with {len(hs4_df)} rows")
     conn.execute("CREATE INDEX idx_hs4_ref_tnved4 ON hs4_reference(TNVED4)")
 
-    # Materialize the enriched dataset as a clustered table (fast for Superset).
-    logger.info("Materializing unified_trade_data_enriched table with joined reference data...")
-    conn.execute(build_unified_trade_data_enriched_table_sql())
-    logger.info("  ... created unified_trade_data_enriched table (clustered by PERIOD/STRANA/NAPR)")
+    # Enriched dataset = lean base table (codes + measures + period_rank window) plus a
+    # view that joins reference tables for all name labels. Keeps the DB small without
+    # losing any column or query speed (name joins benchmark as free; heavy window is
+    # materialized). Names live in the view, not on disk.
+    logger.info("Building unified_trade_data_enriched_base (lean, clustered)...")
+    conn.execute(build_unified_trade_data_enriched_base_table_sql())
+    logger.info("Creating unified_trade_data_enriched view (labels joined on demand)...")
+    conn.execute(build_unified_trade_data_enriched_view_from_base_sql())
+    logger.info("  ... enriched base table + view ready")
 
-    # Materialize coverage_matrix (fact-only, last 24 months) — reads enriched above.
+    # Materialize coverage_matrix (fact-only, last 24 months).
     logger.info("Materializing coverage_matrix (fact-only, last 24 months)...")
     conn.execute(build_coverage_matrix_table_sql())
     logger.info("  ... created coverage_matrix table")
@@ -641,7 +690,8 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
 
 __all__ = [
     "build_unified_trade_data_enriched_view_sql",
-    "build_unified_trade_data_enriched_table_sql",
+    "build_unified_trade_data_enriched_base_table_sql",
+    "build_unified_trade_data_enriched_view_from_base_sql",
     "build_coverage_matrix_table_sql",
     "build_trade_mom_kpi_table_sql",
     "build_fizob_enriched_table_sql",
