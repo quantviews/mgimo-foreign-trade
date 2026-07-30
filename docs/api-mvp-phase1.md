@@ -103,24 +103,46 @@ CREATE INDEX ix_audit_user_ts ON api_audit_log(user_id, ts);
 | `type` | `fact` / `pred` | факт vs прогноз |
 | `source` | `national`/`comtrade`/`nowcast` | источник |
 | `tnved2/tnved4/tnved6` | `27` | фильтр по уровню кода |
+| `edizm` | `ШТУКА` (повторяемый) | доп. единица измерения (фильтр) |
 | `period_from`,`period_to` | `2024-01-01` | диапазон периодов |
 | `group_by` | `strana,tnved2,period` | измерения агрегации |
 | `metrics` | `stoim,netto,kol` | суммируемые меры (по умолч. все) |
+| `include` | `tnved4_name,country_name` | доп. поля-названия в ответе (opt-in) |
 | `format` | `json`/`csv` | формат |
 | `limit`,`offset` | `10000` | пагинация; `limit ≤ plan.max_rows` |
 | `order_by` | `period` | сортировка |
 
-Пример:
+**Единицы измерения (`EDIZM`).** `edizm` (читаемое название, напр. «ШТУКА») и `edizm_iso`
+(ISO-код) доступны как фильтр и в ответе — без них `KOL` (количество в доп. единице) не
+интерпретируется. **Важно:** `KOL` аддитивен только внутри одной `EDIZM` (штуки+литры
+складывать нельзя — тот же принцип, что в fizob-агрегатах). Поэтому при `metrics`,
+содержащих `kol`, в агрегации **`edizm` обязана быть в `group_by`** — иначе `400` (или
+авто-добавляем `edizm` в группировку), чтобы не суммировать разные единицы. На `stoim`/`netto`
+это не распространяется (USD и кг аддитивны).
+
+**Названия кодов (`include`).** По умолчанию ответ «лёгкий» — только коды. Параметр `include`
+подтягивает названия: `country_name`, `tnved2_name`, `tnved4_name`, `tnved6_name`, `tnved_name`
+(и `edizm`/`edizm_iso`, если не в group_by). Реализация ложится на гибрид: **без `include`
+читаем базовую `unified_trade_data`** (быстро), **с `include` — `unified_trade_data_enriched`**
+(view с джойнами справочников). Список допустимых значений `include` — по allowlist.
+
+Пример (с названием и корректной группировкой `kol` по `edizm`):
 ```
-GET /v1/trade?strana=CN&napr=ИМ&period_from=2024-01-01&group_by=tnved2,period&format=json
+GET /v1/trade?strana=CN&napr=ИМ&period_from=2024-01-01
+    &group_by=tnved2,edizm,period&include=tnved2_name&format=json
 ```
 Ответ:
 ```json
 {
   "meta": {"rows": 240, "truncated": false, "max_rows": 1000000},
-  "data": [{"tnved2":"85","period":"2024-01-01","stoim":1234.5,"netto":67.8,"kol":9.0}, ...]
+  "data": [
+    {"tnved2":"85","tnved2_name":"Электрические машины...","edizm":"ШТУКА",
+     "period":"2024-01-01","stoim":1234.5,"netto":67.8,"kol":9.0}, ...
+  ]
 }
 ```
+(Без `edizm` в `group_by` при `metrics=...,kol` — `400`: `kol` нельзя суммировать по разным
+единицам.)
 
 **Безопасность запроса:** имена колонок для фильтров/`group_by`/`order_by` — по **allowlist**
 (маппинг разрешённое-имя → колонка); значения — только через **параметризованные** запросы к
@@ -203,5 +225,5 @@ api/
 ## Открытые мелочи к реализации
 
 - Формат токена и срок жизни (дефолт: `mgt_`+32 симв., без истечения до Фазы 2).
-- Ровно какие измерения разрешить в `group_by` (allowlist).
+- Точные allowlist'ы: измерения `group_by`, поля `include` (названия), меры `metrics`.
 - `cost_units`: в Фазе 1 = 1/запрос; пересмотреть при выборе тарифной единицы.
