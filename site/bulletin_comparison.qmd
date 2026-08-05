@@ -185,7 +185,11 @@ bulletin_headline <- arrow::read_parquet('data/bulletin_headline.parquet')
 names_4 <-
   read_parquet('data/hs4_labels.parquet') %>%
   select(TNVED4 = hs4,
-         TNVED4_string = name_ru_short)
+         TNVED4_string = name_ru_short) %>%
+   # Важно! Для этих визуализаций я меняю спецкод сырой нефти 2799 на обычную сырую нефть для Турции
+   mutate(
+   TNVED4_string = if_else(TNVED4 == '2799', 'Сырая нефть', TNVED4_string)
+   )
 
 pl_fizob <- 
   bulletin_fo %>%
@@ -477,12 +481,24 @@ ggplotly(pl_oilgas, dynamicTicks = F) %>%
 Топ-20 товарных групп **экспорта** по изменению стоимости за последние 12 месяцев, млрд $.
 :::
 
+
 ```{r}
 #| fig-cap: "Топ-20 товарных позиций экспорта по изменению стоимости за 12 месяцев. Зелёный сегмент — рост, красный — снижение."
 #| fig-width: 10
 #| fig-height: 8
 
-plot_export <- df_groups %>%
+df_plot_export <- df_groups %>%
+  # Здесь заменяю код по нефти для Турции. Важно!
+  mutate(TNVED4 = if_else(TNVED4 == '2799', '2709', TNVED4)) %>%
+  mutate(
+     across(
+        everything(),
+        ~sum(., na.rm = T)
+     ),
+   .by = c(TNVED4, NAPR)
+   ) %>%
+   distinct() %>%
+  #
   left_join(names_4, by = "TNVED4") %>%
   filter(NAPR == "ЭК") %>%
   mutate(
@@ -493,7 +509,24 @@ plot_export <- df_groups %>%
   ) %>%
   arrange(-STOIM_diff_abs) %>%
   head(20) %>%
-  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12)) %>%
+  mutate(TNVED4_string = fct_reorder(TNVED4_string, STOIM_last12))
+
+break_upper_bound <- 
+   df_plot_export %>%
+   mutate(stoim_min = pmin(STOIM_year_before, STOIM_last12)) %>%
+   arrange(-stoim_min) %>%
+   slice(1) %>%
+   pull(stoim_min)
+
+break_lower_bound <-
+   df_plot_export %>%
+   mutate(stoim_max = pmax(STOIM_year_before, STOIM_last12)) %>%
+   arrange(-stoim_max) %>%
+   slice(2) %>%
+   pull(stoim_max)
+
+plot_export <- 
+  df_plot_export %>%
   ggplot(aes(color = type)) +
   geom_segment(aes(x = STOIM_year_before, xend = STOIM_last12, y = TNVED4_string, yend = TNVED4_string)) +
   geom_point(aes(x = STOIM_last12, y = TNVED4_string), fill = site_bg, shape = 21) +
@@ -505,9 +538,9 @@ plot_export <- df_groups %>%
     aes(x = position_label, y = TNVED4_string, label = label),
     nudge_y = 0.41,
     size = 5) +
-  scale_x_break(c(38, 98)) +
+  scale_x_break(c(break_lower_bound+1, break_upper_bound-1)) +
   coord_cartesian(clip = "off") +
-  geom_vline(xintercept = c(39.5, 97.5), color = "grey50", linetype = "solid", linewidth = 1.7) +
+  geom_vline(xintercept = c(break_lower_bound+1.2, break_upper_bound-1.2), color = "grey50", linetype = "solid", linewidth = 1.7) +
   theme_groups() +
   labs(y = NULL, x = "млрд долл.")
 
