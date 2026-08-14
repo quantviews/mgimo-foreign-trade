@@ -1,0 +1,229 @@
+---
+title: "Заметки о том, как выделять что-то интересное в данных торговой статистик"
+author: "E. Tymchenko"
+date: "2025-10-11"
+output: html_document
+---
+
+# Вводная часть
+
+```{r}
+library(tidyverse)
+library(slider)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+В ноутбуке использованы только базовые библиотеки, чтобы обеспечить скорость и переводимость на другие языки. Написано 0 функций.
+
+На мой взгляд, полезно разбивать данные на энергетический сектор - всё, что начинается с 27 и прочую торговлю. \# Всё будет рассмотрено на примере Турции. Если работа ведётся с dbf, где объединена статистика по разным странам, группировка в последующем коде производится и по столбцу \`STRANA\`. Также эти пайплайны можно применять и к TNVED2, TNVED4 и TNVED6 (с предварительной группировкой и суммированием).
+
+```{r}
+data_mirror_tur <- arrow::read_parquet('D:/Работа/mgimo-foreign-trade/data_processed/tr_full.parquet') %>% mutate(PERIOD = as.Date(PERIOD), STRANA = 'TUR')
+```
+
+```{r}
+data_mirror_tur %>% head
+```
+
+## Способ 1.
+
+Сформировать 2 окна: за последние 12 месяцев и за 12 месяцев до этого. Сравнить сумму по этим окнам и выделить наибольший рост/снижение. Способ не самый универсальный и удачный, ближе к концу я покажу более оптимальный метод.
+
+Делаем окна:
+
+```{r}
+period_last <- data_mirror_tur %>% pull(PERIOD) %>% max
+
+year_window_1 <- seq(period_last %m-% months(11), period_last, by = 'month')
+year_window_2 <- seq(period_last %m-% months(23), period_last %m-% months(12), by = 'month')
+```
+
+Табличка с хайлайтами:
+
+```{r}
+tab_difference <- 
+  left_join(
+  data_mirror_tur %>%
+    filter(PERIOD %in% year_window_1) %>%
+    group_by(TNVED, NAPR) %>%
+    summarize(sum_stoim_window_1 = sum(STOIM), .groups = "drop"),
+  data_mirror_tur %>%
+    filter(PERIOD %in% year_window_2) %>%
+    group_by(TNVED, NAPR) %>%
+    summarize(sum_stoim_window_2 = sum(STOIM), .groups = "drop"),
+  by = c('TNVED', 'NAPR')
+  ) %>%
+  mutate(diff_vol = sum_stoim_window_2 - sum_stoim_window_1, # Наиболее простое решение, исключающее деление на 0
+         diff_as_index = sum_stoim_window_2 / sum_stoim_window_1 # Хорошее решение, но могут быть ошибки с делением на 0, хотя с окном 1 год это маловероятно
+  )
+tab_difference %>% head() # Для интуиции покажу табличку
+```
+
+Теперь посмотрим, какие результаты дают оба способа.
+
+```{r}
+cats_1 <- tab_difference %>%
+  filter(str_starts(TNVED, "27")) %>% # Нефтегаз
+  arrange(diff_vol %>% abs() %>% desc()) %>%
+  mutate(is_growth = if_else(diff_vol > 0, T, F)) %>% # Для цвета графиков
+  head(4)
+
+cats_2 <- tab_difference %>%
+  filter(!str_starts(TNVED, "27")) %>% # Не-нефтегаз
+  arrange(diff_vol %>% abs() %>% desc()) %>%
+  mutate(is_growth = if_else(diff_vol > 0, T, F)) %>% # Для цвета графиков
+  head(4)
+```
+
+Теперь построим графики, чтобы посмотреть, насколько удачно мы выделили категории.
+
+```{r}
+data_mirror_tur %>%
+  filter(PERIOD >= as.Date('2019-01-01')) %>% # Я выбрал среднесрочный горизонт
+  inner_join(cats_1, by = c("TNVED", "NAPR")
+             ) %>%
+  ggplot(aes(x = PERIOD, y = STOIM / 10^9, color = is_growth)) + # миллиарды долларов
+  geom_line() +
+  geom_point(shape = 21, fill = 'white') +
+  facet_wrap(~TNVED, scales = 'free') +
+  labs(x = NULL,
+       y = 'Экспорт, млрд. долл',
+       title = 'Категории, связанные с нефтегазом')
+```
+
+И для всего кроме нефтепродуктов
+
+```{r}
+data_mirror_tur %>%
+  filter(PERIOD >= as.Date('2019-01-01')) %>% # Я выбрал среднесрочный горизонт
+  inner_join(cats_2, by = c("TNVED", "NAPR")
+             ) %>%
+  ggplot(aes(x = PERIOD, y = STOIM / 10^9, color = is_growth)) + # миллиарды долларов
+  geom_line() +
+  geom_point(shape = 21, fill = 'white') +
+  facet_wrap(~TNVED, scales = 'free') +
+  labs(x = NULL,
+       y = 'Экспорт, млрд. долл',
+       title = 'Категории, не связанные с нефтегазом')
+```
+
+## Обсуждение
+
+Мне кажется, нужно выбирать способ, котогый гарантированно даёт на графиках интересные результаты и лично для меня эта динамика не всегда appealing.
+
+Проблему можно решить так: применить к данным какую-то трансформацию и на основе это трансформации выделять временные ряды, для которых происходит что-то интересное. Этой трансформацией может быть скользящяя сумма или скользящее среднее.
+
+Для конструирования индексов и сумм за несколько периодов нужно заполнить пропуски в табличке. Т.е. если у нас для какого-то ТН ВЭД есть данные за 2025-01-01 и следующее значение есть только для 2025-04-01, то эти 2 строки нужно создать и заполнить либо нулями либо пропущенными данными. С точки зрения использования памяти это плохое решение, но необходимое. Возможно, есть какие-то другие выходы, нужно подумать.
+
+```{r}
+data_3m <- 
+  data_mirror_tur %>%
+  # Заполняем пропущенные строки
+  complete(
+    NAPR, 
+    TNVED, 
+    PERIOD = seq.Date(min(PERIOD), max(PERIOD), by = "month"),
+    fill = list(STOIM = 0, # Тут также можно прописать NA
+                STRANA = 'TUR', KOL = 0, NETTO = 0, EDIZM = '?')
+  ) %>%
+  arrange(NAPR, TNVED, PERIOD) %>%
+  group_by(NAPR, TNVED) %>%
+  # окно 3 мес.
+  mutate(
+    STOIM_3m = slide_dbl(
+      STOIM, 
+      .f = sum, 
+      .before = 2,  # 2 прошлых месяца + текущий
+      .complete = FALSE
+    ),
+    STOIM_6m = slide_dbl(
+      STOIM, 
+      .f = sum, 
+      .before = 5,  # 2 прошлых месяца + текущий
+      .complete = FALSE
+    ),
+    STOIM_12m =
+    slide_dbl(
+      STOIM, 
+      .f = sum, 
+      .before = 11,  # 2 прошлых месяца + текущий
+      .complete = FALSE
+    )
+  ) %>%
+  ungroup() %>%
+  select(TNVED, PERIOD, NAPR, STRANA, STOIM, STOIM_3m, STOIM_6m, STOIM_12m)
+```
+
+Теперь у нас есть moving sum процессы для каждого ТН ВЭД с окнами 3-6-12 месяцев. Из них моно сделать ma и изобразить на графике. Такая репрезентация позволяет избавиться от шума и понять тренд.
+
+```{r}
+data_3m %>%
+  filter(TNVED == '27011290', NAPR == 'ЭК',
+         PERIOD >= as.Date('2019-01-01')) %>%
+  mutate(STOIM_3m = STOIM_3m / 3,
+         STOIM_6m = STOIM_6m / 6,
+         STOIM_12m = STOIM_12m / 12) %>%
+  pivot_longer(STOIM:STOIM_12m) %>%
+  ggplot(aes(x = PERIOD, y = value / 10^6)) +
+  geom_line() +
+  geom_point(shape = 21, fill = 'white') +
+  facet_wrap(~name) +
+  labs(x = NULL, y = 'млн. долл.',
+      title = ' ТН ВЭД: 27011290')
+```
+
+При представлении данных на графике можно давать сырой ряд и ma-процесс за 6 или 12 месяцев. Мне кажется, это будет хорошо смотреться и давать представления о данных. Например:
+
+```{r}
+data_3m %>%
+  filter(TNVED == '27011290', NAPR == 'ЭК',
+         PERIOD >= as.Date('2019-01-01')) %>%
+  select(-c(STOIM_3m, STOIM_12m)) %>%
+  mutate(STOIM_6m = STOIM_6m / 6) %>%
+  pivot_longer(STOIM:STOIM_6m) %>%
+  ggplot(aes(x = PERIOD, y = value / 10^6, color = name)) +
+  geom_line() +
+  geom_point(shape = 21, fill = 'white') +
+  labs(x = NULL, y = 'млн. долл.',
+       title = ' ТН ВЭД: 27011290')
+```
+
+Теперь попробуем применять к скользящему процессу уже другой "алгоритм выделения".
+
+```{r}
+data_3m %>%
+  group_by(NAPR, TNVED) %>%
+  summarise(highlight = if_else((PERIOD == max(PERIOD)) & (STOIM_6m == max(STOIM_6m)) & (STOIM_6m > 0), T, F)) %>%
+  filter(highlight == T)
+```
+
+Получилось 541 ряд. Чтобы отфильтровать самое интересное, можно поставить фильтр по объёму, например, миллион долларов.
+
+```{r}
+data_3m %>%
+  arrange(PERIOD) %>%
+  group_by(NAPR, TNVED) %>%
+  summarise(highlight = if_else((PERIOD == max(PERIOD)) & (STOIM_6m == max(STOIM_6m)) & (STOIM_6m > 0), T, F),
+            stoim_last = last(STOIM_6m)) %>%
+  filter(highlight == T,
+         stoim_last > 10^6)
+```
+
+Получилось 63 ряда. Написуем первый из списка. Кстати, у этого ряда очень выраженная сезонность, поэтому я нарисовал окно 12 месяцев.
+
+```{r}
+data_3m %>%
+  filter(NAPR == 'ИМ', TNVED == '04071100') %>%
+  filter(PERIOD > as.Date('2019-01-01')) %>%
+  ggplot(aes(x = PERIOD, y = STOIM_12m / 10^6)) +
+  geom_line() +
+  labs(x = NULL, y = 'млн. долл.', title = 'ТН ВЭД: 04071100')
+```
+
+Мне кажется, это неплохой и незатратный способ для выделения и иллюстрирования интересных событий. Можно также прописать похожий алгоритм выделения, но для снижения объёмов торговли.

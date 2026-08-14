@@ -1,0 +1,118 @@
+---
+title: "ifo_weighting"
+author: "E. Tymchenko"
+date: "2025-10-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+# TLDR
+
+Чтобы конструировать индексы физобъёмов предлагаю взвешивать группы по доли стоимости мелких групп в более крупной.
+
+## Вводная часть
+
+```{r}
+library(tidyverse)
+library(slider)
+```
+
+Всё начинается точно так же, как и в прошлом маркдауне.
+
+```{r}
+base_period_fo <- as.Date('2019-01-01')
+
+data_mirror_tur <- arrow::read_parquet('D:/Работа/mgimo-foreign-trade/data_processed/tr_full.parquet') %>% mutate(PERIOD = as.Date(PERIOD), STRANA = 'TUR')
+
+edizm_table <- 
+  data_mirror_tur %>% 
+    group_by(TNVED, NAPR) %>%
+    summarise(
+      unique_edizms = paste(unique(EDIZM), collapse = ", "),
+      n_edizm = n_distinct(EDIZM),
+      .groups = 'drop'
+  ) %>%
+  arrange(n_edizm %>% desc())
+
+use_netto <- edizm_table %>%
+  filter(unique_edizms == '?' | n_edizm == 2)
+use_kol <- edizm_table %>%
+  filter(n_edizm == 1,
+         unique_edizms != '?')
+
+data_mirror_tur_fo <- 
+  data_mirror_tur %>%
+  group_by(TNVED, NAPR) %>%
+  complete(
+    PERIOD = seq.Date(min(PERIOD), max(PERIOD), by = "month"),
+    fill = list(
+      STOIM = 0,
+      STRANA = "TUR",
+      KOL = 0,
+      NETTO = 0,
+      EDIZM = "?",
+      TNVED2 = NA_character_,
+      TNVED4 = NA_character_,
+      TNVED6 = NA_character_
+    )
+  ) %>%
+  fill(TNVED2, TNVED4, TNVED6, .direction = "downup") %>%
+  ungroup() %>%
+  left_join(
+    rbind(
+      use_netto %>% mutate(fo_constr = 'netto'),
+      use_kol %>% mutate(fo_constr = 'kol')
+    ) %>% select(TNVED, NAPR, fo_constr),
+    by = c('TNVED', 'NAPR')
+  ) %>%
+  arrange(NAPR, TNVED, PERIOD) %>%
+  # Далее моя идея в том, чтобы для каждой строки создать вес 8-значной группы в более крупных группах, 2/4/6-значных. На следующем этапе они группируются и суммируются. Как и ранее, в базе данных я предлагаю отдельно хранить таблички с 2/4/6/8-значными кодами.
+  mutate(
+    share_TNVED6 = STOIM / sum(STOIM, na.rm = TRUE),
+    .by = c(TNVED6, NAPR, PERIOD)
+  ) %>%
+  mutate(
+    share_TNVED4 = STOIM / sum(STOIM, na.rm = TRUE),
+    .by = c(TNVED4, NAPR, PERIOD)
+  ) %>%
+  mutate(
+    share_TNVED2 = STOIM / sum(STOIM, na.rm = TRUE),
+    .by = c(TNVED2, NAPR, PERIOD)
+  )
+```
+
+В целом, всё получилось так, как мы и хотели. Если посмотреть на данные внимательно, то часто случается деление на 0 - когда по укрупнённой группе стоимость импорта/экспорта равна 0. Теперь нужно сгруппировать по направлениям и TNVEDX и получить таблички с физобъёмами по укрупнённым категориям. Приведу пример с TNVED4.
+
+```{r}
+data_mirror_tur_fo <- 
+  data_mirror_tur_fo %>%
+  group_by(TNVED4, NAPR, PERIOD) %>%
+  # Суммирование с условием. Возможно, этот кусочек можно оптимизировать, но я сохранил такой вид для ясности.
+  summarise(INDEX_4 = sum(
+    if_else(
+      fo_constr == 'kol',
+      KOL * share_TNVED4,
+      NETTO * share_TNVED4),
+    na.rm = TRUE),
+    .groups = 'drop') %>%
+  arrange(INDEX_4 %>% desc)
+```
+
+Пример (это ещё не индекс физобъёма):
+
+```{r}
+data_mirror_tur_fo %>%
+  filter(TNVED4 == '3102', NAPR == 'ЭК', PERIOD >= as.Date('2019-01-01')) %>%
+  arrange(PERIOD) %>%
+  ggplot(aes(x = PERIOD, y = INDEX_4)) +
+  geom_line() +
+  geom_point(shape = 21, fill = 'white')
+```
+
+Чтобы получить далее индекс физобъёма нужно разделить по группам на значение в базовый период. Далее пайплайн такой же, как и в прошлом ноутбуке про ИФО.

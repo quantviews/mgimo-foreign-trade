@@ -1,0 +1,193 @@
+---
+title: "Физобъёмы"
+author: "E. Tymchenko"
+date: "2025-10-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+# TLDR
+
+Я предлагаю предоставлять индексы физобъёма в двух видах:
+
+* Индекс физобъёма к базовому периоду.
+* Индекс физобъёма 12-месячными окнами.
+* Не для всех рядов возможно построить индексы физобъёмов (на 8-10-значных кодах), нужно просто с этим смириться.
+
+## Вводная часть
+
+```{r}
+library(tidyverse)
+library(slider)
+```
+
+Всё начинается точно так же, как и в прошлом маркдауне.
+
+```{r}
+data_mirror_tur <- arrow::read_parquet('D:/Работа/mgimo-foreign-trade/data_processed/tr_full.parquet') %>% mutate(PERIOD = as.Date(PERIOD), STRANA = 'TUR')
+data_mirror_tur %>% head
+```
+
+
+## Табличка про единицы измерения
+
+Для начала я сделал саммари табличку по единицам измерения и посмотрел её полностью. Для Турции выявилось мало (всего 150) групп, для которых EDIZM менялось. Это хорошо.
+
+```{r}
+edizm_table <- 
+  data_mirror_tur %>% 
+    group_by(TNVED, NAPR) %>%
+    summarise(
+      unique_edizms = paste(unique(EDIZM), collapse = ", "),
+      n_edizm = n_distinct(EDIZM),
+      .groups = 'drop'
+  ) %>%
+  arrange(n_edizm %>% desc())
+edizm_table %>% head()
+```
+
+Без существенной потери качества можно разбить выборку на 2 части. Для первой при подсчёте индексов физобъёма будет использоваться переменная NETTO (~ 70% рядов для Турции), для другой - KOL (~30% рядов). Последний будет использован только в тех случаях, когда на протяжении всей истории использовалась одинаковая единица измерений.
+
+```{r}
+use_netto <- edizm_table %>%
+  filter(unique_edizms == '?' | n_edizm == 2)
+use_kol <- edizm_table %>%
+  filter(n_edizm == 1,
+         unique_edizms != '?')
+```
+
+## Табличка с физобъёмами к базовому периоду
+
+Теперь делаем табличку с физобъёмами. Это можно прописать без промежуточного шага с созданием `use_netto` или `use_kol`, но пайплайн и без того получился большой. Надеюсь, читаемо. Основная идея в том, чтобы если в базовом периоде у нас 0, то мы заменили бы его с помощью MA значения. На мой взгляд, пайплайн несколько избыточный и его можно упростить.
+
+```{r}
+base_period_fo <- as.Date('2019-01-01')
+
+data_mirror_tur_fo <- 
+  data_mirror_tur %>%
+  group_by(TNVED, NAPR) %>%
+  complete(
+    PERIOD = seq.Date(min(PERIOD), max(PERIOD), by = "month"),
+    fill = list(STOIM = 0, STRANA = 'TUR', KOL = 0, NETTO = 0, EDIZM = '?')
+  ) %>%
+  ungroup() %>%
+  left_join(
+    rbind(
+      use_netto %>% mutate(fo_constr = 'netto'),
+      use_kol %>% mutate(fo_constr = 'kol')
+    ) %>% select(TNVED, NAPR, fo_constr),
+    by = c('TNVED', 'NAPR')
+  ) %>%
+  arrange(NAPR, TNVED, PERIOD) %>%
+  # Важно, устойчивый к нулям путь к конструированию физобъёма дополнительно описан в тексте.
+  group_by(NAPR, TNVED) %>%
+  # окно 3 мес до и после. т.к. базовый период логично делать за несколько лет до (на мой взгляд, логично выбрать допандеймийный год, но не слишком далёкий, 2019 или 2018 - оптимально)
+  mutate(
+    fo_kol_6m = slide_dbl(
+      KOL, 
+      .f = mean,
+      .after = 3,
+      .before = 3,
+      .complete = FALSE
+    ),
+    fo_netto_6m = slide_dbl(
+      NETTO, 
+      .f = mean,
+      .after = 3,
+      .before = 3,
+      .complete = FALSE
+    )
+  ) %>%
+  # Значения в базовый период:
+  mutate(
+    base_KOL = first(KOL[PERIOD == base_period_fo]),
+    base_NETTO = first(NETTO[PERIOD == base_period_fo])
+    ) %>%
+  # Замена базовых значений, если они равны 0
+  mutate(
+    base_KOL = if_else(base_KOL == 0, fo_kol_6m, base_KOL),
+    base_NETTO = if_else(base_NETTO == 0, fo_netto_6m, base_NETTO)
+  ) %>%
+  # теперь конструируем физобъёмы с базовым периодом
+  mutate(FIZOB = if_else(fo_constr == 'kol', KOL / base_KOL, NETTO / base_NETTO)) %>%
+  ungroup() %>%
+  select(TNVED, PERIOD, NAPR, STRANA, KOL, NETTO, fo_kol_6m, fo_netto_6m, FIZOB, fo_constr)
+```
+
+## Визуализация и анализ
+
+Давайте выберем случайный ТНВЭД и нарисуем
+
+```{r}
+sample_group <- sample_n(data_mirror_tur_fo, size = 1) %>% select(TNVED, NAPR)
+
+data_mirror_tur_fo %>%
+  filter(PERIOD >= as.Date('2018-01-01')) %>%
+  filter(TNVED == sample_group$TNVED, NAPR == sample_group$NAPR) %>%
+  ggplot(aes(x = PERIOD, y = FIZOB)) +
+  geom_line() +
+  geom_point(shape = 21,fill = 'white')
+```
+
+На этом этапе я советую посидеть и позпаускать код этого окна несколько раз, чтобы увидеть "недостатки" такой репрезентации данных. Большая часть рядов очень волатильны и имеют выраженную сезонность, но ещё чаще их просто нет. Поэтому результаты по физобъёмам лучше всего представлять в виде скользящей суммы или скользящего среднего.
+
+Важно: на мой взгляд, лучше всего поддаётся интерпретации скользящая сумма за 12 месяцев. Она универсально очищена от сезонности и если человек сам хочет среднемесячные значения, он всегда может поделить на 12 самостоятельно. С другой стороны, такие ряды слишком гладкие, меньше реагируют на колебания последних нескольких месяцев, которые для тех, кто смотрит данные, самые интересные.
+
+## Сумма физобъёмов за год
+
+```{r}
+data_mirror_tur_fo <- 
+  data_mirror_tur_fo %>%
+  arrange(NAPR, TNVED, PERIOD) %>%
+  group_by(NAPR, TNVED) %>%
+  # окно 3 мес.
+  mutate(
+    KOL_12 = slide_dbl(
+      KOL, 
+      .f = sum, 
+      .before = 11,  # 
+      .complete = FALSE
+    ),
+    NETTO_12 = 
+      slide_dbl(
+      NETTO, 
+      .f = sum, 
+      .before = 11,  # 
+      .complete = FALSE
+    )
+  ) %>%
+  mutate(
+    base_KOL_12 = first(KOL_12[PERIOD == base_period_fo]),
+    base_NETTO_12 = first(NETTO_12[PERIOD == base_period_fo])
+    ) %>%
+  filter(base_KOL_12 > 0 | base_NETTO_12 > 0) %>% # Здесь я убираю те ряды, для которых построить индексы физобъёмов невозможно из-за отсутствия данных. Над этим шагом ещё можно подумать.
+  mutate(FIZOB_12 = if_else(fo_constr == 'kol', KOL_12 / base_KOL_12, NETTO_12 / base_NETTO_12)) %>%
+  ungroup()
+```
+
+## Визуализация
+
+```{r}
+sample_group_1 <- sample_n(data_mirror_tur_fo, size = 1) %>% select(TNVED, NAPR)
+
+data_mirror_tur_fo %>%
+  filter(PERIOD >= as.Date('2018-01-01')) %>%
+  filter(TNVED == sample_group_1$TNVED, NAPR == sample_group_1$NAPR) %>%
+  ggplot(aes(x = PERIOD, y = FIZOB_12)) +
+  geom_line() +
+  geom_point(shape = 21,fill = 'white')
+```
+
+Это выглядит куда лучше и чище. Если позапускать много раз кусочек с графиком, видно, что такая репрезентация довольно универсальна и может быть полезна.
+
+TLDR я предлагаю предоставлять индексы физобъёма в двух видах:
+
+* Индекс физобъёма к базовому периоду.
+* Индекс физобъёма 12-месячными окнами.
+* Не для всех рядов возможно построить индексы физобъёмов (на 8-10-значных кодах), нужно просто с этим смириться.

@@ -1,0 +1,5 @@
+# This directory is a Syncthing folder marker.
+# Do not delete.
+
+folderID: MGIMO-FT
+created: 2026-08-07T14:01:44+03:00
