@@ -1,39 +1,27 @@
 ---
 title: "Качество данных внешней торговли"
-
 subtitle: "Мониторинг целостности базы данных"
-
 date: last-modified
-
 format:
   html:
+    theme:
+      - cosmo
+      - styles/mgimo.scss
     toc: true
     toc-title: ""
     toc-depth: 2
     toc-location: left
     code-fold: true
     fig-align: center
-    number-sections: true
-    theme: cosmo
-
     include-in-header:
       - text: |
           <link rel="preconnect" href="https://fonts.googleapis.com">
           <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
-
+          <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
           <style>
-
-          body,
-          .quarto-title-banner,
-          main#quarto-document-content{
-              font-family:"Source Sans 3",sans-serif;
-          }
-
-          .callout{
-              border-radius:10px;
-          }
-
+            body, .quarto-title-banner, main#quarto-document-content {
+              font-family: "Source Sans Pro", sans-serif;
+            }
           </style>
 ---
 
@@ -71,16 +59,159 @@ mgimo_colors <- c(
 site_bg <- mgimo_colors[["light_bg"]]
 
 theme_groups <- function() {
-  theme_minimal(base_size = 18, base_family = 'ssp') +
+  theme_minimal(base_size = 30, base_family = 'ssp') +
     theme(
       panel.grid.minor = element_blank(),
-      panel.grid.major.y = element_blank(),
+      panel.grid.major.x = element_blank(),
       legend.position = "none",
       panel.background = element_rect(fill = site_bg, colour = NA),
       plot.background = element_rect(fill = site_bg, colour = NA),
       panel.border = element_rect(colour = NA, fill = NA),
       axis.title.x = element_text(size = 16, color = 'grey40', family = 'ssp')
     )
+}
+
+plot_outlier_page <- function(page_num, cat) {
+
+  if (cat == "STOIM") {
+
+    df_outliers %>%
+      filter(page == page_num) %>%
+      ggplot(
+        aes(
+          x = PERIOD,
+          y = STOIM / 1e6
+        )
+      ) +
+      geom_line(
+        colour = mgimo_colors[["primary"]],
+        linewidth = 0.7
+      ) +
+      facet_wrap(
+        ~series,
+        ncol = 4,
+        scales = "free_y"
+      ) +
+      labs(
+        title = paste(
+          "Проверка подозрительных рядов — страница",
+          page_num
+        ),
+        x = NULL,
+        y = "Стоимость, млн $"
+      ) +
+      theme_groups()
+
+  } else {
+
+    df_outliers %>%
+      filter(page == page_num) %>%
+      ggplot(
+        aes(
+          x = PERIOD,
+          y = NETTO / 1e6
+        )
+      ) +
+      geom_line(
+        colour = mgimo_colors[["primary"]],
+        linewidth = 0.7
+      ) +
+      facet_wrap(
+        ~series,
+        ncol = 4,
+        scales = "free_y"
+      ) +
+      labs(
+        title = paste(
+          "Проверка подозрительных рядов — страница",
+          page_num
+        ),
+        x = NULL,
+        y = "Объём торговли, тыс. т."
+      ) +
+      theme_groups()
+
+  }
+}
+
+fix_stacked_area_hover <- function(p, data,
+                                   x = "Year", y = "Value", fill = "Category",
+                                   facet = NULL,
+                                   date_format = "%Y-%m") {
+  `%||%` <- function(a, b) if (is.null(a)) b else a
+
+  # ggplotly(Date): trace$x в днях с 1970-01-01; POSIXt — иногда в сек/мс
+  as_trace_time <- function(d, xs) {
+    xs <- xs[is.finite(xs)]
+    if (inherits(d, "POSIXt")) {
+      num <- as.numeric(d)
+      if (length(xs) && max(abs(xs)) > 1e10) num * 1000 else num
+    } else if (inherits(d, "Date")) {
+      as.numeric(d)
+    } else {
+      as.numeric(d)
+    }
+  }
+
+  facet_map <- list()
+  if (!is.null(facet)) {
+    ann <- p$x$layout$annotations %||% list()
+    panels <- vapply(ann, function(a) a$text %||% "", character(1))
+    panels <- panels[nzchar(panels) & !panels %in% c(x, y)]
+    for (i in seq_along(panels)) {
+      facet_map[[paste0("x", if (i > 1) i else "")]] <- panels[i]
+    }
+  }
+
+  for (i in seq_along(p$x$data)) {
+    tr <- p$x$data[[i]]
+    nm <- tr$name %||% ""
+    if (!nzchar(nm)) next
+
+    sub <- data[data[[fill]] == nm, , drop = FALSE]
+    if (!is.null(facet)) {
+      panel <- facet_map[[tr$xaxis %||% "x"]]
+      if (!is.null(panel)) sub <- sub[sub[[facet]] == panel, , drop = FALSE]
+    }
+    if (!nrow(sub)) next
+
+    xs <- tr$x
+    is_date <- inherits(sub[[x]], "Date") || inherits(sub[[x]], "POSIXt")
+    x_match <- as_trace_time(sub[[x]], xs)
+
+    if (is_date) {
+      labels <- character(length(xs))
+      vals <- numeric(length(xs))
+      for (k in seq_along(xs)) {
+        j <- which.min(abs(x_match - xs[k]))
+        labels[k] <- format(sub[[x]][j], date_format)
+        vals[k] <- sub[[y]][j]
+      }
+      p$x$data[[i]]$customdata <- cbind(labels, vals)
+      p$x$data[[i]]$hovertemplate <- paste0(
+        "<b>", nm, "</b><br>",
+        "Дата: %{customdata[0]}<br>",
+        "Доля: %{customdata[1]:.1%}",
+        "<extra></extra>"
+      )
+    } else {
+      vals <- vapply(xs, function(xv) {
+        row <- sub[abs(sub[[x]] - xv) < 0.01, , drop = FALSE]
+        if (!nrow(row)) NA_real_ else row[[y]][1]
+      }, numeric(1))
+      p$x$data[[i]]$customdata <- vals
+      p$x$data[[i]]$hovertemplate <- paste0(
+        "<b>", nm, "</b><br>",
+        "Year: %{x:.0f}<br>",
+        "Доля: %{customdata:.1%}",
+        "<extra></extra>"
+      )
+    }
+
+    p$x$data[[i]]$text <- NULL
+  }
+
+  p
 }
 
 source("../data_analytics/functions_outlier_detection.R")
@@ -114,131 +245,129 @@ FROM unified_trade_data
   arrange(PERIOD)
 ```
 
-```{r}
-#| include: false
-
-threshold_sd <- 6
-threshold_value <- 1e6
-
-outliers <-
-
-trade %>%
-group_by(
-    STRANA,
-    TNVED,
-    NAPR
-) %>%
-summarise(
-
-    outlier_kol =
-        show_outliers(
-            KOL,
-            threshold_sd,
-            threshold_value
-        ),
-
-    outlier_kol_stoim =
-        outlier_frac(
-            KOL,
-            STOIM,
-            threshold_sd,
-            threshold_value
-        ),
-
-    outlier_kol_netto =
-        outlier_frac(
-            KOL,
-            NETTO,
-            threshold_sd,
-            threshold_value
-        ),
-
-    outlier_stoim_netto =
-        outlier_frac(
-            STOIM,
-            NETTO,
-            threshold_sd,
-            threshold_value
-        ),
-
-.groups="drop"
-
-) |>
-
-mutate(
-
-score =
-    5*outlier_stoim_netto +
-    2*outlier_kol_stoim +
-    2*outlier_kol_netto +
-      outlier_kol
-
-)
-```
-
 В отчёте анализируется качество временных рядов по странам, направлениям торговли и товарным группам. Основным критерием поиска аномалий является отношение стоимости к массе (STOIM / NETTO), поскольку оно позволяет выявлять ошибки единиц измерения, масштабирования и отдельные аномальные наблюдения.
 
-```{r}
-
-#| echo: false
-
-summary_table <-
-
-tibble(
-
-Проверка=c( 
-   "Стоимость / масса",
-   "Количество / стоимость",
-   "Количество / масса",
-   "Количество"
-   ),
-`Проблемных рядов`=c(
-   sum(outliers$outlier_stoim_netto>0),
-   sum(outliers$outlier_kol_stoim>0),
-   sum(outliers$outlier_kol_netto>0),
-   sum(outliers$outlier_kol>0)
-   )
-)
-
-knitr::kable(summary_table)
-```
-
-```{r}
-trade %>%
-   filter(!STRANA %in% c("IN","TR","CN")) %>%
-   mutate(
-    year = floor_date(PERIOD,"year")
-   ) %>%
-   summarise(
-      across(
-         c(STOIM,NETTO),
-         sum,
-         na.rm = TRUE
-         ),
-      .by = c(year,NAPR)
-      ) %>%
-   pivot_longer(STOIM:NETTO) %>%
-   mutate(
-      value = value/1e9,
-      panel = paste(name,NAPR,sep=" | ")
-      ) %>%
-   ggplot(
-      aes(year, value)
-      ) +
-   geom_line(linewidth=0.7,color="#003d7a") +
-   facet_wrap(~panel,scales="free") +
-   theme_minimal(base_family="ssp") +
-   labs(
-      x = NULL,
-      y = "млрд"
-      )
-```
-
-## 1. Общая динамика базы
+## 1. Общая динамика
 
 В первую очередь проверим агрегированную динамику базы данных. На этом этапе цель не состоит в поиске отдельных ошибок, а в выявлении возможных проблем загрузки данных, резких разрывов временных рядов или потери информации.
 
 Для наглядности основные торговые партнёры (Китай, Индия и Турция) рассматриваются отдельно, поскольку изменения в торговле с ними могут существенно влиять на совокупные показатели.
+
+```{r, echo=FALSE}
+
+pl_shares <- 
+   trade %>%
+   mutate(STRANA = if_else(STRANA %in% c("IN","TR","CN"), 'Зеркальная статистика', 'Comtrade')) %>%
+   mutate(
+      year = floor_date(PERIOD,"year")
+   ) %>%
+   reframe(
+      across(
+         c(STOIM,NETTO),
+         ~sum(., na.rm = T)
+      ),
+      .by = c(STRANA, year,NAPR)
+   ) %>%
+   pivot_longer(STOIM:NETTO) %>%
+   mutate(
+      total_value = sum(value, na.rm = T),
+      .by = c(year, name, NAPR)
+   ) %>%
+   mutate(
+      value_share = value / total_value
+   ) %>%
+   mutate(
+      panel = paste(name, NAPR, sep=" | ")
+   ) %>%
+   ggplot(
+      aes(
+         x = year,
+         y = value_share,
+         fill = STRANA)
+   ) +
+   geom_area() +
+   facet_wrap(~panel,scales="free") +
+   scale_y_continuous(
+      expand = c(0, 0),
+      labels = scales::label_percent()
+      ) +
+   scale_x_date(expand = c(0, 0)) +
+   scale_fill_manual(
+      breaks = c('Зеркальная статистика', 'Comtrade'),
+      values = c(mgimo_colors[['primary']], mgimo_colors[['secondary']])
+   ) +
+   theme_classic(base_family="ssp", base_size = 14) +
+   theme(
+         legend.position = "bottom",
+         legend.key.width = unit(1.1, "cm"),
+         strip.background = element_blank(),
+         strip.text = element_text(face = "bold"),
+         axis.text.x = element_text(size = 10),
+         panel.spacing.y = unit(3.0, "cm"),
+         panel.spacing.x = unit(2.0, 'cm'),
+         legend.title = element_blank(),
+         panel.background = element_rect(fill = 'transparent', color = 'transparent'),
+         plot.background = element_rect(fill = 'transparent', color = 'transparent'),
+         legend.background = element_rect(fill = 'transparent',color = 'transparent')
+      ) +
+   labs(
+      y = NULL,
+      x = NULL,
+      fill = NULL
+   )
+
+```
+
+```{r}
+pl_shares_interactive <- 
+  ggplotly(
+    pl_shares,
+    dynamicTicks = FALSE
+  )
+
+pl_shares %>%
+  ggplotly(dynamicTicks = FALSE) %>%
+  fix_stacked_area_hover(
+    data = pl_shares$data,
+    x = "year",
+    y = "value_share",
+    fill = "STRANA",
+    facet = "panel",
+    date_format = "%Y"
+  )
+```
+
+### Самые важные торговые партнёры:
+
+```{r}
+tab_major_partners <-
+   trade %>%
+   filter(PERIOD >= max(PERIOD) %m-% months(15)) %>%
+   reframe(
+      STOIM = sum(STOIM, na.rm = T),
+         .by = c(STRANA, NAPR)
+   ) %>%
+   mutate(
+      STOIM = 100 * STOIM / sum(STOIM),
+      .by = NAPR
+   ) %>%
+   arrange(-STOIM) %>%
+   pivot_wider(
+      names_from = NAPR,
+      values_from = STOIM
+   ) %>%
+   arrange(-(ИМ + ЭК)) %>%
+   head(10) %>%
+   rename(
+      'Страна' = 'STRANA',
+      'Доля в импорте, %' = 'ИМ',
+      'Доля в экспорте, %' = "ЭК"
+   )
+
+knitr::kable(tab_major_partners)
+```
+
+Любопытно, что если бы мы сегодня решили добавить зеркальную статистику по ещё 3 странам, то это были бы Германия, Гонконг и Бразилия.
 
 ```{r}
 tab_trade <-
@@ -246,104 +375,6 @@ tab_trade <-
   mutate(
     year = floor_date(PERIOD, "year")
   )
-```
-
-### Прочие страны
-
-```{r}
-pl_trade_other <-
-
-  tab_trade %>%
-  filter(!STRANA %in% c("CN", "IN", "TR")) %>%
-  reframe(
-    across(
-      c(STOIM, NETTO),
-      ~ sum(.x, na.rm = TRUE)
-    ),
-    .by = c(year, NAPR)
-  ) %>%
-  pivot_longer(
-    STOIM:NETTO,
-    names_to = "indicator",
-    values_to = "value"
-  ) %>%
-  mutate(
-    value = value / 1e9,
-    panel = paste(indicator, NAPR, sep = " | ")
-  ) %>%
-  ggplot(
-    aes(
-      x = year,
-      y = value
-    )
-  ) +
-  geom_line(
-    colour = mgimo_colors[["primary"]],
-    linewidth = 0.8
-  ) +
-  facet_wrap(
-    ~panel,
-    scales = "free_y"
-  ) +
-  coord_cartesian(
-    ylim = c(0, NA)
-  ) +
-  labs(
-    x = NULL,
-    y = "млрд"
-  ) +
-  theme_groups()
-
-pl_trade_other
-```
-
-### Основные торговые партнёры
-
-```{r}
-pl_trade_major <-
-
-  tab_trade %>%
-  filter(STRANA %in% c("CN", "IN", "TR")) %>%
-  reframe(
-    across(
-      c(STOIM, NETTO),
-      ~ sum(.x, na.rm = TRUE)
-    ),
-    .by = c(STRANA, year, NAPR)
-  ) %>%
-  pivot_longer(
-    STOIM:NETTO,
-    names_to = "indicator",
-    values_to = "value"
-  ) %>%
-  mutate(
-    value = value / 1e9,
-    panel = paste(STRANA, indicator, NAPR, sep = " | ")
-  ) %>%
-  ggplot(
-    aes(
-      x = year,
-      y = value
-    )
-  ) +
-  geom_line(
-    colour = mgimo_colors[["primary"]],
-    linewidth = 0.8
-  ) +
-  facet_wrap(
-    ~panel,
-    scales = "free_y"
-  ) +
-  coord_cartesian(
-    ylim = c(0, NA)
-  ) +
-  labs(
-    x = NULL,
-    y = "млрд"
-  ) +
-  theme_groups()
-
-pl_trade_major
 ```
 
 ## 2. Поиск выбросов
@@ -360,6 +391,20 @@ tab_outliers <-
 
   trade %>%
   reframe(
+     
+    outlier_stoim = 
+       show_outliers(
+          STOIM,
+          threshold_sd,
+          threshold_value
+       ),
+    
+    outlier_netto = 
+       show_outliers(
+          NETTO,
+          threshold_sd,
+          threshold_value
+       ),
 
     outlier_kol =
       show_outliers(
@@ -394,6 +439,8 @@ tab_outliers <-
 
     score =
       5 * outlier_stoim_netto +
+      3 * outlier_stoim +
+      3 * outlier_netto +
       2 * outlier_kol_stoim +
       2 * outlier_kol_netto +
       outlier_kol,
@@ -412,31 +459,44 @@ tab_summary <-
       "Стоимость / масса",
       "Количество / стоимость",
       "Количество / масса",
-      "Количество"
+      "Количество",
+      "Стоимость",
+      "Масса"
     ),
 
     `Проблемных рядов` = c(
       sum(tab_outliers$outlier_stoim_netto > 0),
       sum(tab_outliers$outlier_kol_stoim > 0),
       sum(tab_outliers$outlier_kol_netto > 0),
-      sum(tab_outliers$outlier_kol > 0)
+      sum(tab_outliers$outlier_kol > 0),
+      sum(tab_outliers$outlier_stoim > 0),
+      sum(tab_outliers$outlier_netto > 0)
     )
 
   )
 
-knitr::kable(tab_summary)
+knitr::kable(
+  tab_summary,
+  format = "html"
+) %>%
+  kableExtra::kable_styling(
+    font_size = 10,
+    full_width = FALSE
+  )
 ```
 
 ## 3. Наиболее подозрительные ряды
 
+Самые подозрительные ряды мы ранжируем по score. Чем он больше - тем ряд подозрительнее.
+
 ```{r}
 tab_problem_series <-
-
   tab_outliers %>%
-  filter(score > 0)
+  filter(score > 0) %>% 
+  slice(1:80)
 
 knitr::kable(
-  head(tab_problem_series, 30)
+  head(tab_problem_series %>% slice(1:20), 30)
 )
 ```
 
@@ -444,11 +504,13 @@ knitr::kable(
 
 Для удобства просмотра графики автоматически разбиваются на страницы по 16 временных рядов.
 
+
+### 4.1 Выбросы, стоимость торговли, млн $ 
+
 ```{r}
 plots_per_page <- 16
 
 df_outliers <-
-
   trade %>%
   semi_join(
     tab_problem_series,
@@ -470,11 +532,51 @@ df_outliers <-
   ) %>%
   arrange(desc(score)) %>%
   mutate(
-    series = paste(
-      STRANA,
-      TNVED,
-      NAPR
-    ),
-    page = ceiling(row_number() / plots_per_page)
+    series = paste(STRANA, TNVED, NAPR),
+    series = factor(series, levels = unique(series)),
+    series_id = as.integer(series),
+    page = ceiling(series_id / plots_per_page)
   )
+```
+
+```{r}
+#| echo: false
+#| results: asis
+
+outlier_pages <- sort(unique(df_outliers$page))
+
+cat("::: {.panel-tabset}\n\n")
+
+purrr::walk(
+  outlier_pages,
+  \(page) {
+    cat("## Страница ", page, "\n\n", sep = "")
+    print(plot_outlier_page(page, cat = 'STOIM'))
+    cat("\n\n")
+  }
+)
+
+cat(":::\n")
+```
+
+### 4.2 Выбросы, объёмы торговли, тыс. т.
+
+```{r}
+#| echo: false
+#| results: asis
+
+outlier_pages <- sort(unique(df_outliers$page))
+
+cat("::: {.panel-tabset}\n\n")
+
+purrr::walk(
+  outlier_pages,
+  \(page) {
+    cat("## Страница ", page, "\n\n", sep = "")
+    print(plot_outlier_page(page, cat = 'NETTO'))
+    cat("\n\n")
+  }
+)
+
+cat(":::\n")
 ```
