@@ -7,6 +7,7 @@ Dev mode: records are logged to stdout. Prod mode: insert into Postgres api_audi
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import logging
 import time
@@ -18,6 +19,22 @@ from starlette.responses import Response
 from .config import settings
 
 logger = logging.getLogger("api.audit")
+
+
+def _client_ip(request: Request) -> str | None:
+    """Return the client host only if it is a valid IP (audit_log.ip is INET).
+
+    request.client.host can be a non-IP string (a hostname, or 'testclient' under
+    the test client). Behind nginx, wiring X-Forwarded-For is a later refinement.
+    """
+    host = request.client.host if request.client else None
+    if not host:
+        return None
+    try:
+        ipaddress.ip_address(host)
+        return host
+    except ValueError:
+        return None
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
@@ -38,7 +55,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             "rows_returned": getattr(request.state, "rows_returned", None),
             "latency_ms": latency_ms,
             "cost_units": getattr(request.state, "cost_units", 1),
-            "ip": request.client.host if request.client else None,
+            "ip": _client_ip(request),
         }
         await _emit(record)
         return response
