@@ -98,6 +98,26 @@ def _enriched_select_sql() -> str:
             COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
             COALESCE(t10.TNVED_UNIT, t8.TNVED_UNIT) AS TNVED_UNIT,
             COALESCE(t10.NAME_SOURCE, t8.NAME_SOURCE) AS TNVED_NAME_SOURCE,
+            COALESCE(t10.TNVED_NAME_EN, t8.TNVED_NAME_EN) AS TNVED_NAME_EN,
+            -- Ближайшее наименование из официального справочника. Обогащение
+            -- берёт TNVED_NAME с самого глубокого уровня, и машинный перевод на
+            -- 8 знаках выигрывает у официального текста на 6 — здесь наоборот:
+            -- точность приносится в жертву проверяемости, а насколько именно,
+            -- видно по TNVED_NAME_OFFICIAL_LEVEL.
+            COALESCE(
+                CASE WHEN t10.NAME_SOURCE <> 'mt' THEN t10.TNVED_NAME END,
+                CASE WHEN t8.NAME_SOURCE  <> 'mt' THEN t8.TNVED_NAME  END,
+                CASE WHEN t6.NAME_SOURCE  <> 'mt' THEN t6.TNVED_NAME  END,
+                CASE WHEN t4.NAME_SOURCE  <> 'mt' THEN t4.TNVED_NAME  END,
+                CASE WHEN t2.NAME_SOURCE  <> 'mt' THEN t2.TNVED_NAME  END
+            ) AS TNVED_NAME_OFFICIAL,
+            CASE
+                WHEN t10.NAME_SOURCE <> 'mt' THEN 10
+                WHEN t8.NAME_SOURCE  <> 'mt' THEN 8
+                WHEN t6.NAME_SOURCE  <> 'mt' THEN 6
+                WHEN t4.NAME_SOURCE  <> 'mt' THEN 4
+                WHEN t2.NAME_SOURCE  <> 'mt' THEN 2
+            END AS TNVED_NAME_OFFICIAL_LEVEL,
             COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
             DENSE_RANK() OVER (
                 PARTITION BY t.STRANA, t.TNVED, t.NAPR
@@ -166,6 +186,26 @@ def build_unified_trade_data_enriched_view_from_base_sql() -> str:
             COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
             COALESCE(t10.TNVED_UNIT, t8.TNVED_UNIT) AS TNVED_UNIT,
             COALESCE(t10.NAME_SOURCE, t8.NAME_SOURCE) AS TNVED_NAME_SOURCE,
+            COALESCE(t10.TNVED_NAME_EN, t8.TNVED_NAME_EN) AS TNVED_NAME_EN,
+            -- Ближайшее наименование из официального справочника. Обогащение
+            -- берёт TNVED_NAME с самого глубокого уровня, и машинный перевод на
+            -- 8 знаках выигрывает у официального текста на 6 — здесь наоборот:
+            -- точность приносится в жертву проверяемости, а насколько именно,
+            -- видно по TNVED_NAME_OFFICIAL_LEVEL.
+            COALESCE(
+                CASE WHEN t10.NAME_SOURCE <> 'mt' THEN t10.TNVED_NAME END,
+                CASE WHEN t8.NAME_SOURCE  <> 'mt' THEN t8.TNVED_NAME  END,
+                CASE WHEN t6.NAME_SOURCE  <> 'mt' THEN t6.TNVED_NAME  END,
+                CASE WHEN t4.NAME_SOURCE  <> 'mt' THEN t4.TNVED_NAME  END,
+                CASE WHEN t2.NAME_SOURCE  <> 'mt' THEN t2.TNVED_NAME  END
+            ) AS TNVED_NAME_OFFICIAL,
+            CASE
+                WHEN t10.NAME_SOURCE <> 'mt' THEN 10
+                WHEN t8.NAME_SOURCE  <> 'mt' THEN 8
+                WHEN t6.NAME_SOURCE  <> 'mt' THEN 6
+                WHEN t4.NAME_SOURCE  <> 'mt' THEN 4
+                WHEN t2.NAME_SOURCE  <> 'mt' THEN 2
+            END AS TNVED_NAME_OFFICIAL_LEVEL,
             COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
             b.period_rank
         FROM unified_trade_data_enriched_base b
@@ -438,6 +478,7 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
                 translated = code_data.get('translated', False)
                 unit = code_data.get('unit')
                 name_source = code_data.get('source', NAME_SOURCE_FTS)
+                name_en = code_data.get('name_en') or None
 
                 if not name:
                     continue
@@ -472,6 +513,7 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
                     'TNVED_CODE': normalized_code,
                     'TNVED_LEVEL': level_int,
                     'TNVED_NAME': name,
+                    'TNVED_NAME_EN': name_en,
                     'TNVED_UNIT': unit,
                     'NAME_SOURCE': name_source,
                     'TRANSLATED': translated
@@ -489,7 +531,7 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
             conn.register('tnved_ref_df', tnved_df)
             conn.execute("""
                 CREATE TABLE tnved_reference AS
-                SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME,
+                SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME, TNVED_NAME_EN,
                        TNVED_UNIT, NAME_SOURCE, TRANSLATED
                 FROM tnved_ref_df
                 ORDER BY TNVED_LEVEL, TNVED_CODE
@@ -618,6 +660,7 @@ TNVED_UNITS = frozenset({
 NAME_SOURCE_FTS = "fts"  # справочник ФТС THBED.dbf, заморожен 09.02.2022
 NAME_SOURCE_FNS = "fns"  # классификатор ТНВЭД ФНС, обновляемый
 NAME_SOURCE_MT = "mt"    # машинный перевод наименования из зарубежного источника
+NAME_SOURCE_MANUAL = "manual"  # выверенное вручную наименование, name_overrides.json
 
 
 def split_unit_prefix(code: str, name: str) -> Tuple[Optional[str], str]:
@@ -655,6 +698,7 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
     """
     mapping_file = project_root / "metadata" / "tnved.csv"
     translations_file = project_root / "metadata" / "translations" / "missing_codes_translations.json"
+    overrides_file = project_root / "metadata" / "translations" / "name_overrides.json"
 
     # Initialize mappings structure
     mappings = {
@@ -681,6 +725,7 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
                     source = str(row['SOURCE']).strip() if has_source else NAME_SOURCE_FTS
                     mappings[level_key][code] = {
                         'name': name,
+                        'name_en': None,
                         'unit': unit,
                         'source': source or NAME_SOURCE_FTS,
                         'translated': False
@@ -702,6 +747,9 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
             for code_10, data in translations.items():
                 code_10_str = str(code_10).strip()
                 russian_name = data.get('russian_name', '').strip().upper()
+                # Английский оригинал, из которого сделан перевод, — единственный
+                # способ проверить машинную подпись, поэтому он едет дальше.
+                original_name = (data.get('original_name') or '').strip()
 
                 if not russian_name:
                     continue
@@ -717,6 +765,7 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
                 if code_10_padded not in mappings['tnved10']:
                     mappings['tnved10'][code_10_padded] = {
                         'name': russian_name,
+                        'name_en': original_name,
                         'unit': None,
                         'source': NAME_SOURCE_MT,
                         'translated': True
@@ -736,6 +785,7 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
                         # Note: This is not ideal, but we don't have separate translations for parent levels
                         mappings[level_key][code_level] = {
                             'name': russian_name,  # Using the 10-digit name as fallback
+                            'name_en': original_name,
                             'unit': None,
                             'source': NAME_SOURCE_MT,
                             'translated': True
@@ -748,7 +798,49 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
     else:
         logger.warning(f"TNVED translations file not found at {translations_file}")
 
+    _apply_name_overrides(mappings, overrides_file)
+
     return mappings
+
+
+def _apply_name_overrides(mappings: Dict[str, Dict[str, Dict[str, any]]], path: Path) -> None:
+    """Накладывает выверенные вручную наименования поверх машинных.
+
+    Правка десятизначного кода тянется на родительские уровни, но только туда,
+    где лежит ровно та же машинная строка: загрузчик переводов копирует
+    наименование конечного кода в отсутствующие 2/4/6/8, и чинить нужно все
+    копии, не задевая чужие наименования.
+    """
+    if not path.exists():
+        return
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            overrides = json.load(f)
+    except Exception as exc:
+        logger.error(f"Failed to load TNVED name overrides from {path}: {exc}")
+        return
+
+    applied = 0
+    for code, data in overrides.items():
+        name = (data.get('russian_name') or '').strip().upper()
+        if not name:
+            continue
+        code = str(code).strip()
+        replaced = (data.get('replaces') or '').strip().upper()
+        for level in (10, 8, 6, 4, 2):
+            entry = mappings[f'tnved{level}'].get(code[:level])
+            if entry is None:
+                continue
+            if level < 10 and (entry.get('source') != NAME_SOURCE_MT
+                               or entry.get('name') != replaced):
+                continue
+            entry['name'] = name
+            entry['source'] = NAME_SOURCE_MANUAL
+            entry['translated'] = False
+            applied += 1
+
+    if applied:
+        logger.info(f"Applied {applied} manual TNVED name overrides from {path}")
 
 
 __all__ = [

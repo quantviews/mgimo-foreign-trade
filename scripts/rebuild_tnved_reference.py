@@ -43,6 +43,7 @@ def build_reference_df(project_root: Path) -> pd.DataFrame:
                     "TNVED_CODE": padded[:level],
                     "TNVED_LEVEL": level,
                     "TNVED_NAME": name,
+                    "TNVED_NAME_EN": data.get("name_en") or None,
                     "TNVED_UNIT": data.get("unit"),
                     "NAME_SOURCE": data.get("source", NAME_SOURCE_FTS),
                     "TRANSLATED": data.get("translated", False),
@@ -74,7 +75,7 @@ def main() -> None:
         conn.execute(
             """
             CREATE TABLE tnved_reference AS
-            SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME,
+            SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME, TNVED_NAME_EN,
                    TNVED_UNIT, NAME_SOURCE, TRANSLATED
             FROM tnved_ref_df
             ORDER BY TNVED_LEVEL, TNVED_CODE

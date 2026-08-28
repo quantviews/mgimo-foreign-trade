@@ -367,13 +367,15 @@ class TestLoadTnvedMapping:
         mappings = load_tnved_mapping(tmp_path)
 
         assert mappings['tnved2']['01'] == {
-            'name': 'ЖИВЫЕ ЖИВОТНЫЕ', 'unit': 'ШТ', 'source': 'fts', 'translated': False
+            'name': 'ЖИВЫЕ ЖИВОТНЫЕ', 'name_en': None, 'unit': 'ШТ',
+            'source': 'fts', 'translated': False
         }
         assert mappings['tnved4']['3105']['unit'] == 'КГ P2O5'
         assert mappings['tnved4']['3105']['name'] == 'ПЕНТАОКСИД ДИФОСФОРА'
         # дефис внутри слова единицей измерения не является
         assert mappings['tnved4']['4805'] == {
-            'name': 'КРАФТ-БУМАГА', 'unit': None, 'source': 'fts', 'translated': False
+            'name': 'КРАФТ-БУМАГА', 'name_en': None, 'unit': None,
+            'source': 'fts', 'translated': False
         }
         # "М-" в группе 29 — локант в названии соединения, а не метр
         assert mappings['tnved6']['290242']['unit'] is None
@@ -381,6 +383,62 @@ class TestLoadTnvedMapping:
         assert mappings['tnved6']['370255']['unit'] == 'М'
         # источник наименования читается из колонки SOURCE
         assert mappings['tnved10']['1207999601']['source'] == 'fns'
+
+    def test_manual_override_replaces_machine_name(self, tmp_path):
+        """Ручная правка вытесняет машинный перевод и его копии на родителях."""
+        metadata_dir = tmp_path / "metadata"
+        metadata_dir.mkdir()
+        (metadata_dir / "tnved.csv").write_text('KOD,NAME,level' + chr(10), encoding='utf-8')
+        translations_dir = metadata_dir / "translations"
+        translations_dir.mkdir()
+        (translations_dir / "missing_codes_translations.json").write_text(
+            json.dumps({"2709000000": {"russian_name": "Нефтяные масла из битуминозных MINERALов",
+                                       "original_name": "Petroleum oils"}}, ensure_ascii=False),
+            encoding='utf-8',
+        )
+        (translations_dir / "name_overrides.json").write_text(
+            json.dumps({"2709000000": {
+                "russian_name": "Нефть сырая",
+                "replaces": "Нефтяные масла из битуминозных MINERALов",
+            }}, ensure_ascii=False),
+            encoding='utf-8',
+        )
+
+        mappings = load_tnved_mapping(tmp_path)
+
+        assert mappings['tnved10']['2709000000']['name'] == 'НЕФТЬ СЫРАЯ'
+        assert mappings['tnved10']['2709000000']['source'] == 'manual'
+        assert mappings['tnved10']['2709000000']['translated'] is False
+        # та же машинная строка на родительских уровнях тоже вылечена
+        assert mappings['tnved8']['27090000']['name'] == 'НЕФТЬ СЫРАЯ'
+        assert mappings['tnved6']['270900']['source'] == 'manual'
+
+    def test_manual_override_leaves_other_names_alone(self, tmp_path):
+        """Правка не трогает родителя, у которого своё наименование."""
+        metadata_dir = tmp_path / "metadata"
+        metadata_dir.mkdir()
+        (metadata_dir / "tnved.csv").write_text(
+            """KOD,NAME,level,SOURCE
+270900,НЕФТЬ СЫРАЯ И НЕФТЕПРОДУКТЫ СЫРЫЕ,6,fts""",
+            encoding='utf-8',
+        )
+        translations_dir = metadata_dir / "translations"
+        translations_dir.mkdir()
+        (translations_dir / "missing_codes_translations.json").write_text(
+            json.dumps({"2709000000": {"russian_name": "Битуминозные MINERALы"}}, ensure_ascii=False),
+            encoding='utf-8',
+        )
+        (translations_dir / "name_overrides.json").write_text(
+            json.dumps({"2709000000": {"russian_name": "Нефть сырая",
+                                       "replaces": "Битуминозные MINERALы"}}, ensure_ascii=False),
+            encoding='utf-8',
+        )
+
+        mappings = load_tnved_mapping(tmp_path)
+
+        assert mappings['tnved10']['2709000000']['source'] == 'manual'
+        assert mappings['tnved6']['270900']['name'] == 'НЕФТЬ СЫРАЯ И НЕФТЕПРОДУКТЫ СЫРЫЕ'
+        assert mappings['tnved6']['270900']['source'] == 'fts'
 
     def test_source_defaults_to_fts_without_column(self, tmp_path):
         """Справочник без колонки SOURCE читается как есть — наименования от ФТС."""
@@ -406,7 +464,11 @@ class TestLoadTnvedMapping:
         translations_dir = metadata_dir / "translations"
         translations_dir.mkdir()
         (translations_dir / "missing_codes_translations.json").write_text(
-            json.dumps({"0101010000": {"russian_name": "Тестовое название"}}, ensure_ascii=False),
+            json.dumps(
+                {"0101010000": {"russian_name": "Тестовое название",
+                                "original_name": "Live horses"}},
+                ensure_ascii=False,
+            ),
             encoding='utf-8',
         )
 
@@ -415,6 +477,7 @@ class TestLoadTnvedMapping:
         assert entry['source'] == 'mt'
         assert entry['unit'] is None
         assert entry['translated'] is True
+        assert entry['name_en'] == 'Live horses'
 
 
 class TestLoadStranaMapping:
