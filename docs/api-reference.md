@@ -1,0 +1,145 @@
+# API внешней торговли — справочник
+
+Программный доступ к данным внешней торговли (и физобъёмам — позже). Тонкий
+read-only сервис поверх DuckDB. Планы и решения — [api-plan.md](api-plan.md) и
+[api-mvp-phase1.md](api-mvp-phase1.md); код — [`../api/`](../api/). Семантика полей —
+[data_model.md](data_model.md).
+
+> Статус: **MVP (Фаза 1)**. Реализованы `/health`, `/v1/meta`, `/v1/reference/*`,
+> `/v1/trade`. Квоты/тарифы, эндпоинты fizob и OData — следующие фазы.
+
+## База и версии
+
+- Базовый URL: `https://<домен>` (в проде — за TLS-прокси). Локально: `http://localhost:8000`.
+- Все содержательные эндпоинты — под префиксом `/v1`.
+- **Интерактивная документация (OpenAPI/Swagger):** `GET /docs`, схема — `GET /openapi.json`.
+
+## Авторизация
+
+Каждый запрос (кроме `/health`) требует **персональный токен**, переданный **в заголовке**
+(в query-параметре токен не принимается):
+
+- `Authorization: Bearer <токен>` — для скриптов/интеграций.
+- **HTTP Basic** (для Excel Power Query): имя пользователя — любое, **пароль = токен**.
+
+Токен выдаётся в личном кабинете (страница в Superset — появится позже). Пока — через
+администратора (`api/scripts/create_token.py`). Токен показывается один раз; храните его.
+
+## Эндпоинты
+
+### `GET /health`
+Проверка живости и версии данных. Без авторизации.
+```json
+{"status":"ok","rows":7416603,"period_min":"2019-01-01","period_max":"2026-06-01","data_version":"2026-06"}
+```
+
+### `GET /v1/meta`
+Доступные измерения/меры/поля и ваш план/использование.
+```json
+{
+  "data": {"rows":7416603,"period_min":"2019-01-01","period_max":"2026-06-01","data_version":"2026-06"},
+  "filters": ["edizm","edizm_iso","napr","source","strana","tnved","tnved2","tnved4","tnved6","type","period_from","period_to"],
+  "group_by": ["edizm","edizm_iso","napr","period","source","strana","tnved","tnved2","tnved4","tnved6","type","year"],
+  "metrics": ["kol","netto","stoim"],
+  "default_metrics": ["stoim","netto"],
+  "include": ["country_name","tnved2_name","tnved4_name","tnved6_name","tnved_name","tnved_translated"],
+  "plan": {"code":"pilot","max_rows":1000000},
+  "usage": {"requests_this_month": 42}
+}
+```
+
+### `GET /v1/reference/countries`
+Справочник стран для фильтров/выпадашек: `[{"strana":"CN","country_name":"Китай"}, ...]`.
+
+### `GET /v1/reference/tnved?level=2|4|6|8|10`
+Коды и названия ТНВЭД заданного уровня: `[{"code":"27","name":"Топливо минеральное..."}, ...]`.
+
+### `GET /v1/trade` — основной эндпоинт
+
+Фильтрация и агрегация торговых данных. Все параметры опциональны.
+
+| Параметр | Пример | Смысл |
+|---|---|---|
+| `strana` | `CN` (повторяемый) | страна-отчёт (ISO) |
+| `napr` | `im` / `ex` (или `ИМ`/`ЭК`) | направление; ASCII-алиасы — основной путь |
+| `type` | `fact` / `pred` | факт vs прогноз (nowcast) |
+| `source` | `national`/`comtrade`/`nowcast` | источник |
+| `tnved2` / `tnved4` / `tnved6` / `tnved` | `27` | фильтр по уровню кода |
+| `edizm_iso` | `166` (повторяемый) | доп. единица по ISO-коду — **основной** фильтр единиц |
+| `edizm` | `ШТУКА` | доп. единица по названию (кириллица в URL менее удобна) |
+| `period_from`, `period_to` | `2024-01` | диапазон периодов (`YYYY-MM` или `YYYY-MM-DD`) |
+| `group_by` | `strana,tnved2,period` | измерения агрегации (через запятую) |
+| `metrics` | `stoim,netto,kol` | суммируемые меры; **по умолчанию `stoim,netto`** |
+| `include` | `tnved4_name,country_name` | доп. поля-названия (opt-in) |
+| `format` | `json` (по умолч.) / `csv` | формат ответа |
+| `limit` | `10000` | размер страницы (`≤ plan.max_rows`) |
+| `offset` | `0` | смещение (для keyset-курсора — следующая фаза) |
+| `order_by` | `period` | сортировка (dim или мера в агрегации) |
+
+**Два режима:**
+- **Агрегация** — если задан `group_by`: возвращаются измерения + суммы мер.
+- **Сырьё** — если `group_by` не задан: строки как есть (коды + меры + `PERIOD`),
+  до `plan.max_rows` на страницу.
+
+**Единицы и `KOL`.** Фильтруйте единицы по `edizm_iso`; `edizm`/`edizm_iso` доступны и в
+ответе — без них `KOL` (количество в доп. единице) не интерпретируется. Мера **`kol`
+аддитивна только внутри одной единицы**, поэтому в агрегации при `metrics=...,kol`
+параметр **`edizm` обязан быть в `group_by`** — иначе `400`. `stoim` (USD) и `netto` (кг)
+аддитивны без ограничений.
+
+**Названия (`include`).** По умолчанию ответ «лёгкий» (только коды). `include` подтягивает
+названия; в агрегации название требует соответствующий код в `group_by`
+(напр. `tnved4_name` → `tnved4`).
+
+**Пример.**
+```
+GET /v1/trade?strana=CN&napr=im&period_from=2024-01
+    &group_by=tnved2,edizm,period&metrics=stoim,netto,kol&include=tnved2_name
+```
+```json
+{
+  "meta": {"rows": 240, "has_more": false, "next_offset": null,
+           "page_rows": 10000, "max_rows": 1000000, "table": "unified_trade_data_enriched"},
+  "data": [
+    {"tnved2":"85","edizm":"ШТУКА","period":"2024-01-01",
+     "tnved2_name":"Электрические машины...","stoim":1234.5,"netto":67.8,"kol":9.0}
+  ]
+}
+```
+
+## Формат ответа и ошибки
+
+- Успех: `{"meta": {...}, "data": [...]}`. `meta.has_more` = есть следующая страница
+  (тогда `next_offset` — смещение для следующего запроса).
+- Ошибки — `application/problem+json` (RFC 7807):
+  `{"type":"about:blank","title":"...","status":400,"detail":"..."}`.
+- `401` — нет/неверный токен; `400` — некорректные параметры (напр. `kol` без `edizm`).
+
+## Лимиты (пилот)
+
+- `limit` ограничен `plan.max_rows` (на пилоте — щедро). Полная выгрузка больших объёмов —
+  постранично; в будущем объём/страницы ограничиваются тарифом.
+- Технический rate-limit и таймаут запроса защищают сервис (не тарифная квота).
+
+## Excel (Power Query) — пошагово
+
+1. **Данные → Получить данные → Из интернета**.
+2. URL c нужными фильтрами, напр.:
+   `https://<домен>/v1/trade?strana=CN&napr=im&period_from=2024-01&group_by=tnved2,period&format=json`
+3. Тип доступа — **Основной (Basic)**: имя — любое, **пароль — ваш токен**.
+4. Power Query развернёт JSON в таблицу (типы и UTF-8 сохранены — без проблем с
+   разделителями). Обновление — кнопкой «Обновить».
+
+> Рекомендуется **JSON**, а не CSV: в русской локали Excel CSV страдает от разделителей и
+> кодировок. CSV (`format=csv`) отдаётся с UTF-8 BOM и `;`, числа — с точкой.
+
+## Семантика данных
+
+Значения полей (`STOIM` в USD, `NETTO` в кг, `KOL` в доп. единице, `NAPR`, `TYPE`,
+`SOURCE`, уровни ТНВЭД) — см. [data_model.md](data_model.md).
+
+## Дорожная карта
+
+Следующие фазы (см. [api-plan.md](api-plan.md)): личный кабинет в Superset и саморегистрация;
+keyset-cursor экспорт; enforcement квот/rate-limit и дашборд использования; эндпоинты fizob;
+OData-фид для BI; коммерческие тарифы и биллинг.

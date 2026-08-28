@@ -4,6 +4,13 @@
 > Цель Фазы 1: рабочий API по торговым данным с токен-авторизацией, аудитом (метринг с
 > первого дня) и потреблением из Excel. Квоты/биллинг/OData/fizob — следующие фазы.
 
+> **Статус: бэкенд реализован** — код в [`../api/`](../api/), справочник для потребителей —
+> [api-reference.md](api-reference.md). Готово: `/health`, `/v1/meta`, `/v1/reference/*`,
+> `/v1/trade` (JSON/CSV, агрегация+сырьё), Bearer+Basic, Postgres-стор
+> (plans/users/tokens/audit) + миграция + скрипты, аудит с `cost_units` — проверено
+> end-to-end на живом Postgres. Осталось: кабинет в Superset + саморегистрация,
+> keyset-cursor экспорт, enforcement квот/rate-limit.
+
 ## Границы Фазы 1
 
 **В объёме:** FastAPI поверх read-only DuckDB; статические токены (Bearer + Basic);

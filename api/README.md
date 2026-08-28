@@ -1,8 +1,13 @@
 # MGIMO Foreign Trade API
 
 Thin read-only FastAPI service over the DuckDB serving file
-(`db/unified_trade_data.duckdb`). Phase 1 (MVP) — see
-[../docs/api-mvp-phase1.md](../docs/api-mvp-phase1.md).
+(`db/unified_trade_data.duckdb`). Phase 1 (MVP).
+
+- **Consumer reference** (endpoints, params, Excel/Power Query):
+  [../docs/api-reference.md](../docs/api-reference.md)
+- Spec & plan: [../docs/api-mvp-phase1.md](../docs/api-mvp-phase1.md),
+  [../docs/api-plan.md](../docs/api-plan.md)
+- Interactive OpenAPI/Swagger: `GET /docs`
 
 ## Run (dev mode, no Postgres)
 
