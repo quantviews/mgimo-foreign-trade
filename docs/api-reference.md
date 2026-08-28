@@ -47,7 +47,7 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
   "group_by": ["edizm","edizm_iso","napr","period","source","strana","tnved","tnved2","tnved4","tnved6","type","year"],
   "metrics": ["kol","netto","stoim"],
   "default_metrics": ["stoim","netto"],
-  "include": ["country_name","tnved2_name","tnved4_name","tnved6_name","tnved_name","tnved_translated"],
+  "include": ["country_name","tnved2_name","tnved4_name","tnved6_name","tnved_name","tnved_unit","tnved_name_source","tnved_translated"],
   "plan": {"code":"pilot","max_rows":1000000},
   "usage": {"requests_this_month": 42}
 }
@@ -57,7 +57,10 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
 Справочник стран для фильтров/выпадашек: `[{"strana":"CN","country_name":"Китай"}, ...]`.
 
 ### `GET /v1/reference/tnved?level=2|4|6|8|10`
-Коды и названия ТНВЭД заданного уровня: `[{"code":"27","name":"Топливо минеральное..."}, ...]`.
+Коды и названия ТНВЭД заданного уровня:
+`[{"code":"27","name":"Топливо минеральное...","unit":null,"name_source":"fts"}, ...]`.
+`unit` — дополнительная единица измерения, `name_source` — происхождение названия
+(`fts` / `fns` — официальные справочники, `mt` — машинный перевод).
 
 ### `GET /v1/trade` — основной эндпоинт
 
@@ -95,6 +98,11 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
 **Названия (`include`).** По умолчанию ответ «лёгкий» (только коды). `include` подтягивает
 названия; в агрегации название требует соответствующий код в `group_by`
 (напр. `tnved4_name` → `tnved4`).
+
+Рядом с названием доступны `tnved_unit` (дополнительная единица измерения, отделённая
+от текста названия) и `tnved_name_source`. Последний важен для интерпретации: `fts`/`fns` —
+официальное русское наименование, `mt` — машинный перевод названия из зарубежного
+источника, такие подписи не следует цитировать как официальные.
 
 **Пример.**
 ```

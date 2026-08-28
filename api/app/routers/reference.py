@@ -27,7 +27,8 @@ def tnved(
     if level not in _TNVED_LEVELS:
         raise HTTPException(400, f"level must be one of {sorted(_TNVED_LEVELS)}")
     cols, rows = db.run_query(
-        "SELECT TNVED_CODE AS code, TNVED_NAME AS name "
+        "SELECT TNVED_CODE AS code, TNVED_NAME AS name, "
+        "TNVED_UNIT AS unit, NAME_SOURCE AS name_source "
         "FROM tnved_reference WHERE TNVED_LEVEL = ? ORDER BY TNVED_CODE",
         [level],
     )

@@ -55,6 +55,8 @@ _LABELS = {
     "tnved4_name": "TNVED4_NAME",
     "tnved6_name": "TNVED6_NAME",
     "tnved_name": "TNVED_NAME",
+    "tnved_unit": "TNVED_UNIT",
+    "tnved_name_source": "TNVED_NAME_SOURCE",
     "tnved_translated": "TNVED_TRANSLATED",
 }
 # In aggregation mode a label needs its code grouped (1:1, no fan-out).
@@ -64,6 +66,8 @@ _LABEL_REQUIRES_DIM = {
     "tnved4_name": "tnved4",
     "tnved6_name": "tnved6",
     "tnved_name": "tnved",
+    "tnved_unit": "tnved",
+    "tnved_name_source": "tnved",
     "tnved_translated": "tnved",
 }
 
