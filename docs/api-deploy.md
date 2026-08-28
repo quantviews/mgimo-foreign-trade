@@ -84,6 +84,38 @@ docker compose restart trade-api
 ```
 (в будущем — эндпоинт `/admin/reload` вместо рестарта.)
 
+## Дашборд «Использование API» (только админам)
+
+Мониторинг использования — на том же Superset, поверх `api.audit_log`.
+
+**1. Применить view'ы** (один раз; `002_usage_views.sql` создаёт `api.usage_log` и
+`api.usage_by_user_month`):
+```bash
+cd ~/mgimo-foreign-trade && git pull
+docker exec -i superset-postgres-1 psql -U superset -d tradeapi \
+  < ~/mgimo-foreign-trade/api/migrations/002_usage_views.sql
+```
+
+**2. Подключить БД `tradeapi` в Superset** (под учёткой Admin): Settings → **Database
+Connections** → **+ Database** → PostgreSQL:
+- Host `postgres`, Port `5432`, Database `tradeapi`, User `superset`, Password `superset`.
+- Display name: `tradeapi`. Test → Connect.
+
+**3. Датасеты:** Datasets → **+ Dataset** → Database `tradeapi`, Schema `api`, таблица
+`usage_log` (детальный лог) и/или `usage_by_user_month` (сводка). Create.
+
+**4. Дашборд:** собрать чарты (по `usage_log`): запросы по `email`/по `endpoint`, динамика
+по `day`, доля `is_error`, объём `rows_returned`, латентность. Сохранить дашборд
+«Использование API».
+
+**5. Ограничить доступ админам.** Новая БД `tradeapi` и её датасеты по умолчанию доступны
+**только Admin** (и владельцам) — просто **не выдавайте** права на неё ролям `API`/Gamma.
+Дополнительно на дашборде: **Edit properties → Roles → Admin** (чтобы он не появлялся в
+списках у остальных). Так дашборд видят только администраторы.
+
+> `usage_log` также включает `params` (JSON) и `ip` — при желании убрать из датасета
+> лишние столбцы в его настройках.
+
 ## Не коммитить
 
 `api/.env` (DSN/пароли) — только `.env.example`. Файл DuckDB и `.env` в репозиторий не
