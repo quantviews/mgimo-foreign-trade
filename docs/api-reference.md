@@ -133,6 +133,23 @@ GET /v1/trade?strana=CN&napr=im&period_from=2024-01
 > Рекомендуется **JSON**, а не CSV: в русской локали Excel CSV страдает от разделителей и
 > кодировок. CSV (`format=csv`) отдаётся с UTF-8 BOM и `;`, числа — с точкой.
 
+## OData-фид (Excel / Power BI)
+
+Нативный доступ для BI без формул — «Из веб-канала OData»:
+- Сервис: `GET /odata/` · схема: `GET /odata/$metadata` · данные: `GET /odata/trade`.
+- Сущность `trade` = базовые строки торговли; поддержаны `$filter`, `$select`, `$orderby`,
+  `$top`, `$skip`, `$count`, серверная пагинация (`@odata.nextLink`).
+- Авторизация — тот же токен (Basic: имя любое, пароль = токен).
+
+**Excel:** Данные → Получить данные → **Из веб-канала OData** → URL `http://<host>:8090/odata/`
+→ Basic-auth (токен) → выбрать `trade` → фильтровать мышкой в редакторе (фолдится в `$filter`) →
+загрузить. Обновление — «Обновить всё».
+
+Пример прямого запроса:
+```
+GET /odata/trade?$filter=STRANA eq 'CN' and PERIOD ge 2024-01-01&$select=PERIOD,TNVED2,STOIM&$top=1000
+```
+
 ## Семантика данных
 
 Значения полей (`STOIM` в USD, `NETTO` в кг, `KOL` в доп. единице, `NAPR`, `TYPE`,

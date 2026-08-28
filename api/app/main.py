@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from . import db, store
 from .audit import AuditMiddleware
 from .config import settings
-from .routers import health, meta, reference, trade
+from .routers import health, meta, odata_feed, reference, trade
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
@@ -36,6 +36,7 @@ app.include_router(health.router)
 app.include_router(meta.router)
 app.include_router(reference.router)
 app.include_router(trade.router)
+app.include_router(odata_feed.router)
 
 
 @app.exception_handler(HTTPException)
