@@ -1,5 +1,12 @@
 # Деплой API на VPS (рядом со Superset)
 
+> **Статус: развёрнуто и проверено 2026-08-28.** API работает на VPS
+> (`http://217.26.28.186`, порт `8090`, HTTP), контейнер `trade-api` в сети
+> `superset_default`, токены/аудит — в отдельной БД `tradeapi` того же Postgres,
+> DuckDB — `/srv/duckdb/unified_trade_data.duckdb` (read-only). Проверено:
+> `/health`, `/v1/trade`, `/v1/meta` + запись аудита. Порт наружу не открыт (пилот,
+> без TLS). Обновление ниже — по этому же runbook.
+
 Развёртывание read-only API-сервиса на том же VPS, где крутится Superset
 (`http://217.26.28.186:8088`, Superset в Docker). API берёт токены/аудит из Postgres
 Superset и читает тот же файл `unified_trade_data.duckdb`. Артефакты — в
