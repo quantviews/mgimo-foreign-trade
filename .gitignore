@@ -144,3 +144,6 @@ Thumbs.db
 .vscode/
 .idea/
 .positai
+
+# API cabinet templates are source files, not generated site HTML
+!superset_cabinet/templates/*.html

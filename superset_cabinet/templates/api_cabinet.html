@@ -1,0 +1,47 @@
+{% extends "appbuilder/base.html" %}
+{% block content %}
+<div class="container" style="max-width: 760px; margin-top: 24px;">
+  <h2>Мой API-ключ</h2>
+  <p class="text-muted">
+    Программный доступ к данным внешней торговли. Ключ персональный — не передавайте его.
+  </p>
+
+  {% if raw %}
+  <div class="alert alert-warning">
+    <b>Токен показан один раз — сохраните его сейчас:</b>
+    <pre style="user-select: all; white-space: pre-wrap;">{{ raw }}</pre>
+    Использование:
+    <ul style="margin-bottom: 0;">
+      <li>заголовок <code>Authorization: Bearer {{ raw }}</code></li>
+      <li>в Excel (Power Query, «Из интернета») — доступ <b>Основной/Basic</b>, имя любое,
+          <b>пароль = токен</b></li>
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if info %}
+  <p>
+    Текущий токен: <code>{{ info.prefix }}…</code>, создан {{ info.created_at }}.<br>
+    Запросов за месяц: <b>{{ info.usage }}</b>.
+  </p>
+  {% else %}
+  <p>Токен ещё не выпущен.</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('ApiKeyView.generate') }}" style="margin-top: 12px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <button class="btn btn-primary" type="submit">
+      {{ 'Перевыпустить токен' if info else 'Выпустить токен' }}
+    </button>
+    {% if info %}
+    <span class="text-muted" style="margin-left: 8px;">Предыдущий токен перестанет действовать.</span>
+    {% endif %}
+  </form>
+
+  <hr>
+  <p class="text-muted">
+    Справочник запросов (<code>/v1/trade</code>, фильтры, Excel) — см. документацию проекта
+    <code>docs/api-reference.md</code>. Базовый URL API уточните у администратора.
+  </p>
+</div>
+{% endblock %}
