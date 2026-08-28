@@ -1,5 +1,9 @@
 metadata/*
 !metadata/hs4_labels.json
+# выверенные вручную наименования ТН ВЭД — их не пересоздать, храним в git
+!metadata/translations/
+metadata/translations/*
+!metadata/translations/name_overrides.json
 reports/
 org/
 data_raw/

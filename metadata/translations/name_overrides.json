@@ -1,0 +1,230 @@
+{
+  "0304298500": {
+    "russian_name": "Филе минтая \"Theragra chalcogramma\" мороженое",
+    "original_name": "Frozen fillets of Alaska pollack \"Theragra chalcogramma\"",
+    "replaces": "Замороженные филе трески альaskanской \"Theragra chalcogramma\"",
+    "reason": "mixed-script machine translation"
+  },
+  "0307493500": {
+    "russian_name": "Кальмар \"Loligo patagonica\" мороженый",
+    "original_name": "Squid \"loligo patagonica\", frozen",
+    "replaces": "Кальмар \"лолигo патагонский\", замороженный",
+    "reason": "mixed-script machine translation"
+  },
+  "1604140000": {
+    "russian_name": "Тунец, скипджек и бонито (Sarda spp.) готовые или консервированные, целиком или кусками",
+    "original_name": "Prepared or preserved Tunas, skipjack tuna and bonito (Sarda spp.) , whole/pieces",
+    "replaces": "Приготовленные или консервированные тунцы, тунцы-скипjack и бонито (Sarda spp.), целиком/кусками",
+    "reason": "mixed-script machine translation"
+  },
+  "2009611000": {
+    "russian_name": "Сок виноградный, включая виноградное сусло, неферментированный, с числом Брикса не более 30 при 20 °C, стоимостью более 18 евро за 100 кг, с добавлением или без добавления сахара или других подслащивающих веществ",
+    "original_name": "Grape juice, incl. grape must, unfermented, Brix value <= 30 at 20°C, value of > 18 ? per 100 kg, whether or not containing added sugar or other sweet",
+    "replaces": "Сок виноградный, включая виноградныйMust, нефильтрованный, с содержанием Брикса <= 30 при 20°C, стоимостью > 18 ? на 100 кг, с добавлением сахара или других подсластителей или без них",
+    "reason": "mixed-script machine translation"
+  },
+  "2009695100": {
+    "russian_name": "Сок виноградный концентрированный, включая виноградное сусло, неферментированный, с числом Брикса более 30, но не более 67 при 20 °C, стоимостью более 18 евро за 100 кг, с добавлением или без добавления сахара или других подслащивающих веществ",
+    "original_name": "Concentrated grape juice, incl. grape must, unfermented, Brix value > 30 but <= 67 at 20°C, value of > 18 ? per 100 kg, whether or not containing adde",
+    "replaces": "Концентрированный виноградный сок, включая виноградныйMust, неферментированный, с содержанием Brix > 30, но <= 67 при 20°C, стоимостью > 18 ? за 100 кг, с добавлением или без.",
+    "reason": "mixed-script machine translation"
+  },
+  "2009905100": {
+    "russian_name": "Смеси соков фруктовых, включая виноградное сусло, и овощных, неферментированные, с числом Брикса не более 67 при 20 °C, стоимостью более 30 евро за 100 кг, с добавлением сахара или других подслащивающих веществ",
+    "original_name": "Mixtures of fruit juices, incl. grape must, and vegetable juices, unfermented, Brix value <= 67 at 20°C, value of > 30 ? per 100 kg, containing added",
+    "replaces": "Смеси фруктовых соков, включая виноградныйMust, и овощных соков, нефирментированных, с содержанием Брикса <= 67 при 20°C, стоимостью > 30 ? на 100 кг, содержащие добавленные",
+    "reason": "mixed-script machine translation"
+  },
+  "2709000000": {
+    "russian_name": "Нефть сырая и нефтепродукты сырые, полученные из битуминозных пород",
+    "original_name": "PETROLEUM OILS AND OILS OBTAINED FROM BITUMINOUS MINERALS CRUDE",
+    "replaces": "НЕФТЯНЫЕ МАСЛА И МАСЛА, ПОЛУЧЕННЫЕ ИЗ БИТУМИНОЗНЫХ MINERALОВ СЫРЬЕВЫЕ",
+    "reason": "mixed-script machine translation"
+  },
+  "2832201000": {
+    "russian_name": "Пиросульфит (метабисульфит) калия",
+    "original_name": "POTASSIUM METABISULPHITE",
+    "replaces": "Потassium метабисульфит",
+    "reason": "mixed-script machine translation"
+  },
+  "2905199000": {
+    "russian_name": "Прочие насыщенные одноатомные спирты",
+    "original_name": "OTHER SATURATED MONOHYDRIC ALCOHOLS",
+    "replaces": "ДРУГИЕ НАСЫЩЕННЫЕ МОНOgидРИЧЕСКИЕ АЛКОГОЛИ",
+    "reason": "mixed-script machine translation"
+  },
+  "2905290000": {
+    "russian_name": "Прочие ненасыщенные одноатомные спирты",
+    "original_name": "OTHER UNSATURATED MONOHYDRIC ALCOHOLS",
+    "replaces": "ДРУГИЕ НЕНАСЫЩЕННЫЕ МОНOgидРИЧЕСКИЕ АЛКОГОЛИ",
+    "reason": "mixed-script machine translation"
+  },
+  "3004906600": {
+    "russian_name": "Кислота мефенамовая, диклофенак натрия, пироксикам, теноксикам и мелоксикам",
+    "original_name": "MEPHENAMIC ACID, DACTOFENAC SODIUM, PIROXICAM, TENOXICAM AND MELOXICAM",
+    "replaces": "МЕФЕНАМОВАЯ КИСЛОТА, ДАKТОФЕНАК НАТРИЯ, ПИРОКСИКАМ, ТЕНОКСИКАМ И МЕЛОКСИКАМ",
+    "reason": "mixed-script machine translation"
+  },
+  "3206119000": {
+    "russian_name": "Прочие пигменты и препараты с содержанием диоксида титана не менее 80 мас.%",
+    "original_name": "Other pigments&preparations, wt. of titanium dioxide≥80%",
+    "replaces": "Другие пигменты иPreparаты, содержание диоксида титана ≥ 80%",
+    "reason": "mixed-script machine translation"
+  },
+  "3402901100": {
+    "russian_name": "Средства моющие и чистящие на основе мыла или прочих органических поверхностно-активных веществ (синтетические моющие средства)",
+    "original_name": "WASHING AND CLEANING PREPARATIONS HAVING BASIS OF SOAP/OTHER ORGANIC SURFACE ACTIVE(SYNTHETIC DETERGENTS)",
+    "replaces": "ПРЕПАРАТЫ ДЛЯ СТИРКИ И УБОРКИ НА ОСНОВЕ МЫЛА/ДРУГИЕ ОРГАНИЧЕСКИЕ ПОВЕРХНОСТНО-AКТИВНЫЕ ВЕЩЕСТВА (СИНТЕТИЧЕСКИЕ МОЮЩИЕ СРЕДСТВА)",
+    "reason": "mixed-script machine translation"
+  },
+  "3703101000": {
+    "russian_name": "Фотобумага и фотокартон в рулонах, неэкспонированные, шириной более 610 мм",
+    "original_name": "Photo paper&paperboard in rolls, unexposed, width＞610mm",
+    "replaces": "Фотобумага и бумажныеboard в рулонах, неэкспонированные, ширина > 610 мм",
+    "reason": "mixed-script machine translation"
+  },
+  "4804310000": {
+    "russian_name": "Прочие крафт-бумага и крафт-картон массой 150 г/м2 или менее, небеленые",
+    "original_name": "OTHER CRAFT PAPER AND PAPERBOARD WEIGHING 150 G/M2 OR LESS UNBLEACHED",
+    "replaces": "ДРУГАЯ КRAFT-БУМАГА И БУМАЖНЫЕ КАРТОНЫ МАССОЙ 150 Г/М2 И МЕНЕЕ НЕОБЕЗБЛАЧЕННЫЕ",
+    "reason": "mixed-script machine translation"
+  },
+  "4818409900": {
+    "russian_name": "Изделия санитарно-гигиенические из бумажной массы, бумаги, целлюлозной ваты или полотна из целлюлозных волокон, например средства при недержании",
+    "original_name": "Sanitary articles, of paper pulp, paper, cellulose wadding or webs of cellulose fibres, for example, incontinence care a",
+    "replaces": "Гигиенические изделия из целлюлозной массы, бумаги, целлюлозного ватина или полотен из целлюлозных волокон, например, для ухода за incontinentами",
+    "reason": "mixed-script machine translation"
+  },
+  "5609001000": {
+    "russian_name": "Изделия из койра (например, кранцы из койра)",
+    "original_name": "COIR PRODUCTS(E.G.COIR FENDER)",
+    "replaces": "Кокосовые изделия (например, кокосовые фenders)",
+    "reason": "mixed-script machine translation"
+  },
+  "5705002400": {
+    "russian_name": "Дурри хлопчатобумажные ручного ткачества (включая дурри чинди, дурри хлопчатобумажные шенилловые, коврики из лоскута, дурри с печатным рисунком, драгеты)",
+    "original_name": "COTTON DURRIES OF HANDLOOM (INCLUDING CHINDI DURRIES, COTTON CHENILLE DURIES, RAG RUG DURRIE PRINTED DURRIES, DRUGGETS)",
+    "replaces": "ХЛОПЧАТOBОЛОКОВЫЕ КОВРИКИ РУЧНОГО ТКАНИЯ (ВКЛЮЧАЯ КОВРИКИ ЧИНДИ, ХЛОПЧАТOBОЛОКОВЫЕ КОВРИКИ ШЕНИЛЬ, КОВРИКИ ИЗ ЛОХМОТЬЕВ, ПЕЧАТАННЫЕ КОВРИКИ, ДРАГГЕТЫ)",
+    "reason": "mixed-script machine translation"
+  },
+  "5909002000": {
+    "russian_name": "Шланги, трубы и аналогичные рукава из химических волокон",
+    "original_name": "HOSE PIPING AND SMLR TUBING OF MAN MADE FIBR",
+    "replaces": "ШЛANGИ, ТРУБЫ И АНАЛОГИЧНЫЕ ТРУБКИ ИЗ ИСКУССТВЕННЫХ ВОЛОКОН",
+    "reason": "mixed-script machine translation"
+  },
+  "6104610000": {
+    "russian_name": "Брюки, комбинезоны с нагрудниками и лямками, бриджи и шорты женские или для девочек из шерсти или тонкого волоса животных, трикотажные (кроме трусов и купальных костюмов)",
+    "original_name": "Women's or girls' trousers, bib and brace overalls, breeches and shorts of wool or fine animal hair, knitted or crocheted (excl. panties and swimwear)",
+    "replaces": "Женские или девичьи брюки, комбинезоны, бриджи и шорты из шерсти или тонкого животного волоса, вязаные илиcrochet (за исключением трусов и купальников)",
+    "reason": "mixed-script machine translation"
+  },
+  "6110191000": {
+    "russian_name": "Джемперы, пуловеры, кардиганы, жилеты и аналогичные изделия из тонкого волоса животных, трикотажные, мужские или для мальчиков (кроме изделий из кашемира)",
+    "original_name": "Jerseys, pullovers, cardigans, waistcoats and similar articles, of fine animal hair, knitted or crocheted, for men or boys (excl. from hair of Kashmir",
+    "replaces": "Джемперы, пуловеры, кардиганы, жилеты и подобные изделия из тонкойAnimal шерсти, вязаные или крючком, для мужчин или мальчиков (кроме изделий из кашемировой шерсти)",
+    "reason": "mixed-script machine translation"
+  },
+  "6117808000": {
+    "russian_name": "Галстуки, галстуки-бабочки, шейные платки и прочие готовые принадлежности к одежде, трикотажные, в другом месте не поименованные (кроме эластичных или прорезиненных, шалей, шарфов, кашне)",
+    "original_name": "Ties, bow ties, cravats and other made-up clothing accessories, knitted or crocheted, n.e.s. (excl. elasticated or rubberised, shawls, scarves, muffle",
+    "replaces": "Галстуки, бабочки, краваты и другие изготовленные аксессуары одежды, вязаные илиcrochet, не включенные в другие категории (за исключением эластичных или резинообразных, шалей, шарфов, муфт)",
+    "reason": "mixed-script machine translation"
+  },
+  "6304929000": {
+    "russian_name": "Изделия декоративные хлопчатобумажные невышитые, в другом месте не поименованные, нетрикотажные",
+    "original_name": "Nonembroid cotton furnishing articls nes, not knitted or crocheted",
+    "replaces": "Не вышитые хлопчатобумажные изделия для меблировки, не подлежащие вязанию илиCrochet",
+    "reason": "mixed-script machine translation"
+  },
+  "6907902000": {
+    "russian_name": "Плиты и плитки для мощения, облицовочные плитки для очагов или стен неглазурованные из каменной керамики; кубики мозаичные неглазурованные и аналогичные изделия из каменной керамики, на основе или без основы",
+    "original_name": "Unglazed flags and paving, hearth or wall tiles of stoneware; unglazed mosaic cubes and the like of stoneware, whether o",
+    "replaces": "Неглазурованные плитки и брусчатка, печные или стеновые плитки из каменнойware; неглазурованные мозаичные кубики и подобные изделия из каменнойware, независимо от их назначения",
+    "reason": "mixed-script machine translation"
+  },
+  "6907909100": {
+    "russian_name": "Плиты и плитки для мощения, облицовочные плитки для очагов или стен неглазурованные из каменной керамики (кроме сдвоенных плиток типа \"Spaltplatten\")",
+    "original_name": "Unglazed flags and paving, hearth or wall tiles of stoneware (excl. double tiles of the ''Spaltplatten'' type, tiles ma",
+    "replaces": "Неглазурованные плитки и тротуарные плитки, печные или стеновые плитки из каменнойware (за исключением двойных плиток типа ''Spaltplatten'', плиток м",
+    "reason": "mixed-script machine translation"
+  },
+  "6908909100": {
+    "russian_name": "Плиты и плитки для мощения, облицовочные плитки для очагов или стен глазурованные из каменной керамики с лицевой поверхностью более 90 см2 (кроме сдвоенных плиток типа \"Spaltplatten\")",
+    "original_name": "Glazed flags and paving, hearth or wall tiles of stoneware with a face of > 90 cm² (excl. double tiles of the ''Spaltpla",
+    "replaces": "Глазурованные плитки и тротуарные плитки, печные или стеновые плитки из каменнойware с лицевой стороной > 90 см² (за исключением двойных плиток типа ''Spaltpla)",
+    "reason": "mixed-script machine translation"
+  },
+  "6908909900": {
+    "russian_name": "Плиты и плитки для мощения, облицовочные плитки для очагов или стен керамические глазурованные с лицевой поверхностью более 90 см2 (кроме изделий из грубой керамики, каменной керамики, фаянса)",
+    "original_name": "Glazed ceramic flags and paving, hearth or wall tiles with a face of > 90 cm² (excl. of common pottery, stoneware, earth",
+    "replaces": "Керамическая плитка с глазурью и тротуарные плитки, плитки для каминов или стен с лицевой стороной > 90 см² (за исключением обычной керамики, фаянса, каменнойware, глины)",
+    "reason": "mixed-script machine translation"
+  },
+  "6912003000": {
+    "russian_name": "Посуда столовая и кухонная, прочие предметы домашнего обихода и предметы туалета из каменной керамики (кроме ванн, биде, раковин и аналогичных изделий)",
+    "original_name": "Tableware, kitchenware, other household articles and toilet articles, of stoneware (excl. baths, bidets, sinks and simil",
+    "replaces": "Посуда, кухонные принадлежности, прочие предметы домашнего обихода и туалетные принадлежности из каменнойware (кроме ванн, биде, раковин и аналогичных изделий)",
+    "reason": "mixed-script machine translation"
+  },
+  "6913909900": {
+    "russian_name": "Статуэтки и прочие декоративные изделия керамические, в другом месте не поименованные (кроме фарфоровых, из грубой керамики, каменной керамики, фаянса)",
+    "original_name": "Statuettes and other ornamental ceramic articles, n.e.s. (excl. of porcelain or china, common pottery, stoneware, earthe",
+    "replaces": "Статуэтки и другие декоративные керамические изделия, не включенные в другие категории (за исключением фарфора или фаянса, обычной керамики, каменнойware, глиняной посуды)",
+    "reason": "mixed-script machine translation"
+  },
+  "7017902000": {
+    "russian_name": "Прочая посуда стеклянная фармацевтическая",
+    "original_name": "OTHER PHARMACEUTICAL GLASS-WARE",
+    "replaces": "ДРУГОЕ ФАРМАЦЕВТИЧЕСКОЕ СТЕКЛОWARE",
+    "reason": "mixed-script machine translation"
+  },
+  "7208549000": {
+    "russian_name": "Прочий плоский прокат, не в рулонах, толщиной менее 3 мм, без дальнейшей обработки кроме горячей прокатки, травленый",
+    "original_name": "OTHR FLAT-ROLD PRDCTS,NT IN COILS OF THCKNS<3MM NT FRTHR WRKD THN HOT RLD PICKL",
+    "replaces": "Прочие плоские прокатные изделия, не в рулонах, толщиной менее 3 мм, неFurther обработанные, чем горячекатаные, с прокатной обрезкой.",
+    "reason": "mixed-script machine translation"
+  },
+  "7412201000": {
+    "russian_name": "Фитинги, трубы и трубки из сплавов на основе меди и никеля или меди, никеля и цинка",
+    "original_name": "Fittings, tubes & pipes, of Cu-Ni or Cu-Ni-Zn base alloys",
+    "replaces": "Фитинги, трубы и трубки из сплавов на основе меди-никеля или меди-никеля-цинкa",
+    "reason": "mixed-script machine translation"
+  },
+  "7419201000": {
+    "russian_name": "Цепи и их части медные литые, формованные, штампованные или кованые",
+    "original_name": "Cast/molded/stamped/forged Chain & parts thereof of Cu",
+    "replaces": "Цепи и их части, отлитыe, формованные, штампованные или кованые из меди",
+    "reason": "mixed-script machine translation"
+  },
+  "7419801000": {
+    "russian_name": "Ткань (включая бесконечные ленты), решетки и сетки из медной проволоки с наибольшим размером поперечного сечения не более 6 мм и просечно-вытяжной лист медный, в другом месте не поименованные",
+    "original_name": "Cloth \"incl. endless bands\", grill and netting, of copper wire of which the largest cross-sectional dim.<= 6 mm, and expanded metal, of copper, n.e.s.",
+    "replaces": "Ткань \"включая бесконечные ленты\", решётки и сетки из медной проволоки, наибольший размер поперечного сечения которых <= 6 мм, иExpanded metal из меди, не включённая в другие категории.",
+    "reason": "mixed-script machine translation"
+  },
+  "8001109000": {
+    "russian_name": "Аноды, катоды, слитки, чушки, плиты и прочие первичные формы олова",
+    "original_name": "ANODES CATHODES INGOTS PIGS SLABS AND OTHER PRIMARY FORMS OF TIN",
+    "replaces": "АНОДЫ, КАТОДЫ, СЛИТКИ, ЧУГУНЦЫ, ПЛИТЫ И ДРУГИЕ ПЕРВИЧНЫЕ ФОРМЫ Оловa",
+    "reason": "mixed-script machine translation"
+  },
+  "8426490000": {
+    "russian_name": "Краны подъемные передвижные и автопогрузчики с краном, самоходные (кроме на шинах и портальных штабелеров)",
+    "original_name": "Mobile cranes and works trucks fitted with a crane, self-propelled (excl. those on tyres and straddle carriers)",
+    "replaces": "Мобильные краны и грузовые автомобили, оборудованные краном, самоходные (кроме тех, что на шинах и страдл-карriers)",
+    "reason": "mixed-script machine translation"
+  },
+  "9619004100": {
+    "russian_name": "Прокладки гигиенические, тампоны и аналогичные изделия трикотажные из текстильных материалов (кроме из ваты)",
+    "original_name": "Sanitary towels, tampons and similar articles, knitted or crocheted, of textile materials (excl. of wadding)",
+    "replaces": "Гигиенические прокладки, тампоны и аналогичные изделия, вязаные илиcrochet, из текстильных материалов (кроме ватных)",
+    "reason": "mixed-script machine translation"
+  },
+  "9619008900": {
+    "russian_name": "Изделия санитарно-гигиенические, например средства при недержании (кроме из текстильных материалов, а также прокладок гигиенических, тампонов, подгузников и вкладышей для младенцев)",
+    "original_name": "Sanitary articles, e.g. incontinence care articles (excl. of textile materials, and sanitary towels, tampons, napkins and napkin liners for babies)",
+    "replaces": "Санитарные изделия, например, изделия для ухода за incontinentными (за исключением текстильных материалов, а также санитарных прокладок, тампонов, салфеток и подкладок для младенцев)",
+    "reason": "mixed-script machine translation"
+  }
+}

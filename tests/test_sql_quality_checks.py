@@ -9,7 +9,14 @@ import pytest
 from orchestration.checks import SqlQualityCheckError, run_sql_quality_checks
 
 
-def create_quality_test_db(path: Path, *, invalid_napr: bool = False, pred_overlap: bool = False) -> None:
+def create_quality_test_db(
+    path: Path,
+    *,
+    invalid_napr: bool = False,
+    pred_overlap: bool = False,
+    mixed_script_name: str | None = None,
+    mixed_script_source: str = "mt",
+) -> None:
     """Create a minimal DuckDB file with the relations required by quality checks."""
     conn = duckdb.connect(str(path))
     try:
@@ -77,9 +84,15 @@ def create_quality_test_db(path: Path, *, invalid_napr: bool = False, pred_overl
             """
             CREATE TABLE tnved_reference AS
             SELECT '01'::VARCHAR AS TNVED_CODE, 2::INTEGER AS TNVED_LEVEL,
-                   'ЖИВЫЕ ЖИВОТНЫЕ'::VARCHAR AS TNVED_NAME, FALSE AS TRANSLATED
+                   'ЖИВЫЕ ЖИВОТНЫЕ'::VARCHAR AS TNVED_NAME,
+                   'fts'::VARCHAR AS NAME_SOURCE, FALSE AS TRANSLATED
             """
         )
+        if mixed_script_name is not None:
+            conn.execute(
+                "INSERT INTO tnved_reference VALUES ('0101', 4, ?, ?, FALSE)",
+                [mixed_script_name, mixed_script_source],
+            )
         conn.execute(
             """
             CREATE TABLE hs4_reference AS
@@ -123,6 +136,30 @@ def test_sql_quality_checks_fail_on_pred_fact_overlap(tmp_path):
 
     with pytest.raises(SqlQualityCheckError, match="overlaps fact"):
         run_sql_quality_checks(db_path)
+
+
+def test_sql_quality_checks_fail_on_mixed_script_generated_name(tmp_path):
+    """Машинное наименование, оборвавшееся на латинице, роняет сборку."""
+    db_path = tmp_path / "mixed_generated.duckdb"
+    create_quality_test_db(
+        db_path, mixed_script_name="ПОТASSIUM МЕТАБИСУЛЬФИТ", mixed_script_source="mt"
+    )
+
+    with pytest.raises(SqlQualityCheckError, match="mixing"):
+        run_sql_quality_checks(db_path)
+
+
+def test_sql_quality_checks_report_mixed_script_official_name(tmp_path):
+    """Латинские двойники в справочнике ФТС — метрика, а не отказ сборки."""
+    db_path = tmp_path / "mixed_official.duckdb"
+    create_quality_test_db(
+        db_path, mixed_script_name="ДИЭЛЕКТPИЧЕСКИХ ПОТЕРЬ", mixed_script_source="fts"
+    )
+
+    metrics = run_sql_quality_checks(db_path)
+
+    assert metrics["mixed_script_official_names"] == 1
+    assert metrics["mixed_script_generated_names"] == 0
 
 
 def test_sql_quality_checks_fail_when_required_tables_missing(tmp_path):

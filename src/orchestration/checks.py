@@ -36,6 +36,15 @@ ALLOWED_NAPR = ("ИМ", "ЭК")
 ALLOWED_TYPES = ("fact", "pred")
 ALLOWED_SOURCES = ("national", "comtrade", "nowcast")
 
+# Кириллица вплотную к латинице внутри слова — след машинного перевода,
+# оборвавшегося на полуслове ("ПОТASSIUM МЕТАБИСУЛЬФИТ", "МОНOgидРИЧЕСКИЕ").
+MIXED_SCRIPT_NAME_REGEX = r'[А-Яа-яЁё][A-Za-z]|[A-Za-z][А-Яа-яЁё]'
+# Проверяются только наименования, которые производим мы сами. В официальном
+# справочнике ФТС встречаются латинские двойники кириллических букв
+# ("ДИЭЛЕКТPИЧЕСКИХ", "CЕЙФЫ") — это дефект исходника, его чинят отдельно,
+# а не падением сборки.
+GENERATED_NAME_SOURCES = ("mt", "manual")
+
 
 class SqlQualityCheckError(RuntimeError):
     """Raised when one or more SQL quality checks fail."""
@@ -222,6 +231,32 @@ def run_sql_quality_checks(
                 {"SOURCE": source, "TYPE": type_value, "row_count": count}
                 for source, type_value, count in source_type_counts
             ]
+
+        if "tnved_reference" in table_names:
+            reference_columns = {
+                row[0] for row in conn.execute("DESCRIBE tnved_reference").fetchall()
+            }
+            if "NAME_SOURCE" in reference_columns:
+                mixed_generated, mixed_official = conn.execute(
+                    f"""
+                    SELECT
+                        COUNT(*) FILTER (
+                            WHERE NAME_SOURCE IN ({_sql_list(GENERATED_NAME_SOURCES)})
+                        ),
+                        COUNT(*) FILTER (
+                            WHERE NAME_SOURCE NOT IN ({_sql_list(GENERATED_NAME_SOURCES)})
+                        )
+                    FROM tnved_reference
+                    WHERE regexp_matches(TNVED_NAME, '{MIXED_SCRIPT_NAME_REGEX}')
+                    """
+                ).fetchone()
+                results["mixed_script_generated_names"] = int(mixed_generated)
+                results["mixed_script_official_names"] = int(mixed_official)
+                if mixed_generated:
+                    failures.append(
+                        f"tnved_reference has {mixed_generated} generated names mixing "
+                        "Cyrillic and Latin inside a word"
+                    )
 
         for relation in REQUIRED_TABLES:
             if relation in table_names and relation != "unified_trade_data":
