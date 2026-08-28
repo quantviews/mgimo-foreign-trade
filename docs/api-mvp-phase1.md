@@ -8,9 +8,10 @@
 > [api-reference.md](api-reference.md). Готово: `/health`, `/v1/meta`, `/v1/reference/*`,
 > `/v1/trade` (JSON/CSV, агрегация+сырьё), Bearer+Basic, Postgres-стор
 > (plans/users/tokens/audit) + миграция + скрипты, аудит с `cost_units` — проверено
-> end-to-end на живом Postgres, задеплоено на VPS. Осталось довести: кабинет в Superset
-> (роль-допуск, БЕЗ саморегистрации — см. `superset_cabinet/`), keyset-cursor экспорт,
-> enforcement квот/rate-limit.
+> end-to-end на живом Postgres, **задеплоено на VPS** (`:8090`). Готовы также: **кабинет
+> в Superset** (роль-допуск, без саморегистрации — `superset_cabinet/`) и **OData-фид** с
+> названиями ТНВЭД (Excel/BI). Осталось: keyset-cursor экспорт, enforcement квот/rate-limit,
+> TLS (домен).
 
 ## Границы Фазы 1
 

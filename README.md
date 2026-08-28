@@ -43,5 +43,6 @@ uvicorn app.main:app --app-dir api --reload   # dev-режим, токен MGIMO
 - `docs/data_model.md` — целевая модель `unified_trade_data`, `SOURCE`/`TYPE`, nowcast ingest, справочники и fizob-таблицы.
 - `docs/documentation_fizob.md` — расчет индексов физических объемов; физобъемы считаются только по `TYPE = 'fact'`.
 - `docs/testing-docs.md` — запуск тестов и покрытые проверки.
-- `docs/api-reference.md` — справочник API (эндпоинты, параметры, Excel/Power Query);
-  `docs/api-plan.md` и `docs/api-mvp-phase1.md` — план и спецификация MVP.
+- `docs/api-reference.md` — справочник API (эндпоинты, параметры, OData); для аналитиков
+  без кода — `docs/api-excel-guide.md`. План/спецификация/деплой —
+  `docs/api-plan.md`, `docs/api-mvp-phase1.md`, `docs/api-deploy.md`.
