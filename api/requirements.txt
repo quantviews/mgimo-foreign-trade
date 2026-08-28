@@ -4,3 +4,4 @@ pydantic>=2
 pydantic-settings>=2
 duckdb>=1.0
 asyncpg>=0.29   # Postgres token/audit store (Phase 1 wiring)
+redis>=5.0      # quota/rate-limit counters

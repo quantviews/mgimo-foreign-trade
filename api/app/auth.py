@@ -73,4 +73,16 @@ async def authenticate(
 
     # Expose the resolved user to the audit middleware.
     request.state.user = user
+
+    # Quota / rate-limit enforcement (no-op without Redis or plan limits).
+    from . import limits  # lazy
+
+    try:
+        await limits.enforce(user)
+    except limits.RateLimited as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=e.detail,
+            headers={"Retry-After": str(e.retry_after)},
+        )
     return user

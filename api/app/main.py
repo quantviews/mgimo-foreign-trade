@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from . import db, store
+from . import db, limits, store
 from .audit import AuditMiddleware
 from .config import settings
 from .routers import health, meta, odata_feed, reference, trade
@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     # Postgres pool for tokens/audit (no-op in dev mode / no DSN).
     await store.init_pool()
     yield
+    await limits.close()
     await store.close_pool()
     db.close_connection()
 

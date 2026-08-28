@@ -11,6 +11,7 @@ services:
     environment:
       MGIMO_API_DUCKDB_PATH: /data/unified_trade_data.duckdb
       MGIMO_API_POSTGRES_DSN: ${MGIMO_API_POSTGRES_DSN}
+      MGIMO_API_REDIS_URL: ${MGIMO_API_REDIS_URL:-redis://redis:6379/2}
       MGIMO_API_MAX_PAGE_ROWS: "1000000"
     volumes:
       # Host DuckDB file (the same one Superset reads) mounted read-only.

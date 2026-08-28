@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     postgres_dsn: str = ""
     dev_token: str = "dev-token"
 
+    # Redis for quota/rate-limit counters. Empty -> enforcement disabled (dev).
+    # In prod (Superset stack): redis://redis:6379/2 (own DB number).
+    redis_url: str = ""
+
     # Query guardrails (Phase 1). In prod max rows comes from the user's plan.
     default_page_rows: int = 10_000
     max_page_rows: int = 100_000
