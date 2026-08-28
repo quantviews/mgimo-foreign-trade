@@ -1,0 +1,30 @@
+# Deploy the trade API next to Superset on the VPS.
+# Values come from api/.env (see .env.example). The API joins Superset's Docker
+# network so it can reach Superset's Postgres by service name.
+
+services:
+  trade-api:
+    build: .
+    image: mgimo-trade-api
+    container_name: trade-api
+    restart: unless-stopped
+    environment:
+      MGIMO_API_DUCKDB_PATH: /data/unified_trade_data.duckdb
+      MGIMO_API_POSTGRES_DSN: ${MGIMO_API_POSTGRES_DSN}
+      MGIMO_API_MAX_PAGE_ROWS: "1000000"
+    volumes:
+      # Host DuckDB file (the same one Superset reads) mounted read-only.
+      - ${DUCKDB_HOST_PATH}:/data/unified_trade_data.duckdb:ro
+    ports:
+      # Pilot: exposed directly on :8090 (HTTP). Put behind nginx+TLS once the
+      # domain is ready, then drop this and proxy internally.
+      - "8090:8000"
+    networks:
+      - superset_net
+
+networks:
+  # Superset's existing compose network (external). Find it with:
+  #   docker network ls   # e.g. 'superset_default'
+  superset_net:
+    external: true
+    name: ${SUPERSET_NETWORK}
