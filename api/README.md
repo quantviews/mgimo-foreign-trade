@@ -13,8 +13,24 @@ uvicorn app.main:app --app-dir api --reload
 ```
 
 Dev mode accepts a single static token (`MGIMO_API_DEV_TOKEN`, default `dev-token`)
-and logs audit records to stdout. Set `MGIMO_API_POSTGRES_DSN` to switch to the
-Postgres-backed token/audit store (wiring still TODO).
+and logs audit records to stdout.
+
+## Postgres mode (tokens + audit)
+
+Set `MGIMO_API_POSTGRES_DSN` to use the Postgres-backed store (schema `api`,
+same instance as Superset). Bootstrap:
+
+```bash
+export MGIMO_API_POSTGRES_DSN=postgres://user:pass@host:5432/superset
+python api/scripts/init_db.py                     # apply migrations/001_init.sql
+python api/scripts/create_token.py user@org.ru    # prints a raw token once
+```
+
+Then call with that token. Every request is written to `api.audit_log` with
+`cost_units` (the metering/monitoring foundation); `/v1/meta` returns your
+`requests_this_month`. Token validation, `last_used_at`, plans and per-user usage
+all run through `app/store.py`. Self-registration and the cabinet page live in
+Superset (later); `create_token.py` bootstraps users until then.
 
 ## Try it
 
@@ -50,7 +66,9 @@ delimiter/encoding pain).
 ## Status
 
 Done: read-only DuckDB, safe query builder (allowlist + params), `/health`,
-`/v1/meta`, `/v1/reference/*`, `/v1/trade` (JSON/CSV), Bearer+Basic auth (dev),
-audit middleware (stdout), problem+json errors.
-TODO: Postgres token/audit store, keyset cursor export, quota/rate-limit
-enforcement (Phase 2), OData (Phase 3), Superset cabinet page.
+`/v1/meta` (+ monthly usage), `/v1/reference/*`, `/v1/trade` (JSON/CSV),
+Bearer+Basic auth (dev token or Postgres tokens), audit middleware (stdout or
+Postgres `audit_log`), Postgres store (`app/store.py`) + migration + bootstrap
+scripts, problem+json errors.
+TODO: keyset cursor export, quota/rate-limit enforcement (Phase 2), OData
+(Phase 3), Superset cabinet page + self-registration.

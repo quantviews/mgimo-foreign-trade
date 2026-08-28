@@ -6,6 +6,7 @@ Dev mode: records are logged to stdout. Prod mode: insert into Postgres api_audi
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -18,9 +19,6 @@ from .config import settings
 
 logger = logging.getLogger("api.audit")
 
-# Never log the token itself.
-_SENSITIVE_HEADERS = {"authorization", "cookie"}
-
 
 class AuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -28,33 +26,39 @@ class AuditMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         latency_ms = int((time.perf_counter() - started) * 1000)
 
-        # `user` and `rows_returned` are set by the auth dependency / route handler.
-        user = getattr(request.state, "user", None)
+        # `user`/`rows_returned`/`cost_units` are set by the auth dependency and route.
+        user = getattr(request.state, "user", None) or {}
         record = {
-            "user_id": (user or {}).get("user_id"),
+            "user_id": user.get("user_id"),
+            "token_id": user.get("token_id"),
             "endpoint": request.url.path,
             "method": request.method,
-            "params": dict(request.query_params),
+            "params": dict(request.query_params),  # query params never carry the token
             "status": response.status_code,
             "rows_returned": getattr(request.state, "rows_returned", None),
             "latency_ms": latency_ms,
             "cost_units": getattr(request.state, "cost_units", 1),
             "ip": request.client.host if request.client else None,
         }
-        _emit(record)
+        await _emit(record)
         return response
 
 
-def _emit(record: dict) -> None:
+async def _emit(record: dict) -> None:
     try:
         if settings.postgres_dsn:
-            _write_postgres(record)  # TODO: async batched insert into api_audit_log
+            # Fire-and-forget so the audit insert never adds latency to the response.
+            asyncio.create_task(_safe_insert(record))
         else:
             logger.info("audit %s", json.dumps(record, ensure_ascii=False))
     except Exception:  # pragma: no cover - audit must never break the response
-        logger.exception("audit write failed")
+        logger.exception("audit scheduling failed")
 
 
-def _write_postgres(record: dict) -> None:  # pragma: no cover
-    """Placeholder — Phase 1 wiring writes to Postgres api_audit_log."""
-    logger.info("audit(pg-pending) %s", json.dumps(record, ensure_ascii=False))
+async def _safe_insert(record: dict) -> None:
+    try:
+        from . import store  # lazy
+
+        await store.insert_audit(record)
+    except Exception:  # pragma: no cover
+        logger.exception("audit pg insert failed")

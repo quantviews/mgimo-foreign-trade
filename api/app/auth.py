@@ -61,9 +61,9 @@ async def authenticate(
         )
 
     if settings.postgres_dsn:
-        # TODO(Phase 1): look up sha256(token) in Postgres api_tokens
-        #   -> api_users -> plans (active, not revoked, not expired).
-        user = await _lookup_token_postgres(token)
+        from . import store  # lazy: avoids importing asyncpg in dev mode
+
+        user = await store.lookup_token(token)
         if user is None:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
     else:
@@ -74,11 +74,3 @@ async def authenticate(
     # Expose the resolved user to the audit middleware.
     request.state.user = user
     return user
-
-
-async def _lookup_token_postgres(token: str) -> dict | None:  # pragma: no cover
-    """Placeholder for the Postgres-backed token lookup (Phase 1 wiring)."""
-    raise HTTPException(
-        status.HTTP_501_NOT_IMPLEMENTED,
-        "Postgres token store not wired yet; run in dev mode (no POSTGRES_DSN).",
-    )

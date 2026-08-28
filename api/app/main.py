@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from . import db
+from . import db, store
 from .audit import AuditMiddleware
 from .config import settings
 from .routers import health, meta, reference, trade
@@ -22,7 +22,10 @@ async def lifespan(app: FastAPI):
     # serving file is missing.
     db.get_connection()
     logging.getLogger("api").info("DuckDB opened: %s", settings.resolved_duckdb_path())
+    # Postgres pool for tokens/audit (no-op in dev mode / no DSN).
+    await store.init_pool()
     yield
+    await store.close_pool()
     db.close_connection()
 
 
