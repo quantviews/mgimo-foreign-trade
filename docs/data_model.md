@@ -36,8 +36,11 @@
 - Таблица `tnved_reference` — справочник ТН ВЭД:
   - `TNVED_CODE` (`VARCHAR`)
   - `TNVED_LEVEL` (`INTEGER`, уровни 2/4/6/8/10)
-  - `TNVED_NAME` (`VARCHAR`)
-  - `TRANSLATED` (`BOOLEAN`)
+  - `TNVED_NAME` (`VARCHAR`) — наименование без приклеенной единицы измерения
+  - `TNVED_UNIT` (`VARCHAR`) — дополнительная единица измерения (`ШТ`, `М2`, `КГ P2O5`, …), `NULL` если не задана
+  - `NAME_SOURCE` (`VARCHAR`) — откуда наименование: `fts` (справочник ФТС, заморожен 09.02.2022),
+    `fns` (классификатор ТНВЭД ФНС, обновляемый), `mt` (машинный перевод из зарубежного источника)
+  - `TRANSLATED` (`BOOLEAN`) — то же, что `NAME_SOURCE = 'mt'`, оставлено для совместимости
 - Таблица `country_reference` — справочник стран:
   - `STRANA` (`VARCHAR`, ISO2)
   - `STRANA_NAME` (`VARCHAR`)

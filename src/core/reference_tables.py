@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import duckdb
 import pandas as pd
@@ -96,6 +96,8 @@ def _enriched_select_sql() -> str:
             t6.TNVED_NAME AS TNVED6_NAME,
             t8.TNVED_NAME AS TNVED8_NAME,
             COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
+            COALESCE(t10.TNVED_UNIT, t8.TNVED_UNIT) AS TNVED_UNIT,
+            COALESCE(t10.NAME_SOURCE, t8.NAME_SOURCE) AS TNVED_NAME_SOURCE,
             COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
             DENSE_RANK() OVER (
                 PARTITION BY t.STRANA, t.TNVED, t.NAPR
@@ -162,6 +164,8 @@ def build_unified_trade_data_enriched_view_from_base_sql() -> str:
             t6.TNVED_NAME AS TNVED6_NAME,
             t8.TNVED_NAME AS TNVED8_NAME,
             COALESCE(t10.TNVED_NAME, t8.TNVED_NAME) AS TNVED_NAME,
+            COALESCE(t10.TNVED_UNIT, t8.TNVED_UNIT) AS TNVED_UNIT,
+            COALESCE(t10.NAME_SOURCE, t8.NAME_SOURCE) AS TNVED_NAME_SOURCE,
             COALESCE(t10.TRANSLATED, t8.TRANSLATED) AS TNVED_TRANSLATED,
             b.period_rank
         FROM unified_trade_data_enriched_base b
@@ -432,6 +436,8 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
                 # code_data is now a dict with 'name' and 'translated' keys
                 name = code_data.get('name', '')
                 translated = code_data.get('translated', False)
+                unit = code_data.get('unit')
+                name_source = code_data.get('source', NAME_SOURCE_FTS)
 
                 if not name:
                     continue
@@ -466,6 +472,8 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
                     'TNVED_CODE': normalized_code,
                     'TNVED_LEVEL': level_int,
                     'TNVED_NAME': name,
+                    'TNVED_UNIT': unit,
+                    'NAME_SOURCE': name_source,
                     'TRANSLATED': translated
                 })
 
@@ -481,7 +489,8 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
             conn.register('tnved_ref_df', tnved_df)
             conn.execute("""
                 CREATE TABLE tnved_reference AS
-                SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME, TRANSLATED
+                SELECT DISTINCT TNVED_CODE, TNVED_LEVEL, TNVED_NAME,
+                       TNVED_UNIT, NAME_SOURCE, TRANSLATED
                 FROM tnved_ref_df
                 ORDER BY TNVED_LEVEL, TNVED_CODE
             """)
@@ -593,16 +602,56 @@ def load_strana_mapping(project_root: Path) -> Dict[str, str]:
         logger.error(f"Failed to load country name mapping: {e}")
         return {}
 
+# Дополнительные единицы измерения, приклеенные к началу NAME в справочнике ФТС
+# ("ШТ-ЖИВЫЕ ЖИВОТНЫЕ", "КГ P2O5-ПЕНТАОКСИД ДИФОСФОРА"). Список закрытый: в тексте
+# наименований дефис чаще принадлежит самому слову ("КРАФТ-БУМАГА", "2-НАФТОЛ"),
+# поэтому отделяем только то, что действительно является единицей измерения.
+TNVED_UNITS = frozenset({
+    "ШТ", "100 ШТ", "1000 ШТ", "ПАР", "М", "М2", "М3", "1000 М3", "СМ3",
+    "Л", "1000 Л", "Л 100% СПИРТА", "Г", "КГ", "КАР", "КИ", "БК",
+    "КВТ", "КВТ*Ч", "1000 КВТ*Ч", "Л.С.", "Т ГП", "Г Д/И",
+    "КГ N", "КГ K2O", "КГ P2O5", "КГ KOH", "КГ NAOH", "КГ H2O2",
+    "КГ 90% С/В", "КГ U",
+})
+
+# Источники наименования (колонка NAME_SOURCE в tnved_reference).
+NAME_SOURCE_FTS = "fts"  # справочник ФТС THBED.dbf, заморожен 09.02.2022
+NAME_SOURCE_FNS = "fns"  # классификатор ТНВЭД ФНС, обновляемый
+NAME_SOURCE_MT = "mt"    # машинный перевод наименования из зарубежного источника
+
+
+def split_unit_prefix(code: str, name: str) -> Tuple[Optional[str], str]:
+    """Отделяет префикс дополнительной единицы измерения от наименования.
+
+    Возвращает (единица или None, наименование). Единственное исключение из
+    списка TNVED_UNITS — "М-" в группе 29: там это не метр, а локант в названии
+    органического соединения (М-КСИЛОЛ, М-ФЕНИЛЕНДИАМИН).
+    """
+    text = name.replace("\xa0", " ").strip()  # NBSP встречается в 31 строке справочника
+    idx = text.find("-")
+    if idx < 1:
+        return None, text
+    prefix = text[:idx]
+    if prefix not in TNVED_UNITS:
+        return None, text
+    if prefix == "М" and code.startswith("29"):
+        return None, text
+    return prefix, text[idx + 1:].strip()
+
+
 def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]]]:
     """
     Loads TNVED code to name mappings from tnved.csv and missing_codes_translations.json.
 
     Returns a dictionary with structure:
     {
-        'tnved2': {code: {'name': str, 'translated': bool}},
-        'tnved4': {code: {'name': str, 'translated': bool}},
+        'tnved2': {code: {'name': str, 'unit': str|None, 'source': str, 'translated': bool}},
+        'tnved4': {code: {...}},
         ...
     }
+
+    `unit` — дополнительная единица измерения, отделённая от наименования;
+    `source` — откуда взято наименование (см. NAME_SOURCE_*).
     """
     mapping_file = project_root / "metadata" / "tnved.csv"
     translations_file = project_root / "metadata" / "translations" / "missing_codes_translations.json"
@@ -621,15 +670,19 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
         try:
             df = pd.read_csv(mapping_file, dtype={'KOD': str, 'NAME': str, 'level': int})
             df.columns = df.columns.str.upper()
+            has_source = 'SOURCE' in df.columns
 
             for level in [2, 4, 6, 8, 10]:
                 level_key = f'tnved{level}'
                 level_data = df[df['LEVEL'] == level]
                 for _, row in level_data.iterrows():
                     code = str(row['KOD']).strip()
-                    name = str(row['NAME']).strip().upper()
+                    unit, name = split_unit_prefix(code, str(row['NAME']).upper())
+                    source = str(row['SOURCE']).strip() if has_source else NAME_SOURCE_FTS
                     mappings[level_key][code] = {
                         'name': name,
+                        'unit': unit,
+                        'source': source or NAME_SOURCE_FTS,
                         'translated': False
                     }
 
@@ -664,6 +717,8 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
                 if code_10_padded not in mappings['tnved10']:
                     mappings['tnved10'][code_10_padded] = {
                         'name': russian_name,
+                        'unit': None,
+                        'source': NAME_SOURCE_MT,
                         'translated': True
                     }
                     translations_count += 1
@@ -681,6 +736,8 @@ def load_tnved_mapping(project_root: Path) -> Dict[str, Dict[str, Dict[str, any]
                         # Note: This is not ideal, but we don't have separate translations for parent levels
                         mappings[level_key][code_level] = {
                             'name': russian_name,  # Using the 10-digit name as fallback
+                            'unit': None,
+                            'source': NAME_SOURCE_MT,
                             'translated': True
                         }
 

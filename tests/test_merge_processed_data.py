@@ -348,6 +348,74 @@ class TestLoadTnvedMapping:
         
         assert mappings['tnved2']['01']['name'] == 'ЖИВЫЕ ЖИВОТНЫЕ'  # Should be uppercase
 
+    def test_unit_prefix_split_out_of_name(self, tmp_path):
+        """Доп. единица измерения отделяется от наименования, а не остаётся в тексте."""
+        metadata_dir = tmp_path / "metadata"
+        metadata_dir.mkdir()
+        csv_content = """KOD,NAME,level,SOURCE
+01,ШТ-ЖИВЫЕ ЖИВОТНЫЕ,2,fts
+3105,КГ P2O5-ПЕНТАОКСИД ДИФОСФОРА,4,fts
+4805,КРАФТ-БУМАГА,4,fts
+290242,М-КСИЛОЛ,6,fts
+370255,М-ПРОЧИЕ ПЛЕНКИ,6,fts
+1207999601,ПРОЧИЕ ОРЕХИ ШИ,10,fns"""
+        (metadata_dir / "tnved.csv").write_text(csv_content, encoding='utf-8')
+        translations_dir = metadata_dir / "translations"
+        translations_dir.mkdir()
+        (translations_dir / "missing_codes_translations.json").write_text('{}', encoding='utf-8')
+
+        mappings = load_tnved_mapping(tmp_path)
+
+        assert mappings['tnved2']['01'] == {
+            'name': 'ЖИВЫЕ ЖИВОТНЫЕ', 'unit': 'ШТ', 'source': 'fts', 'translated': False
+        }
+        assert mappings['tnved4']['3105']['unit'] == 'КГ P2O5'
+        assert mappings['tnved4']['3105']['name'] == 'ПЕНТАОКСИД ДИФОСФОРА'
+        # дефис внутри слова единицей измерения не является
+        assert mappings['tnved4']['4805'] == {
+            'name': 'КРАФТ-БУМАГА', 'unit': None, 'source': 'fts', 'translated': False
+        }
+        # "М-" в группе 29 — локант в названии соединения, а не метр
+        assert mappings['tnved6']['290242']['unit'] is None
+        assert mappings['tnved6']['290242']['name'] == 'М-КСИЛОЛ'
+        assert mappings['tnved6']['370255']['unit'] == 'М'
+        # источник наименования читается из колонки SOURCE
+        assert mappings['tnved10']['1207999601']['source'] == 'fns'
+
+    def test_source_defaults_to_fts_without_column(self, tmp_path):
+        """Справочник без колонки SOURCE читается как есть — наименования от ФТС."""
+        metadata_dir = tmp_path / "metadata"
+        metadata_dir.mkdir()
+        (metadata_dir / "tnved.csv").write_text(
+            """KOD,NAME,level
+01,ЖИВЫЕ ЖИВОТНЫЕ,2""",
+            encoding='utf-8',
+        )
+        translations_dir = metadata_dir / "translations"
+        translations_dir.mkdir()
+        (translations_dir / "missing_codes_translations.json").write_text('{}', encoding='utf-8')
+
+        mappings = load_tnved_mapping(tmp_path)
+        assert mappings['tnved2']['01']['source'] == 'fts'
+
+    def test_translations_marked_as_machine_translation(self, tmp_path):
+        """Переводные наименования помечаются источником mt и без единицы измерения."""
+        metadata_dir = tmp_path / "metadata"
+        metadata_dir.mkdir()
+        (metadata_dir / "tnved.csv").write_text('KOD,NAME,level' + chr(10), encoding='utf-8')
+        translations_dir = metadata_dir / "translations"
+        translations_dir.mkdir()
+        (translations_dir / "missing_codes_translations.json").write_text(
+            json.dumps({"0101010000": {"russian_name": "Тестовое название"}}, ensure_ascii=False),
+            encoding='utf-8',
+        )
+
+        mappings = load_tnved_mapping(tmp_path)
+        entry = mappings['tnved10']['0101010000']
+        assert entry['source'] == 'mt'
+        assert entry['unit'] is None
+        assert entry['translated'] is True
+
 
 class TestLoadStranaMapping:
     """Tests for load_strana_mapping function."""
