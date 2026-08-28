@@ -11,31 +11,28 @@ from __future__ import annotations
 
 import re
 
+# Source: the enriched view carries the TNVED name columns alongside the base fields.
+_SOURCE_TABLE = "unified_trade_data_enriched"
+
+# Property display order (also the default $select). TNVED names sit next to their codes.
+_SELECT_ORDER = [
+    "PERIOD", "NAPR", "STRANA",
+    "TNVED", "TNVED_NAME",
+    "TNVED2", "TNVED2_NAME",
+    "TNVED4", "TNVED4_NAME",
+    "TNVED6", "TNVED8",
+    "EDIZM", "EDIZM_ISO", "SOURCE", "TYPE",
+    "STOIM", "NETTO", "KOL",
+]
 # Entity properties -> DB columns (identical names). `Id` is a synthetic per-page key.
-ODATA_COLUMNS = {
-    "PERIOD": "PERIOD",
-    "NAPR": "NAPR",
-    "STRANA": "STRANA",
-    "TNVED": "TNVED",
-    "TNVED2": "TNVED2",
-    "TNVED4": "TNVED4",
-    "TNVED6": "TNVED6",
-    "TNVED8": "TNVED8",
-    "EDIZM": "EDIZM",
-    "EDIZM_ISO": "EDIZM_ISO",
-    "SOURCE": "SOURCE",
-    "TYPE": "TYPE",
-    "STOIM": "STOIM",
-    "NETTO": "NETTO",
-    "KOL": "KOL",
-}
+ODATA_COLUMNS = {name: name for name in _SELECT_ORDER}
+
 _EDM_TYPE = {
     "PERIOD": "Edm.Date",
     "STOIM": "Edm.Double",
     "NETTO": "Edm.Double",
     "KOL": "Edm.Double",
 }  # everything else -> Edm.String
-_SELECT_ORDER = list(ODATA_COLUMNS.keys())
 
 DEFAULT_PAGE = 5000
 
@@ -198,8 +195,15 @@ def build_trade_query(
             parts.append(f"{ODATA_COLUMNS[name]} {direction}")
         order_sql = ", ".join(parts)
 
-    sql = f"SELECT {', '.join(cols)} FROM unified_trade_data"
+    sql = f"SELECT {', '.join(cols)} FROM {_SOURCE_TABLE}"
     if where:
         sql += f" WHERE {where}"
     sql += f" ORDER BY {order_sql} LIMIT {int(top) + 1} OFFSET {int(skip)}"
     return sql, params, cols
+
+
+def count_query(filter_expr: str | None) -> tuple[str, list]:
+    """SQL for $count=true (same WHERE as the entity set)."""
+    where, params = filter_to_sql(filter_expr)
+    sql = f"SELECT COUNT(*) FROM {_SOURCE_TABLE}" + (f" WHERE {where}" if where else "")
+    return sql, params

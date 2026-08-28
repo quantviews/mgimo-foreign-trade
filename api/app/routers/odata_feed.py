@@ -74,8 +74,7 @@ def trade_entityset(
     body: dict = {"@odata.context": f"{base}/odata/$metadata#trade", "value": value}
 
     if (count or "").lower() == "true":
-        where, cparams = odata.filter_to_sql(filter_)
-        csql = "SELECT COUNT(*) FROM unified_trade_data" + (f" WHERE {where}" if where else "")
+        csql, cparams = odata.count_query(filter_)
         _, crows = db.run_query(csql, cparams)
         body["@odata.count"] = crows[0][0]
 
