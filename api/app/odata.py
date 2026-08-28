@@ -17,7 +17,8 @@ _SOURCE_TABLE = "unified_trade_data_enriched"
 # Property display order (also the default $select). TNVED names sit next to their codes.
 _SELECT_ORDER = [
     "PERIOD", "NAPR", "STRANA",
-    "TNVED", "TNVED_NAME", "TNVED_UNIT", "TNVED_NAME_SOURCE",
+    "TNVED", "TNVED_NAME", "TNVED_NAME_OFFICIAL", "TNVED_NAME_EN",
+    "TNVED_UNIT", "TNVED_NAME_SOURCE",
     "TNVED2", "TNVED2_NAME",
     "TNVED4", "TNVED4_NAME",
     "TNVED6", "TNVED8",

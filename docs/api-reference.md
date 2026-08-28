@@ -47,7 +47,7 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
   "group_by": ["edizm","edizm_iso","napr","period","source","strana","tnved","tnved2","tnved4","tnved6","type","year"],
   "metrics": ["kol","netto","stoim"],
   "default_metrics": ["stoim","netto"],
-  "include": ["country_name","tnved2_name","tnved4_name","tnved6_name","tnved_name","tnved_unit","tnved_name_source","tnved_translated"],
+  "include": ["country_name","tnved2_name","tnved4_name","tnved6_name","tnved_name","tnved_name_official","tnved_name_official_level","tnved_name_en","tnved_unit","tnved_name_source","tnved_translated"],
   "plan": {"code":"pilot","max_rows":1000000},
   "usage": {"requests_this_month": 42}
 }
@@ -58,7 +58,7 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
 
 ### `GET /v1/reference/tnved?level=2|4|6|8|10`
 Коды и названия ТНВЭД заданного уровня:
-`[{"code":"27","name":"Топливо минеральное...","unit":null,"name_source":"fts"}, ...]`.
+`[{"code":"27","name":"Топливо минеральное...","name_en":null,"unit":null,"name_source":"fts"}, ...]`.
 `unit` — дополнительная единица измерения, `name_source` — происхождение названия
 (`fts` / `fns` — официальные справочники, `mt` — машинный перевод).
 
@@ -101,8 +101,14 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
 
 Рядом с названием доступны `tnved_unit` (дополнительная единица измерения, отделённая
 от текста названия) и `tnved_name_source`. Последний важен для интерпретации: `fts`/`fns` —
-официальное русское наименование, `mt` — машинный перевод названия из зарубежного
-источника, такие подписи не следует цитировать как официальные.
+официальное русское наименование, `manual` — выверенное вручную, `mt` — машинный перевод
+названия из зарубежного источника, такие подписи не следует цитировать как официальные.
+
+Для машинных названий есть две опоры. `tnved_name_official` — ближайшее наименование из
+официального справочника (для кода с машинной подписью на 10 знаках это будет официальный
+текст на 8, 6 или 4 знаках); `tnved_name_official_level` говорит, на каком уровне оно нашлось,
+то есть насколько огрубили. `tnved_name_en` — английский оригинал, из которого сделан перевод.
+В OData-фиде доступны `TNVED_NAME_OFFICIAL` и `TNVED_NAME_EN`; уровень — только в REST.
 
 **Пример.**
 ```
