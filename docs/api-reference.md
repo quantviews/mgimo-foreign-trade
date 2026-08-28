@@ -140,6 +140,6 @@ GET /v1/trade?strana=CN&napr=im&period_from=2024-01
 
 ## Дорожная карта
 
-Следующие фазы (см. [api-plan.md](api-plan.md)): личный кабинет в Superset и саморегистрация;
+Следующие фазы (см. [api-plan.md](api-plan.md)): личный кабинет в Superset (роль-допуск);
 keyset-cursor экспорт; enforcement квот/rate-limit и дашборд использования; эндпоинты fizob;
 OData-фид для BI; коммерческие тарифы и биллинг.

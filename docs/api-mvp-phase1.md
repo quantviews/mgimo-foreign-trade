@@ -8,15 +8,17 @@
 > [api-reference.md](api-reference.md). Готово: `/health`, `/v1/meta`, `/v1/reference/*`,
 > `/v1/trade` (JSON/CSV, агрегация+сырьё), Bearer+Basic, Postgres-стор
 > (plans/users/tokens/audit) + миграция + скрипты, аудит с `cost_units` — проверено
-> end-to-end на живом Postgres. Осталось: кабинет в Superset + саморегистрация,
-> keyset-cursor экспорт, enforcement квот/rate-limit.
+> end-to-end на живом Postgres, задеплоено на VPS. Осталось довести: кабинет в Superset
+> (роль-допуск, БЕЗ саморегистрации — см. `superset_cabinet/`), keyset-cursor экспорт,
+> enforcement квот/rate-limit.
 
 ## Границы Фазы 1
 
 **В объёме:** FastAPI поверх read-only DuckDB; статические токены (Bearer + Basic);
 эндпоинты `/v1/trade`, `/v1/reference/*`, `/v1/meta`, `/health`; аудит-лог с `cost_units`;
 таблицы `plans`/`api_users`/`api_tokens` (все на плане «pilot»); кабинет-страница в Superset;
-саморегистрация через Superset; инструкция Power Query.
+кабинет-страница в Superset (роль-допуск для существующих пользователей, без
+саморегистрации); инструкция Power Query.
 
 **НЕ в объёме (следующие фазы):** enforcement квот и rate-limit (пока только метрим);
 биллинг/оплата; OData-фид; эндпоинты fizob; админ-UI сверх само-сервиса.
