@@ -19,6 +19,8 @@ Prefect flow намеренно тонкий: бизнес-логика оста
 
 ```mermaid
 flowchart TD
+    A0["Comtrade collector"] --> A1["merge_comtrade_to_duckdb"]
+    A1 --> A
     A["Country processors"] --> B["Initial merge to DuckDB"]
     B --> C{"run_nowcast?"}
     C -- yes --> D["Rscript src/nowcast.R"]
@@ -259,6 +261,9 @@ python -c "from src.orchestration.checks import run_sql_quality_checks; print(ru
 ## Параметры flow
 
 - `process_china=False`, `process_india=False`, `process_turkey=False` — запуск страновых processors. По умолчанию выключены, чтобы не делать полный апдейт при каждом rebuild.
+- `collect_comtrade=False` — скачать недостающие месяцы Comtrade в `data_raw/comtrade_data/`. Ходит в сеть и расходует квоту API, поэтому выключено по умолчанию.
+- `refresh_comtrade=False` — вместе с `collect_comtrade` дополнительно перекачать страны, пересмотревшие отчётность за уже скачанные месяцы (см. ниже).
+- `rebuild_comtrade_db=None` — пересобрать `db/comtrade.db` из parquet. `None` означает «вместе со скачиванием»: если parquet обновились, а база осталась прежней, merge молча возьмёт старые данные.
 - `include_comtrade=True` — добавить Comtrade в merge.
 - `include_nowcast_in_merge=True` — включать `data_processed/nowcast/nowcast.parquet` в финальный merge.
 - `run_nowcast=False` — пересчитать nowcast через `Rscript src/nowcast.R`.
@@ -274,6 +279,46 @@ python -c "from src.orchestration.checks import run_sql_quality_checks; print(ru
 - `manifest_dir="data_processed/manifests"` — куда писать manifest. Flow создает timestamped JSON и обновляет `latest.json`.
 - `rscript="Rscript"` — команда запуска R.
 - `project_root=None` — корень проекта, по умолчанию определяется автоматически.
+
+## Comtrade и пересмотр отчётности
+
+Страны досылают и правят данные Comtrade годами: январь 2024 у Андорры впервые
+опубликован 26.02.2024, а последний раз — 03.08.2026. Поэтому месяц, однажды
+скачанный, нельзя считать готовым. Замер на текущих файлах проекта:
+
+| месяц | стран в файле | доступно сейчас | пересмотрели после загрузки |
+|---|---|---|---|
+| 2019-06 | 119 | 129 | 1 |
+| 2023-06 | 120 | 120 | 9 |
+| 2025-06 | 68 | 95 | 51 |
+| 2026-06 | 1 | 42 | — |
+
+Правило «перекачивать последние N месяцев» тут не работает: глубина пересмотра
+разная, а 2026-05 и 2026-06 были сохранены в момент, когда отчитались 7 стран и
+одна соответственно, и старый скрипт пропускал их навсегда как уже
+существующие файлы.
+
+`src/collectors/comtrade_collector.py` ведёт рядом с parquet манифест
+`_manifest.json`: какие страны попали в файл и какой у их выгрузки был
+`datasetChecksum`. Перед обновлением манифест сверяется со справочником
+доступности Comtrade — он публичный, ключа и квоты не требует. Перекачиваются
+только страны, у которых изменилась чек-сумма или которых в файле нет, и их
+строки замещаются в существующем parquet. Для файлов, скачанных до появления
+манифеста, признаком служит `lastReleased` позже времени модификации файла.
+
+```bash
+# что устарело — без ключа, без загрузки, без расхода квоты
+python src/collectors/comtrade_collector.py --check
+
+# догрузить недостающие месяцы
+python src/collectors/comtrade_collector.py
+
+# плюс перекачать пересмотренные страны
+python src/collectors/comtrade_collector.py --refresh
+```
+
+Ключ подписки читается из `COMTRADE_API_KEY` (окружение или `.env`). Текущий
+месяц не скачивается: файл за него сохранился бы частичным.
 
 ## Run Manifest
 

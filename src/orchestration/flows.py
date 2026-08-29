@@ -360,6 +360,9 @@ def mgimo_full_refresh(
     process_china: bool = False,
     process_india: bool = False,
     process_turkey: bool = False,
+    collect_comtrade: bool = False,
+    refresh_comtrade: bool = False,
+    rebuild_comtrade_db: bool | None = None,
     include_comtrade: bool = True,
     include_nowcast_in_merge: bool = True,
     run_nowcast: bool = False,
@@ -378,9 +381,9 @@ def mgimo_full_refresh(
 ) -> None:
     """Run the current end-to-end refresh using existing scripts.
 
-    Merge and quality checks are enabled by default. Country processing and
-    R-derived steps are opt-in because they are heavier and should be explicit
-    in routine refreshes.
+    Merge and quality checks are enabled by default. Country processing,
+    Comtrade collection and R-derived steps are opt-in because they are heavier
+    and should be explicit in routine refreshes.
     """
     root = str(Path(project_root) if project_root else PROJECT_ROOT)
     python = sys.executable
@@ -389,6 +392,9 @@ def mgimo_full_refresh(
         "process_china": process_china,
         "process_india": process_india,
         "process_turkey": process_turkey,
+        "collect_comtrade": collect_comtrade,
+        "refresh_comtrade": refresh_comtrade,
+        "rebuild_comtrade_db": rebuild_comtrade_db,
         "include_comtrade": include_comtrade,
         "include_nowcast_in_merge": include_nowcast_in_merge,
         "run_nowcast": run_nowcast,
@@ -435,6 +441,19 @@ def mgimo_full_refresh(
 
     if process_turkey:
         run_command([python, "src/collectors/turkey_processor.py", "--all"], project_root=root)
+
+    # Comtrade: скачивание месячных parquet и пересборка db/comtrade.db, который
+    # читает merge. Оба шага opt-in — первый ходит в сеть и тратит квоту API,
+    # второй перечитывает весь каталог parquet. Но если parquet обновились, а
+    # comtrade.db остался прежним, merge молча возьмёт старые данные, поэтому
+    # сборка включается вместе со скачиванием, если явно не сказано иное.
+    if collect_comtrade:
+        collect_command = [python, "src/collectors/comtrade_collector.py"]
+        if refresh_comtrade:
+            collect_command.append("--refresh")
+        run_command(collect_command, project_root=root)
+    if rebuild_comtrade_db or (rebuild_comtrade_db is None and collect_comtrade):
+        run_command([python, "src/merge_comtrade_to_duckdb.py"], project_root=root)
 
     # When nowcast is recomputed, build a fact-only base first so the R script
     # does not depend on a stale nowcast parquet from a previous run.
