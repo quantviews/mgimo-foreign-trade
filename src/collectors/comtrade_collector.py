@@ -399,11 +399,18 @@ def build_plan(
         if not available:
             continue
         mtime = datetime.fromtimestamp(target.stat().st_mtime)
-        present = set(
-            pd.read_parquet(target, columns=["reporterCode"])["reporterCode"].astype(str)
-        )
+        recorded = manifest.get(plan.name, {}).get("reporters")
+        # Если манифест по месяцу есть, он и есть список опрошенных стран.
+        # Содержимое parquet годится как замена только для файлов, скачанных до
+        # появления манифеста: там страна без торговли с Россией неотличима от
+        # неопрошенной, и её придётся спросить один раз.
+        present = None
+        if not recorded:
+            present = set(
+                pd.read_parquet(target, columns=["reporterCode"])["reporterCode"].astype(str)
+            )
         plan.new_reporters, plan.revised_reporters = stale_reporters(
-            available, manifest.get(plan.name, {}).get("reporters"), mtime, present
+            available, recorded, mtime, present
         )
         plan.reporters = plan.new_reporters + plan.revised_reporters
         if plan.reporters:
@@ -531,12 +538,15 @@ def collect(
         combined.to_parquet(target, index=False)
         if schema is None:
             schema = combined.dtypes
+        # Запоминаем всех, кого спрашивали, а не только тех, кто дал строки.
+        # Страна может отчитываться в Comtrade, не торгуя с Россией, — если её
+        # не записать, каждый следующий прогон будет спрашивать её заново.
+        recorded = dict(manifest.get(plan.name, {}).get("reporters") or {})
+        recorded.update({code: available[code] for code in wanted})
         manifest[plan.name] = {
             "downloaded_at": datetime.now().isoformat(timespec="seconds"),
             "rows": int(len(combined)),
-            "reporters": {code: available[code] for code in available if code in set(
-                combined["reporterCode"].astype(str)
-            )},
+            "reporters": dict(sorted(recorded.items())),
         }
         write_manifest(output_dir, manifest)
         logger.info("Сохранено %s: %d строк", target.name, len(combined))

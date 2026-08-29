@@ -106,6 +106,20 @@ class TestStaleReporters:
         assert new == ["398"]
         assert revised == []
 
+    def test_reporter_with_no_russia_trade_is_not_asked_again(self):
+        """Страна отчиталась в Comtrade, но не торгует с Россией.
+
+        Строк она не даёт и в parquet не попадает, зато остаётся в манифесте.
+        Иначе её пришлось бы запрашивать в каждом прогоне — постоянная утечка
+        суточной квоты.
+        """
+        recorded = {
+            "156": {"checksum": "aaa", "lastReleased": "2026-08-01T10:00:00"},
+            "398": {"checksum": "bbb", "lastReleased": "2026-08-02T10:00:00"},
+        }
+        # present_in_file не передаётся: манифест есть, он и есть список опрошенных
+        assert stale_reporters(self.available, recorded, None) == ([], [])
+
     def test_unchanged_reporter_is_left_alone(self):
         recorded = {
             "156": {"checksum": "aaa", "lastReleased": "2026-08-01T10:00:00"},

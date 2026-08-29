@@ -119,9 +119,12 @@ ORDER BY flowCode
 ## Структура данных
 
 ### Входные данные
-- **Формат:** Parquet файлы в директории `data_raw/comtrade_data/`
-- **Структура:** Стандартная схема данных Comtrade
+- **Формат:** Parquet файлы в директории `data_raw/comtrade_data/`, по одному на месяц (`YYYY-MM.parquet`)
+- **Структура:** Стандартная схема данных Comtrade (47 колонок, `includeDesc=False`)
 - **Объем:** Множественные файлы по годам/периодам
+- **Откуда берутся:** `src/collectors/comtrade_collector.py`, см. `docs/comtrade-collector-docs.md`.
+  Служебный `_manifest.json` в той же папке скриптом не читается — он нужен сборщику
+  для учёта пересмотров отчётности
 
 ### Выходные данные
 - **Формат:** DuckDB база данных
@@ -135,6 +138,17 @@ ORDER BY flowCode
 ```bash
 python src/merge_comtrade_to_duckdb.py
 ```
+
+Из оркестрации вызывается параметром `rebuild_comtrade_db` (по умолчанию `None` —
+«пересобрать, если в этом же прогоне скачивали данные»):
+
+```python
+from src.orchestration.flows import mgimo_full_refresh
+mgimo_full_refresh(collect_comtrade=True, refresh_comtrade=True)
+```
+
+Пересобирать нужно после каждого обновления parquet: свежие файлы при старой
+`comtrade.db` — тихий отказ, merge отработает и молча возьмёт прежние данные.
 
 ### Требования
 - Python 3.7+

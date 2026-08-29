@@ -40,6 +40,9 @@ uvicorn app.main:app --app-dir api --reload   # dev-режим, токен MGIMO
 
 - `docs/orchestration.md` — порядок полного refresh через Prefect 3, повторный merge после nowcast/fizob и SQL quality checks.
 - `docs/merge_processed_data-docs.md` — merge pipeline, DuckDB и CLI-аргументы.
+- `docs/comtrade-collector-docs.md` — загрузка данных UN Comtrade: ключ подписки, учёт
+  пересмотров отчётности, расход запросов на бесплатном тарифе. Сборка `db/comtrade.db`
+  из скачанных parquet — `docs/merge-comtrade-to-duckdb-docs.md`.
 - `docs/data_model.md` — целевая модель `unified_trade_data`, `SOURCE`/`TYPE`, nowcast ingest, справочники и fizob-таблицы.
 - `docs/documentation_fizob.md` — расчет индексов физических объемов; физобъемы считаются только по `TYPE = 'fact'`.
 - `docs/testing-docs.md` — запуск тестов и покрытые проверки.
