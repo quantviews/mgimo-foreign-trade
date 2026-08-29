@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-07-29T08:15:59+00:00",
+  "created_at": "2026-08-29T11:06:34+00:00",
   "db_path": "F:\\Yandex.Disk\\HSE\\mgimo-foreign_trade\\db\\unified_trade_data.duckdb",
   "table": "unified_trade_data",
   "total_rows": 7416603,
@@ -2208,6 +2208,6 @@
     "fizob_index": 39505770,
     "country_reference": 254,
     "hs4_reference": 1480,
-    "tnved_reference": 55210
+    "tnved_reference": 55278
   }
 }

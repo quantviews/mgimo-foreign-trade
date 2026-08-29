@@ -77,6 +77,16 @@ def slice_database(
 
         conn.execute("CREATE TABLE country_reference AS SELECT * FROM src.country_reference")
         conn.execute("CREATE TABLE tnved_reference AS SELECT * FROM src.tnved_reference")
+        # Обогащённое представление джойнит и hs4_reference — без неё срез
+        # не создаётся вовсе (Catalog Error на CREATE VIEW).
+        source_tables = {row[0] for row in conn.execute("SHOW TABLES FROM src").fetchall()}
+        if "hs4_reference" in source_tables:
+            conn.execute("CREATE TABLE hs4_reference AS SELECT * FROM src.hs4_reference")
+        else:
+            conn.execute(
+                "CREATE TABLE hs4_reference (TNVED4 VARCHAR, "
+                "TNVED4_NAME_SHORT VARCHAR, TNVED4_NAME_FULL VARCHAR)"
+            )
         logger.info(
             "Reference tables: country=%s, tnved=%s",
             conn.execute("SELECT COUNT(*) FROM country_reference").fetchone()[0],
