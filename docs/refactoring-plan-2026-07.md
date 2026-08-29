@@ -287,10 +287,15 @@ CLI/лог-хелперы общие; R валидирует свой выход
 сборка итогового датасета почти пусты.
 
 **Пробелы (проверено):** без тестов — `outlier_detection.py` (857 строк, прямо меняет
-данные), `orchestration/flows.py`, весь R-слой, коллекторы; частично — `checks.py`
+данные), `orchestration/flows.py`, весь R-слой, страновые коллекторы; частично — `checks.py`
 (не покрыты ветки null PERIOD, invalid TYPE/SOURCE, period min/max, `require_fizob`);
-не тестируются `load_and_transform_comtrade`, `transform_fizob_to_unified`,
-`build_merged_dataframe`, `append_comtrade_data`, `save_fizob_index`.
+не тестируются `load_and_transform_comtrade`, `build_merged_dataframe`,
+`append_comtrade_data`, `save_fizob_index`.
+
+*Обновление:* fizob-преобразование переписано в SQL (`build_fizob_select_sql`) и покрыто
+`tests/test_fizob_sql.py`; коллектор Comtrade покрыт `tests/test_comtrade_collector.py`.
+Само `save_fizob_index` по-прежнему без автотеста — эквивалентность старому результату
+проверялась разово, построчным `EXCEPT` на 39,5 млн строк.
 
 **Задачи (по убыванию отношения ценность/стоимость):**
 1. Дозакрыть ветки [`checks.py`](../src/orchestration/checks.py) — дёшево, высокая ценность.
@@ -298,7 +303,8 @@ CLI/лог-хелперы общие; R валидирует свой выход
    (сейчас `drop_nowcast_rows_superseded_by_facts` тестируется только изолированно; сквозной
    сценарий «pred заполняет дыру / pred вытесняется фактом другой пары» не покрыт).
 3. Тесты `outlier_detection.py` — самая рискованная непокрытая логика.
-4. Тесты `transform_fizob_to_unified` и comtrade-трансформации (маппинг единиц/стран).
+4. Тесты comtrade-трансформации `load_and_transform_comtrade` (маппинг единиц/стран).
+   Fizob-часть закрыта: преобразование выражено в SQL и покрыто тестами.
 5. Ввести pytest-маркеры `unit`/`integration` и измерение coverage в CI.
 6. Поднять `min_unified_rows` в quality-gate с дефолтного `1` до осмысленного порога.
 

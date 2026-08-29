@@ -50,10 +50,13 @@ python -m pip install -e .
 tests/
 ├── __init__.py
 ├── conftest.py
+├── test_comtrade_collector.py
+├── test_fizob_sql.py
 ├── test_merge_processed_data.py
 ├── test_nowcast_ingest.py
 ├── test_processor_contracts.py
-└── test_sql_quality_checks.py
+├── test_sql_quality_checks.py
+└── test_tnved_name_quality.py
 ```
 
 `tests/conftest.py` задает уникальный `basetemp` внутри `.pytest_tmp/` для каждого запуска. Это нужно, чтобы локальный запуск на Windows не зависел от недоступного системного каталога `%TEMP%\pytest-of-*`.
@@ -115,6 +118,39 @@ pytest tests/ -v -s --pdb
 - `TestSmokeCheckMergedDataset` проверяет smoke-check финального объединенного датасета.
 - `TestMergeCliPaths` проверяет CLI-аргумент `--output-db-path` и разрешение относительных/абсолютных путей DuckDB.
 
+### `test_fizob_sql.py`
+
+Проверяет приведение fizob-parquet к схеме `fizob_index` (`src/core/fizob.py`). Оно
+выражено в SQL, а не в pandas: 39,5 млн строк физобъёмов стоили около 8 ГБ памяти при
+том, что работы там на выбор колонок и константу уровня.
+
+- `TestSelectShape` — отображение колонок каждого уровня, приведение `PERIOD` к дате,
+  верхний регистр `STRANA`, нулевой уровень для `fizob_total`.
+- `TestSkipping` — файл неизвестного вида или с неполной схемой пропускается, а не роняет сборку.
+- `TestYearFilter` — фильтр `--start-year` и его отсутствие.
+- `TestAgainstRealParquet` — SQL исполняется на настоящем parquet, включая путь с апострофом.
+
+### `test_comtrade_collector.py`
+
+Проверяет планирование загрузки UN Comtrade (`src/collectors/comtrade_collector.py`),
+подробности — в `docs/comtrade-collector-docs.md`.
+
+- `TestPeriods` — текущий месяц не качается, границы диапазона, разбор `--period`.
+- `TestRequestBudget` — остановка по бюджету запросов на бесплатном тарифе.
+- `TestBatching` — разбиение стран на пачки для группового запроса.
+- `TestStaleReporters` — отбор к перекачке по `datasetChecksum`, страны без торговли с
+  Россией не запрашиваются повторно, откат на дату публикации для файлов без манифеста.
+- `TestSplice` — замещение строк отдельных стран в существующем файле.
+- `TestSchemaAlignment` — приведение месяца к схеме соседних файлов (иначе `UNION ALL`
+  при сборке `comtrade.db` падает на несовпадении типов).
+
+### `test_tnved_name_quality.py`
+
+Проверяет отбор машинных наименований ТН ВЭД, требующих повторного перевода
+(`scripts/find_suspicious_tnved_names.py`): признаки обрыва, смешения кириллицы с
+латиницей и бессодержательных названий, и то, что корректная официальная формулировка
+под них не попадает.
+
 ### `test_nowcast_ingest.py`
 
 Проверяет Python-ingest R-nowcast из `src/pipelines/nowcast_ingest.py`:
@@ -130,7 +166,9 @@ pytest tests/ -v -s --pdb
 - валидная база проходит проверки;
 - невалидный `NAPR` валит checks;
 - пересечение `TYPE='pred'` с фактом по `(PERIOD, STRANA, TNVED, NAPR)` валит checks;
-- отсутствие обязательных таблиц валит checks.
+- отсутствие обязательных таблиц валит checks;
+- машинное наименование ТН ВЭД со смешением кириллицы и латиницы внутри слова валит checks,
+  а такое же смешение в наименовании из справочника ФТС только считается метрикой.
 
 ### `test_processor_contracts.py`
 

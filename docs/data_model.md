@@ -59,6 +59,7 @@
   - `TNVED_NAME_OFFICIAL_LEVEL` (`INTEGER`) — на каком уровне оно нашлось, чтобы было видно,
     насколько огрубили. `NULL`, если официального наименования нет ни на одном уровне.
   - `TNVED_NAME_EN`, `TNVED_UNIT`, `TNVED_NAME_SOURCE` — оригинал, единица измерения и происхождение.
+  - `TNVED_TRANSLATED` (`BOOLEAN`) — то же, что `TNVED_NAME_SOURCE = 'mt'`, оставлено для совместимости.
 - Таблица `fizob_index` (если есть входные `fizob_*` parquet):
   - `STRANA` (`VARCHAR`)
   - `NAPR` (`VARCHAR`)
