@@ -60,9 +60,49 @@ DEFAULT_START_YEAR = 2019
 REQUEST_PAUSE_SECONDS = 3
 QUOTA_EXIT_CODE = 2
 
+# Оригинальный скрипт запрашивал каждую страну и каждый поток отдельно с
+# maxRecords=50000. API принимает списки и в reporterCode, и в flowCode, так что
+# одна пачка стран сразу по экспорту и импорту — это в разы меньше запросов, что
+# на бесплатном тарифе с суточным лимитом решающе.
+REPORTER_BATCH_SIZE = 8
+# 50 000 было не пределом сервера, а нашим параметром, и оно резало данные молча:
+# у Германии экспорт упирался ровно в 50 000 строк в 38 парах «страна-месяц»,
+# теряя по 7-11 тысяч записей. Ответ обрезается без признака в теле, поэтому
+# единственный способ заметить — сравнить длину ответа с запрошенным максимумом.
+MAX_RECORDS = 250_000
+
 
 class QuotaExceeded(RuntimeError):
     """Лимит запросов к API исчерпан — прогон прерывается до следующего раза."""
+
+
+class BudgetSpent(RuntimeError):
+    """Израсходован заданный на прогон бюджет запросов."""
+
+
+class RequestBudget:
+    """Счётчик обращений к платному эндпоинту.
+
+    Справочники партнёров и доступности публичные и сюда не считаются.
+    """
+
+    def __init__(self, limit: int | None):
+        self.limit = limit
+        self.spent = 0
+
+    def take(self) -> None:
+        if self.limit is not None and self.spent >= self.limit:
+            raise BudgetSpent(f"израсходован бюджет в {self.limit} запросов")
+        self.spent += 1
+
+    @property
+    def left(self) -> str:
+        return "без ограничения" if self.limit is None else str(self.limit - self.spent)
+
+
+def chunked(items: list[str], size: int) -> list[list[str]]:
+    """Режет список стран на пачки для группового запроса."""
+    return [items[i : i + size] for i in range(0, len(items), size)]
 
 
 @dataclass
@@ -246,36 +286,61 @@ def _is_quota_error(exc: Exception) -> bool:
     return "quota" in str(exc).lower()
 
 
-def fetch_reporter(api, key: str, period: str, reporter_id: str) -> list[pd.DataFrame]:
-    """Экспорт и импорт одной страны в торговле с Россией за месяц."""
-    frames = []
-    for flow_code in ("X", "M"):
-        try:
-            data = api.getFinalData(
-                key,
-                typeCode="C",
-                freqCode="M",
-                clCode="HS",
-                period=period,
-                reporterCode=reporter_id,
-                cmdCode="ALL",
-                flowCode=flow_code,
-                partnerCode=RUSSIA_M49,
-                partner2Code=None,
-                customsCode=None,
-                motCode=None,
-                maxRecords=50000,
-                includeDesc=False,
-            )
-        except Exception as exc:
-            if _is_quota_error(exc):
-                raise QuotaExceeded(f"квота исчерпана на репортёре {reporter_id} за {period}") from exc
-            logger.warning("  репортёр %s (%s): %s", reporter_id, flow_code, exc)
-            continue
-        if data is not None and not data.empty:
-            frames.append(data)
+def fetch_reporters(
+    api, key: str, period: str, codes: list[str], budget: RequestBudget
+) -> list[pd.DataFrame]:
+    """Экспорт и импорт пачки стран за месяц, одним запросом.
+
+    Если ответ упёрся в MAX_RECORDS, он обрезан — пачка делится пополам и
+    запрашивается заново. Пачку из одной страны делить некуда, и такой случай
+    остаётся в логе как предупреждение.
+    """
+    if not codes:
+        return []
+    budget.take()
+    try:
+        data = api.getFinalData(
+            key,
+            typeCode="C",
+            freqCode="M",
+            clCode="HS",
+            period=period,
+            reporterCode=",".join(codes),
+            cmdCode="ALL",
+            flowCode="X,M",
+            partnerCode=RUSSIA_M49,
+            partner2Code=None,
+            customsCode=None,
+            motCode=None,
+            maxRecords=MAX_RECORDS,
+            includeDesc=False,
+        )
+    except Exception as exc:
+        if _is_quota_error(exc):
+            raise QuotaExceeded(f"квота исчерпана на пачке из {len(codes)} стран за {period}") from exc
+        logger.warning("  пачка %s: %s", ",".join(codes), exc)
+        return []
+    finally:
         time.sleep(REQUEST_PAUSE_SECONDS)
-    return frames
+
+    if data is None or data.empty:
+        return []
+    if len(data) < MAX_RECORDS:
+        return [data]
+
+    if len(codes) == 1:
+        logger.warning(
+            "  страна %s за %s вернула %d строк — предел запроса, данные обрезаны",
+            codes[0],
+            period,
+            len(data),
+        )
+        return [data]
+    middle = len(codes) // 2
+    logger.info("  ответ упёрся в предел, делим пачку из %d стран пополам", len(codes))
+    return fetch_reporters(api, key, period, codes[:middle], budget) + fetch_reporters(
+        api, key, period, codes[middle:], budget
+    )
 
 
 def reference_schema(output_dir: Path) -> "pd.Series | None":
@@ -353,6 +418,8 @@ def collect(
     refresh: bool,
     check_only: bool,
     dry_run: bool,
+    max_requests: int | None = None,
+    batch_size: int = REPORTER_BATCH_SIZE,
     only_periods: list[tuple[int, int]] | None = None,
     today: date | None = None,
 ) -> int:
@@ -410,6 +477,12 @@ def collect(
 
     key = load_api_key(project_root)
     schema = reference_schema(output_dir)
+    budget = RequestBudget(max_requests)
+
+    # Сначала недостающие месяцы, затем самые свежие: на бесплатном тарифе
+    # прогон почти наверняка упрётся в лимит, и потратить его надо на то, что
+    # нужнее. Остальное доберётся следующими запусками.
+    plans.sort(key=lambda p: (not p.missing, -(p.year * 100 + p.month)))
 
     saved = 0
     for plan in plans:
@@ -421,17 +494,30 @@ def collect(
 
         candidates = reporter_ids if plan.missing else plan.reporters
         wanted = [code for code in candidates if code in available]
-        logger.info("Период %s: запрашиваем %d стран", plan.name, len(wanted))
+        batches = chunked(wanted, batch_size)
+        logger.info(
+            "Период %s: %d стран в %d запросах (бюджет: %s)",
+            plan.name,
+            len(wanted),
+            len(batches),
+            budget.left,
+        )
 
         frames: list[pd.DataFrame] = []
         try:
-            for code in wanted:
-                frames.extend(fetch_reporter(api, key, plan.code, code))
-        except QuotaExceeded as exc:
-            logger.error("%s. Запустите скрипт снова позже — он продолжит с этого места.", exc)
+            for batch in batches:
+                frames.extend(fetch_reporters(api, key, plan.code, batch, budget))
+        except (QuotaExceeded, BudgetSpent) as exc:
+            # Незаписанный месяц останется недостающим и догрузится следующим
+            # прогоном целиком — частично записать его нельзя, иначе он будет
+            # выглядеть готовым.
+            logger.error("%s. Следующий запуск продолжит с этого места.", exc)
             write_manifest(output_dir, manifest)
             raise
 
+        # Пустые ответы отбрасываем до склейки: pandas выводит по ним типы
+        # колонок и предупреждает, что поведение изменится.
+        frames = [frame for frame in frames if not frame.empty]
         fresh = align_schema(pd.concat(frames, ignore_index=True), schema) if frames else pd.DataFrame()
         if plan.missing:
             if fresh.empty:
@@ -455,6 +541,7 @@ def collect(
         write_manifest(output_dir, manifest)
         logger.info("Сохранено %s: %d строк", target.name, len(combined))
         saved += 1
+    logger.info("Запросов израсходовано: %d", budget.spent)
     return saved
 
 
@@ -479,6 +566,19 @@ def main(argv: list[str] | None = None) -> int:
         help="ограничиться указанным месяцем; можно повторять. Полезно, чтобы "
         "разбить первый большой --refresh на части по квоте",
     )
+    parser.add_argument(
+        "--max-requests",
+        type=int,
+        metavar="N",
+        help="остановиться, израсходовав N запросов к платному эндпоинту. "
+        "На бесплатном тарифе суточный лимит невелик, а прогон возобновляемый",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=REPORTER_BATCH_SIZE,
+        help=f"стран в одном запросе (по умолчанию {REPORTER_BATCH_SIZE})",
+    )
     parser.add_argument("--dry-run", action="store_true", help="показать план без загрузки")
     args = parser.parse_args(argv)
 
@@ -489,9 +589,11 @@ def main(argv: list[str] | None = None) -> int:
             refresh=args.refresh,
             check_only=args.check,
             dry_run=args.dry_run,
+            max_requests=args.max_requests,
+            batch_size=args.batch_size,
             only_periods=args.period,
         )
-    except QuotaExceeded:
+    except (QuotaExceeded, BudgetSpent):
         return QUOTA_EXIT_CODE
     return 0
 

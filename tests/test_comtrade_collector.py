@@ -8,7 +8,10 @@ import pandas as pd
 import pytest
 
 from collectors.comtrade_collector import (
+    BudgetSpent,
+    RequestBudget,
     align_schema,
+    chunked,
     availability_index,
     enumerate_periods,
     last_closed_month,
@@ -43,6 +46,40 @@ class TestPeriods:
     def test_bad_period_argument_is_rejected(self, value):
         with pytest.raises(argparse.ArgumentTypeError):
             parse_period(value)
+
+
+class TestRequestBudget:
+    """На бесплатном тарифе прогон почти всегда упирается в лимит."""
+
+    def test_budget_stops_at_the_limit(self):
+        budget = RequestBudget(2)
+        budget.take()
+        budget.take()
+        with pytest.raises(BudgetSpent):
+            budget.take()
+        assert budget.spent == 2
+
+    def test_no_limit_never_stops(self):
+        budget = RequestBudget(None)
+        for _ in range(50):
+            budget.take()
+        assert budget.left == "без ограничения"
+
+    def test_remaining_is_reported(self):
+        budget = RequestBudget(10)
+        budget.take()
+        assert budget.left == "9"
+
+
+class TestBatching:
+    def test_reporters_are_split_into_batches(self):
+        assert chunked(["1", "2", "3", "4", "5"], 2) == [["1", "2"], ["3", "4"], ["5"]]
+
+    def test_batch_larger_than_the_list_is_one_request(self):
+        assert chunked(["1", "2"], 8) == [["1", "2"]]
+
+    def test_empty_list_needs_no_requests(self):
+        assert chunked([], 8) == []
 
 
 class TestStaleReporters:
