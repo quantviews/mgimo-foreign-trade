@@ -178,7 +178,8 @@ STOIM, NETTO, KOL, TNVED2, TNVED4, TNVED6
 
 Он запускается:
 
-- на `push` в `main`, если менялись `src/**/*.py`, `tests/**/*.py`, `pyproject.toml` или сам workflow;
+- на `push` в `main`, если менялись `src/**/*.py`, `tests/**/*.py`, `scripts/**/*.py`,
+  `pyproject.toml`, `requirements.txt` или сам workflow;
 - на `pull_request` с такими же path-фильтрами;
 - вручную через `workflow_dispatch`.
 
@@ -189,6 +190,26 @@ Workflow использует:
 - `actions/setup-python@v5` с pip cache;
 - установку пакета через `pip install -e .` плюс минимальные test dependencies;
 - команду `pytest -q`.
+
+Test dependencies ставятся выборочно, но с `-c requirements.txt`: версии берутся из
+единственного источника, иначе pip тянет последние и CI ломается на мажорных релизах
+чужих пакетов. Так уже случалось с pandas 3, где строковые колонки получили отдельный
+dtype вместо `object`, и проверка `df["TNVED"].dtype == object` в
+`core/country_processor_contract.py` перестала проходить: 6 падений и 15 ошибок при
+полностью зелёном прогоне локально на pandas 2.
+
+**Проект пока не совместим с pandas 3** — версия закреплена ниже мажора и в
+`requirements.txt`, и в CI. Переход потребует отдельной ревизии проверок dtype и
+работы со строковыми колонками во всём пайплайне.
+
+Воспроизвести окружение CI локально:
+
+```bash
+python -m venv /tmp/civenv
+/tmp/civenv/bin/python -m pip install -e .
+/tmp/civenv/bin/python -m pip install -c requirements.txt pytest pandas numpy duckdb pyarrow beautifulsoup4
+/tmp/civenv/bin/python -m pytest -q
+```
 
 Quarto publish workflow остается отдельно в `.github/workflows/publish.yml` и не смешивается с Python ETL checks.
 
