@@ -151,3 +151,6 @@ Thumbs.db
 
 # API cabinet templates are source files, not generated site HTML
 !superset_cabinet/templates/*.html
+
+# Собранные из соседних .md вордовские файлы — в git не нужны
+docs/*.docx
