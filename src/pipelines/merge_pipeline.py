@@ -28,7 +28,7 @@ import pandas as pd
 from core.comtrade import load_and_transform_comtrade
 from core.duckdb_writer import save_to_duckdb
 from core.edizm import load_common_edizm_mapping
-from core.fizob import transform_fizob_to_unified
+from core.fizob import build_fizob_select_sql
 from core.normalization_rules import (
     add_tnved_columns,
     apply_special_edizm_cases,
@@ -163,26 +163,29 @@ def load_national_datasets(
     return national_datasets
 
 
-def load_fizob_index_rows(fizob_files: List[Path], start_year: int = None) -> List[pd.DataFrame]:
-    """Load fizob parquet files and transform them to unified fizob_index rows."""
-    fizob_index_rows = []
-    if not fizob_files:
-        return fizob_index_rows
+def build_fizob_statements(
+    conn: duckdb.DuckDBPyConnection, fizob_files: List[Path], start_year: int = None
+) -> List[str]:
+    """SELECT-выражения, приводящие fizob-файлы к схеме fizob_index.
 
-    logger.info("Loading fizob files for unified fizob_index table...")
+    Строки не поднимаются в Python: 39,5 млн строк физобъёмов стоили около 8 ГБ
+    памяти в pandas, тогда как работы там на выбор колонок и константу уровня.
+    Состав колонок читается из самого parquet, чтобы файл с неполной схемой
+    пропускался, а не ронял сборку.
+    """
+    statements = []
     for file_path in fizob_files:
-        file_stem = file_path.stem
-        df = load_and_validate_file(file_path, start_year=start_year)
-        if df is not None:
-            df_processed = generate_derived_columns(df)
-            if 'STRANA' in df_processed.columns:
-                df_processed['STRANA'] = df_processed['STRANA'].str.upper()
-            df_unified = transform_fizob_to_unified(df_processed, file_stem)
-            if not df_unified.empty:
-                fizob_index_rows.append(df_unified)
-                logger.info(f"Loaded {file_stem}: {len(df_unified)} rows -> fizob_index")
-
-    return fizob_index_rows
+        columns = [
+            row[0]
+            for row in conn.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('{file_path.resolve().as_posix()}')"
+            ).fetchall()
+        ]
+        sql = build_fizob_select_sql(file_path, file_path.stem, columns, start_year)
+        if sql:
+            statements.append(sql)
+            logger.info(f"  ... {file_path.name} -> fizob_index")
+    return statements
 
 
 def append_national_data(
@@ -306,37 +309,25 @@ def build_merged_dataframe(
     return merged_df
 
 
-def save_fizob_index(fizob_index_rows: List[pd.DataFrame], output_db_path: Path) -> None:
-    """Save unified fizob_index table and computed view."""
-    if not fizob_index_rows:
+def save_fizob_index(
+    fizob_files: List[Path], output_db_path: Path, start_year: int = None
+) -> None:
+    """Собрать fizob_index прямо из parquet и пересоздать вычисляемое представление."""
+    if not fizob_files:
         return
 
     logger.info("Saving unified fizob_index table...")
-    fizob_index_df = pd.concat(fizob_index_rows, ignore_index=True)
     conn = duckdb.connect(str(output_db_path))
     try:
-        chunk_size = 100000
-        first_chunk = fizob_index_df.iloc[:chunk_size]
-        conn.register('fizob_chunk_df', first_chunk)
-        conn.execute("""
-            CREATE OR REPLACE TABLE fizob_index AS
-            SELECT STRANA, NAPR, CAST(PERIOD AS DATE) AS PERIOD, tn_level, tn_code, fizob, fizob_bp
-            FROM fizob_chunk_df
-        """)
-        conn.unregister('fizob_chunk_df')
-        logger.info(f"  ... created fizob_index and inserted first {len(first_chunk):,} rows")
+        statements = build_fizob_statements(conn, fizob_files, start_year)
+        if not statements:
+            logger.warning("Ни один fizob-файл не подошёл по схеме, таблица не создана")
+            return
 
-        for i in range(chunk_size, len(fizob_index_df), chunk_size):
-            chunk = fizob_index_df.iloc[i:i + chunk_size]
-            conn.register('fizob_chunk_df', chunk)
-            conn.execute("""
-                INSERT INTO fizob_index
-                SELECT STRANA, NAPR, CAST(PERIOD AS DATE) AS PERIOD, tn_level, tn_code, fizob, fizob_bp
-                FROM fizob_chunk_df
-            """)
-            conn.unregister('fizob_chunk_df')
-            logger.info(f"  ... inserted {i + len(chunk):,} / {len(fizob_index_df):,} rows")
-
+        conn.execute(
+            "CREATE OR REPLACE TABLE fizob_index AS "
+            + " UNION ALL ".join(statements)
+        )
         result = conn.execute("SELECT COUNT(*) FROM fizob_index").fetchone()
         logger.info(f"  ... saved {result[0]:,} rows to fizob_index")
 
@@ -443,11 +434,9 @@ def run_merge_pipeline(args, paths: Dict[str, Path]) -> None:
         excluded_countries_upper,
         start_year=args.start_year,
     )
-    if args.include_fizob:
-        fizob_index_rows = load_fizob_index_rows(fizob_files, start_year=args.start_year)
-    else:
+    if not args.include_fizob:
         logger.info("Fizob disabled (--no-fizob); not loading fizob_*.parquet into fizob_index.")
-        fizob_index_rows = []
+        fizob_files = []
 
     all_dataframes = []
     national_countries_iso = append_national_data(all_dataframes, national_datasets)
@@ -482,7 +471,7 @@ def run_merge_pipeline(args, paths: Dict[str, Path]) -> None:
         return
 
     save_to_duckdb(merged_df, paths["output_db_path"])
-    save_fizob_index(fizob_index_rows, paths["output_db_path"])
+    save_fizob_index(fizob_files, paths["output_db_path"], start_year=args.start_year)
     create_reference_tables(paths["output_db_path"], paths["project_root"])
 
     logger.info("Data merge completed. To process outliers, run: python src/outlier_detection.py")

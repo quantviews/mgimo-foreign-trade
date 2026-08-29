@@ -32,7 +32,7 @@ from core.schema import (
     validate_schema,
 )
 from core.comtrade import load_and_transform_comtrade
-from core.fizob import transform_fizob_to_unified
+from core.fizob import build_fizob_select_sql
 from core.tnved import generate_derived_columns, load_tnved_mapping
 from pipelines.merge_pipeline import main
 from pipelines.nowcast_ingest import transform_nowcast_to_unified
@@ -60,7 +60,7 @@ __all__ = [
     "save_to_duckdb",
     "smoke_check_merged_dataset",
     "standardize_edizm_columns",
-    "transform_fizob_to_unified",
+    "build_fizob_select_sql",
     "transform_nowcast_to_unified",
     "validate_schema",
 ]

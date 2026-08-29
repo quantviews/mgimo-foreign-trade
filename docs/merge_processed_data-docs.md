@@ -44,7 +44,10 @@ Nowcast разделён на два явных слоя:
 *   `src/core/reference_tables.py` — загрузчики справочников (`load_tnved_mapping()`, `load_strana_mapping()`, `load_partner_mapping()`, `load_hs4_labels()`), `save_reference_tables()`, `refresh_hs4_reference*()` и `build_unified_trade_data_enriched_view_sql()`.
 *   `src/core/edizm.py` — `load_common_edizm_mapping()`, `load_edizm_mapping()` и реэкспорт normalize/resolve-функций.
 *   `src/core/comtrade.py` — `load_and_transform_comtrade()`.
-*   `src/core/fizob.py` — `transform_fizob_to_unified()`.
+*   `src/core/fizob.py` — `build_fizob_select_sql()`: приведение fizob-parquet к схеме
+    `fizob_index` выражено в SQL поверх `read_parquet`. Строки физобъёмов (39,5 млн)
+    не поднимаются в Python — в pandas они стоили около 8 ГБ памяти при том, что работы
+    там на выбор колонок и константу уровня.
 *   `src/core/tnved.py` — тонкий фасад над `normalization_rules` и `reference_tables`.
 *   `src/pipelines/nowcast_ingest.py` — Python-ingest R-nowcast: `transform_nowcast_to_unified()`, `append_nowcast_data()`, `drop_nowcast_rows_superseded_by_facts()`.
 
