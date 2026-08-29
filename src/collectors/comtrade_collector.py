@@ -106,6 +106,18 @@ def last_closed_month(today: date) -> tuple[int, int]:
     return (today.year - 1, 12) if today.month == 1 else (today.year, today.month - 1)
 
 
+def parse_period(value: str) -> tuple[int, int]:
+    """argparse type: месяц в виде YYYY-MM."""
+    try:
+        year, month = value.split("-")
+        year, month = int(year), int(month)
+        if not 1 <= month <= 12:
+            raise ValueError
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Ожидается месяц в виде YYYY-MM, получено {value!r}")
+    return year, month
+
+
 def enumerate_periods(start_year: int, end: tuple[int, int]) -> list[tuple[int, int]]:
     end_year, end_month = end
     periods: list[tuple[int, int]] = []
@@ -341,6 +353,7 @@ def collect(
     refresh: bool,
     check_only: bool,
     dry_run: bool,
+    only_periods: list[tuple[int, int]] | None = None,
     today: date | None = None,
 ) -> int:
     """Возвращает число записанных файлов."""
@@ -357,6 +370,15 @@ def collect(
     logger.info("Действующих репортёров в справочнике: %d", len(reporter_ids))
 
     periods = enumerate_periods(start_year, last_closed_month(today or date.today()))
+    if only_periods:
+        wanted_periods = set(only_periods)
+        skipped = wanted_periods - set(periods)
+        if skipped:
+            logger.warning(
+                "Вне диапазона и пропущены: %s",
+                ", ".join(f"{y}-{m:02d}" for y, m in sorted(skipped)),
+            )
+        periods = [p for p in periods if p in wanted_periods]
     plans = build_plan(
         api,
         output_dir=output_dir,
@@ -449,6 +471,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="только отчёт об устаревании: без ключа, без загрузки, без расхода квоты",
     )
+    parser.add_argument(
+        "--period",
+        type=parse_period,
+        action="append",
+        metavar="YYYY-MM",
+        help="ограничиться указанным месяцем; можно повторять. Полезно, чтобы "
+        "разбить первый большой --refresh на части по квоте",
+    )
     parser.add_argument("--dry-run", action="store_true", help="показать план без загрузки")
     args = parser.parse_args(argv)
 
@@ -459,6 +489,7 @@ def main(argv: list[str] | None = None) -> int:
             refresh=args.refresh,
             check_only=args.check,
             dry_run=args.dry_run,
+            only_periods=args.period,
         )
     except QuotaExceeded:
         return QUOTA_EXIT_CODE

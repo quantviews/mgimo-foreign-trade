@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Тесты сборщика данных Comtrade: план загрузки и учёт пересмотров."""
 
+import argparse
 from datetime import date, datetime
 
 import pandas as pd
@@ -11,6 +12,7 @@ from collectors.comtrade_collector import (
     availability_index,
     enumerate_periods,
     last_closed_month,
+    parse_period,
     period_file,
     splice_reporters,
     stale_reporters,
@@ -33,6 +35,14 @@ class TestPeriods:
 
     def test_file_name_matches_what_the_merge_reads(self, tmp_path):
         assert period_file(tmp_path, 2026, 6).name == "2026-06.parquet"
+
+    def test_period_argument_is_parsed(self):
+        assert parse_period("2026-06") == (2026, 6)
+
+    @pytest.mark.parametrize("value", ["2026-13", "2026", "июнь", "2026-00"])
+    def test_bad_period_argument_is_rejected(self, value):
+        with pytest.raises(argparse.ArgumentTypeError):
+            parse_period(value)
 
 
 class TestStaleReporters:
