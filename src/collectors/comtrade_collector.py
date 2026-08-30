@@ -228,18 +228,22 @@ def stale_reporters(
     файла — грубее, но не требует перекачивать всё ради первого прогона.
     """
     recorded = recorded or {}
-    present = present_in_file if present_in_file is not None else set(recorded)
+    present = present_in_file or set()
     new, revised = [], []
     for code, meta in available.items():
-        if code not in present:
-            new.append(code)
-            continue
         previous = recorded.get(code)
-        if previous is None:
+        if previous is not None:
+            if previous.get("checksum") != meta["checksum"]:
+                revised.append(code)
+        elif code in present:
+            # Страна есть в файле, но не в манифесте: либо файл старше манифеста,
+            # либо в прошлый прогон её проверили и не стали трогать, не записав.
+            # Судим по дате публикации, а не считаем страну новой — иначе
+            # каждый такой код качался бы заново.
             if _released_after(meta["lastReleased"], file_mtime):
                 revised.append(code)
-        elif previous.get("checksum") != meta["checksum"]:
-            revised.append(code)
+        else:
+            new.append(code)
     return sorted(new), sorted(revised)
 
 
@@ -399,18 +403,14 @@ def build_plan(
         if not available:
             continue
         mtime = datetime.fromtimestamp(target.stat().st_mtime)
-        recorded = manifest.get(plan.name, {}).get("reporters")
-        # Если манифест по месяцу есть, он и есть список опрошенных стран.
-        # Содержимое parquet годится как замена только для файлов, скачанных до
-        # появления манифеста: там страна без торговли с Россией неотличима от
-        # неопрошенной, и её придётся спросить один раз.
-        present = None
-        if not recorded:
-            present = set(
-                pd.read_parquet(target, columns=["reporterCode"])["reporterCode"].astype(str)
-            )
+        # Учитываем и манифест, и содержимое файла: манифест точнее (в нём есть
+        # чек-суммы и страны, не торговавшие с Россией), но он мог быть записан
+        # неполным, а данные в файле от этого не перестают быть свежими.
+        present = set(
+            pd.read_parquet(target, columns=["reporterCode"])["reporterCode"].astype(str)
+        )
         plan.new_reporters, plan.revised_reporters = stale_reporters(
-            available, recorded, mtime, present
+            available, manifest.get(plan.name, {}).get("reporters"), mtime, present
         )
         plan.reporters = plan.new_reporters + plan.revised_reporters
         if plan.reporters:
@@ -541,8 +541,20 @@ def collect(
         # Запоминаем всех, кого спрашивали, а не только тех, кто дал строки.
         # Страна может отчитываться в Comtrade, не торгуя с Россией, — если её
         # не записать, каждый следующий прогон будет спрашивать её заново.
+        # Пишем не только скачанные страны, но и те, что уже лежат в файле и в
+        # этом прогоне были проверены как актуальные: иначе следующий запуск не
+        # отличит «проверено и свежее» от «никогда не спрашивали».
+        present_after = (
+            set(combined["reporterCode"].astype(str)) if not combined.empty else set()
+        )
         recorded = dict(manifest.get(plan.name, {}).get("reporters") or {})
-        recorded.update({code: available[code] for code in wanted})
+        recorded.update(
+            {
+                code: meta
+                for code, meta in available.items()
+                if code in wanted or code in present_after
+            }
+        )
         manifest[plan.name] = {
             "downloaded_at": datetime.now().isoformat(timespec="seconds"),
             "rows": int(len(combined)),

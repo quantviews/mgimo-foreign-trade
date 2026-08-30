@@ -120,6 +120,25 @@ class TestStaleReporters:
         # present_in_file не передаётся: манифест есть, он и есть список опрошенных
         assert stale_reporters(self.available, recorded, None) == ([], [])
 
+    def test_reporter_in_file_but_missing_from_manifest_is_judged_by_date(self):
+        """Манифест может оказаться неполнее файла — это не повод качать заново.
+
+        Так вышло после первого обновления месяца: скачали 37 стран и записали
+        их, а ещё 45 были проверены, признаны свежими и остались в файле, но не
+        в манифесте. Считать их новыми — 126 лишних запросов на ровном месте.
+        """
+        recorded = {"156": {"checksum": "aaa", "lastReleased": "2026-08-01T10:00:00"}}
+        mtime = datetime(2026, 8, 30, 12, 0, 0)  # файл переписан сегодня
+        new, revised = stale_reporters(self.available, recorded, mtime, {"156", "398"})
+        assert new == []
+        assert revised == []
+
+    def test_reporter_in_file_revised_after_the_file_is_refetched(self):
+        recorded = {"156": {"checksum": "aaa", "lastReleased": "2026-08-01T10:00:00"}}
+        mtime = datetime(2026, 8, 1, 12, 0, 0)  # файл старше публикации 398
+        new, revised = stale_reporters(self.available, recorded, mtime, {"156", "398"})
+        assert (new, revised) == ([], ["398"])
+
     def test_unchanged_reporter_is_left_alone(self):
         recorded = {
             "156": {"checksum": "aaa", "lastReleased": "2026-08-01T10:00:00"},
