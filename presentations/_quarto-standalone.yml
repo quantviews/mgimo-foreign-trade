@@ -1,0 +1,15 @@
+# Универсальный профиль «один HTML-файл со всеми ресурсами».
+# В отличие от профиля dist не задаёт output-file, поэтому годится для любой
+# презентации в этой папке:
+#   quarto render presentations/dataviz-story.qmd --profile standalone
+#
+# chalkboard выключен: плагин несовместим с self-contained выводом.
+
+format:
+  revealjs:
+    embed-resources: true
+    chalkboard: false
+    html-math-method: plain
+
+execute:
+  freeze: false
