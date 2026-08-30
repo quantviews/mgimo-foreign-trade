@@ -58,6 +58,9 @@ OUTPUT_SUBDIR = Path("data_raw") / "comtrade_data"
 MANIFEST_NAME = "_manifest.json"
 DEFAULT_START_YEAR = 2019
 REQUEST_PAUSE_SECONDS = 3
+# Пауза после неудачного запроса: чаще всего это HTTP 429, и немедленный
+# повтор упрётся в тот же лимит.
+RETRY_PAUSE_SECONDS = 30
 QUOTA_EXIT_CODE = 2
 
 # Оригинальный скрипт запрашивал каждую страну и каждый поток отдельно с
@@ -65,11 +68,13 @@ QUOTA_EXIT_CODE = 2
 # одна пачка стран сразу по экспорту и импорту — это в разы меньше запросов, что
 # на бесплатном тарифе с суточным лимитом решающе.
 REPORTER_BATCH_SIZE = 8
-# 50 000 было не пределом сервера, а нашим параметром, и оно резало данные молча:
-# у Германии экспорт упирался ровно в 50 000 строк в 38 парах «страна-месяц»,
-# теряя по 7-11 тысяч записей. Ответ обрезается без признака в теле, поэтому
-# единственный способ заметить — сравнить длину ответа с запрошенным максимумом.
-MAX_RECORDS = 250_000
+# Потолок ответа. Это предел самого сервера: сколько ни проси в maxRecords,
+# больше 100 000 записей не отдаётся. Обрезка происходит молча — в теле нет
+# признака, поле count равно числу возвращённых строк, а лишние страны из пачки
+# просто отсутствуют в ответе. Значение обязано совпадать с настоящим потолком:
+# если поставить больше, проверка ниже никогда не сработает, и страны из пачки
+# будут молча терять уже сохранённые данные.
+MAX_RECORDS = 100_000
 
 
 class QuotaExceeded(RuntimeError):
@@ -291,16 +296,21 @@ def _is_quota_error(exc: Exception) -> bool:
 
 
 def fetch_reporters(
-    api, key: str, period: str, codes: list[str], budget: RequestBudget
-) -> list[pd.DataFrame]:
+    api, key: str, period: str, codes: list[str], budget: RequestBudget, flow: str = "X,M"
+) -> tuple[list[pd.DataFrame], set[str]]:
     """Экспорт и импорт пачки стран за месяц, одним запросом.
 
-    Если ответ упёрся в MAX_RECORDS, он обрезан — пачка делится пополам и
-    запрашивается заново. Пачку из одной страны делить некуда, и такой случай
-    остаётся в логе как предупреждение.
+    Если ответ упёрся в MAX_RECORDS, он обрезан: сервер отдаёт первые сто тысяч
+    строк, а остальные страны пачки в ответ просто не попадают. Тогда пачка
+    делится пополам и запрашивается заново. Пачку из одной страны делить уже
+    нечем, кроме как по направлениям, — так и делаем; если и один поток одной
+    страны не помещается, остаётся предупреждение в логе.
+    Возвращает данные и множество стран, по которым запрос не выполнился.
+    Различать это обязательно: библиотека на любой не-200 возвращает None, а на
+    честно пустой результат — пустой DataFrame.
     """
     if not codes:
-        return []
+        return [], set()
     budget.take()
     try:
         data = api.getFinalData(
@@ -311,7 +321,7 @@ def fetch_reporters(
             period=period,
             reporterCode=",".join(codes),
             cmdCode="ALL",
-            flowCode="X,M",
+            flowCode=flow,
             partnerCode=RUSSIA_M49,
             partner2Code=None,
             customsCode=None,
@@ -323,28 +333,46 @@ def fetch_reporters(
         if _is_quota_error(exc):
             raise QuotaExceeded(f"квота исчерпана на пачке из {len(codes)} стран за {period}") from exc
         logger.warning("  пачка %s: %s", ",".join(codes), exc)
-        return []
+        return [], set(codes)
     finally:
         time.sleep(REQUEST_PAUSE_SECONDS)
 
-    if data is None or data.empty:
-        return []
-    if len(data) < MAX_RECORDS:
-        return [data]
-
-    if len(codes) == 1:
+    if data is None:
+        # Не-200 от API, чаще всего HTTP 429. Данные этих стран остаются как
+        # есть: считать неудачу отсутствием торговли — значит стереть их.
         logger.warning(
-            "  страна %s за %s вернула %d строк — предел запроса, данные обрезаны",
-            codes[0],
+            "  запрос по %d странам за %s не выполнен, их данные не трогаем",
+            len(codes),
             period,
-            len(data),
         )
-        return [data]
-    middle = len(codes) // 2
-    logger.info("  ответ упёрся в предел, делим пачку из %d стран пополам", len(codes))
-    return fetch_reporters(api, key, period, codes[:middle], budget) + fetch_reporters(
-        api, key, period, codes[middle:], budget
+        time.sleep(RETRY_PAUSE_SECONDS)
+        return [], set(codes)
+    if data.empty:
+        return [], set()
+    if len(data) < MAX_RECORDS:
+        return [data], set()
+
+    if len(codes) > 1:
+        middle = len(codes) // 2
+        logger.info("  ответ упёрся в предел, делим пачку из %d стран пополам", len(codes))
+        left, left_failed = fetch_reporters(api, key, period, codes[:middle], budget, flow)
+        right, right_failed = fetch_reporters(api, key, period, codes[middle:], budget, flow)
+        return left + right, left_failed | right_failed
+
+    if flow == "X,M":
+        logger.info("  страна %s за %s не помещается целиком, делим по направлениям", codes[0], period)
+        exports, failed_x = fetch_reporters(api, key, period, codes, budget, "X")
+        imports, failed_m = fetch_reporters(api, key, period, codes, budget, "M")
+        return exports + imports, failed_x | failed_m
+
+    logger.warning(
+        "  страна %s за %s, поток %s: %d строк — предел ответа, данные обрезаны",
+        codes[0],
+        period,
+        flow,
+        len(data),
     )
+    return [data], set()
 
 
 def reference_schema(output_dir: Path) -> "pd.Series | None":
@@ -511,9 +539,12 @@ def collect(
         )
 
         frames: list[pd.DataFrame] = []
+        failed: set[str] = set()
         try:
             for batch in batches:
-                frames.extend(fetch_reporters(api, key, plan.code, batch, budget))
+                batch_frames, batch_failed = fetch_reporters(api, key, plan.code, batch, budget)
+                frames.extend(batch_frames)
+                failed |= batch_failed
         except (QuotaExceeded, BudgetSpent) as exc:
             # Незаписанный месяц останется недостающим и догрузится следующим
             # прогоном целиком — частично записать его нельзя, иначе он будет
@@ -532,8 +563,18 @@ def collect(
                 continue
             combined = fresh
         else:
+            # Замещаем строки только тех стран, по которым запрос состоялся.
+            # Иначе неудачный запрос выглядел бы как «страна отозвала отчёт» и
+            # стирал уже сохранённые данные.
+            fetched = [code for code in wanted if code not in failed]
+            if failed:
+                logger.warning(
+                    "Период %s: %d стран не опрошены, их строки сохранены без изменений",
+                    plan.name,
+                    len(failed),
+                )
             existing = pd.read_parquet(target)
-            combined = align_schema(splice_reporters(existing, fresh, wanted), schema)
+            combined = align_schema(splice_reporters(existing, fresh, fetched), schema)
 
         combined.to_parquet(target, index=False)
         if schema is None:
@@ -550,9 +591,9 @@ def collect(
         recorded = dict(manifest.get(plan.name, {}).get("reporters") or {})
         recorded.update(
             {
-                code: meta
+                code: dict(meta, present=code in present_after)
                 for code, meta in available.items()
-                if code in wanted or code in present_after
+                if (code in wanted and code not in failed) or code in present_after
             }
         )
         manifest[plan.name] = {

@@ -7,6 +7,7 @@ from datetime import date, datetime
 import pandas as pd
 import pytest
 
+from collectors import comtrade_collector
 from collectors.comtrade_collector import (
     BudgetSpent,
     RequestBudget,
@@ -168,6 +169,79 @@ class TestStaleReporters:
 
     def test_empty_availability_yields_nothing(self):
         assert availability_index(pd.DataFrame()) == {}
+
+
+class FakeApi:
+    """Заглушка Comtrade: отдаёт заранее заданные ответы по очереди."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def getFinalData(self, key, **kwargs):
+        self.calls.append(kwargs["reporterCode"])
+        return self.responses.pop(0)
+
+
+def rows(codes, n):
+    return pd.DataFrame({"reporterCode": [c for c in codes for _ in range(n)]})
+
+
+class TestFailedRequestsAreNotDataLoss:
+    """Не-200 от API нельзя принимать за «страна не торгует с Россией».
+
+    Библиотека на любой не-200 (обычно HTTP 429) возвращает None, а на честно
+    пустой результат — пустой DataFrame. Если их не различать, замещение строк
+    сотрёт уже сохранённые данные: так из файлов пропала Великобритания.
+    """
+
+    def test_none_response_marks_reporters_as_failed(self, monkeypatch):
+        monkeypatch.setattr(comtrade_collector.time, "sleep", lambda *_: None)
+        api = FakeApi([None])
+        frames, failed = comtrade_collector.fetch_reporters(
+            api, "k", "202001", ["826", "276"], RequestBudget(None)
+        )
+        assert frames == []
+        assert failed == {"826", "276"}
+
+    def test_empty_response_is_not_a_failure(self, monkeypatch):
+        monkeypatch.setattr(comtrade_collector.time, "sleep", lambda *_: None)
+        api = FakeApi([pd.DataFrame()])
+        frames, failed = comtrade_collector.fetch_reporters(
+            api, "k", "202001", ["500"], RequestBudget(None)
+        )
+        assert (frames, failed) == ([], set())
+
+    def test_capped_response_is_split_until_it_fits(self, monkeypatch):
+        """Сервер молча отдаёт первые 100 000 строк и роняет лишние страны."""
+        monkeypatch.setattr(comtrade_collector.time, "sleep", lambda *_: None)
+        capped = rows(["826", "276"], comtrade_collector.MAX_RECORDS // 2)
+        api = FakeApi([capped, rows(["826"], 10), rows(["276"], 10)])
+        frames, failed = comtrade_collector.fetch_reporters(
+            api, "k", "202001", ["826", "276"], RequestBudget(None)
+        )
+        assert failed == set()
+        assert len(api.calls) == 3
+        assert pd.concat(frames)["reporterCode"].nunique() == 2
+
+    def test_single_reporter_at_the_cap_is_split_by_flow(self, monkeypatch):
+        monkeypatch.setattr(comtrade_collector.time, "sleep", lambda *_: None)
+        api = FakeApi([rows(["276"], comtrade_collector.MAX_RECORDS),
+                       rows(["276"], 5), rows(["276"], 5)])
+        frames, failed = comtrade_collector.fetch_reporters(
+            api, "k", "202001", ["276"], RequestBudget(None)
+        )
+        assert failed == set()
+        assert [c for c in api.calls] == ["276", "276", "276"]
+
+    def test_failure_inside_a_split_propagates(self, monkeypatch):
+        monkeypatch.setattr(comtrade_collector.time, "sleep", lambda *_: None)
+        capped = rows(["826", "276"], comtrade_collector.MAX_RECORDS // 2)
+        api = FakeApi([capped, rows(["826"], 10), None])
+        frames, failed = comtrade_collector.fetch_reporters(
+            api, "k", "202001", ["826", "276"], RequestBudget(None)
+        )
+        assert failed == {"276"}
 
 
 class TestSplice:
