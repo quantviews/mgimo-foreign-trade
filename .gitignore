@@ -135,6 +135,8 @@ dist/
 # Local test data / generated artifacts
 *.parquet
 !site/data/*.parquet
+# кэш среза для презентации по визуализации (53 КБ, см. presentations/scripts/dataviz_cache.R)
+!presentations/figures/dataviz/*.parquet
 Rplots.pdf
 site/bulletin_print.pdf
 
