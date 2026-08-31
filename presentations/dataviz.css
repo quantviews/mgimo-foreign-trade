@@ -45,10 +45,10 @@
 /* Заключительная мысль слайда: отбита линейкой, без выделений цветом */
 .reveal .concl {
   font-size: 0.62em;
-  line-height: 1.55;
+  line-height: 1.5;
   color: #3d4a58;
-  margin-top: 1em;
-  padding-top: 0.55em;
+  margin-top: 0.85em;
+  padding-top: 0.5em;
   border-top: 1px solid #dde3ea;
   max-width: 58em;
 }
@@ -285,7 +285,7 @@
 }
 
 .reveal table.plain td {
-  padding: 0.45em 0.9em 0.45em 0;
+  padding: 0.4em 0.9em 0.4em 0;
   border-bottom: 1px solid #e9edf2;
   color: #46525f;
   vertical-align: top;
