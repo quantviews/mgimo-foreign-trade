@@ -1,0 +1,491 @@
+/* Стили презентации «Визуализация данных и бизнес-аналитика».
+   Оформление сведено к типографике: без карточек, рамок, заливок и теней.
+   Файл подключается только к этой презентации. */
+
+/* --- текст слайда ----------------------------------------------------- */
+.reveal .slides section > p,
+.reveal .slides section > ul,
+.reveal .slides section > ol,
+.reveal .slides section > .incremental > ul,
+.reveal .slides section > .incremental > ol {
+  font-size: 0.66em;
+  line-height: 1.5;
+}
+
+.reveal .slides section > ul,
+.reveal .slides section > ol,
+.reveal .slides section > .incremental > ul,
+.reveal .slides section > .incremental > ol {
+  margin-left: 0.9em;
+}
+
+.reveal .slides section > ol.numbered { font-size: 0.64em; margin-left: 0; }
+.reveal .slides section > ol.hang { font-size: 0.6em; margin-left: 0; }
+
+.reveal .slides section li {
+  margin-bottom: 0.5em;
+}
+
+.reveal .lead {
+  font-size: 0.72em;
+  line-height: 1.5;
+  color: #46525f;
+  margin: 0 0 0.8em;
+  max-width: 48em;
+}
+
+.reveal .note {
+  font-size: 0.56em;
+  line-height: 1.55;
+  color: #6b7684;
+  margin-top: 0.9em;
+  max-width: 62em;
+}
+
+/* Заключительная мысль слайда: отбита линейкой, без выделений цветом */
+.reveal .concl {
+  font-size: 0.62em;
+  line-height: 1.55;
+  color: #3d4a58;
+  margin-top: 1em;
+  padding-top: 0.55em;
+  border-top: 1px solid #dde3ea;
+  max-width: 58em;
+}
+
+/* --- колонки ---------------------------------------------------------- */
+.reveal .cols-2,
+.reveal .cols-3 {
+  display: grid;
+  gap: 0 2.4em;
+  margin-top: 0.6em;
+}
+
+.reveal .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.reveal .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.reveal .cols-2 > div,
+.reveal .cols-2 > section,
+.reveal .cols-3 > div,
+.reveal .cols-3 > section {
+  font-size: 0.58em;
+  line-height: 1.55;
+  color: #46525f;
+}
+
+.reveal .cols-2 p,
+.reveal .cols-3 p {
+  font-size: 1em;
+  margin: 0 0 0.55em;
+}
+
+.reveal .cols-2 ul,
+.reveal .cols-3 ul {
+  font-size: 1em;
+  margin: 0 0 0.55em 0.9em;
+}
+
+.reveal .cols-2 li,
+.reveal .cols-3 li {
+  margin-bottom: 0.3em;
+}
+
+/* Подзаголовок колонки — обычный текстовый, без рамок и линеек */
+.reveal .ch {
+  display: block;
+  font-weight: 700;
+  color: #003d7a;
+  margin-bottom: 0.15em;
+}
+
+/* --- ключевые числа --------------------------------------------------- */
+.reveal .facts {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 1.8em;
+  margin: 0.8em 0 0.3em;
+  align-items: start;
+}
+
+.reveal .facts > div {
+  border-top: 1px solid #cdd6df;
+  padding-top: 0.4em;
+}
+
+.reveal .facts .fig {
+  display: block;
+  font-family: "PT Serif", Georgia, serif;
+  font-size: 1em;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #003d7a;
+}
+
+.reveal .facts .cap {
+  display: block;
+  font-size: 0.43em;
+  line-height: 1.4;
+  color: #6b7684;
+  margin-top: 0.35em;
+}
+
+/* --- указатель шага --------------------------------------------------- */
+.reveal .steps {
+  font-size: 0.54em;
+  line-height: 1.4;
+  color: #9aa5b1;
+  margin: 0 0 1.1em;
+  padding-bottom: 0.45em;
+  border-bottom: 1px solid #dde3ea;
+}
+
+.reveal .steps .now {
+  color: #003d7a;
+  font-weight: 700;
+}
+
+/* --- нумерованные списки ---------------------------------------------- */
+.reveal ol.numbered {
+  line-height: 1.5;
+  list-style: none;
+  counter-reset: nm;
+}
+
+.reveal ol.numbered > li {
+  position: relative;
+  padding-left: 1.8em;
+  margin-bottom: 0.6em;
+  color: #46525f;
+}
+
+.reveal ol.numbered > li::before {
+  counter-increment: nm;
+  content: counter(nm) ".";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #97a2ae;
+}
+
+.reveal ol.numbered > li strong {
+  color: #003d7a;
+}
+
+.reveal ol.hang {
+  line-height: 1.5;
+  list-style: none;
+  counter-reset: hg;
+}
+
+.reveal ol.hang > li {
+  position: relative;
+  padding-left: 1.9em;
+  margin-bottom: 0.55em;
+  padding-bottom: 0.45em;
+  border-bottom: 1px solid #e9edf2;
+  color: #46525f;
+}
+
+.reveal ol.hang > li:last-child {
+  border-bottom: none;
+}
+
+.reveal ol.hang > li::before {
+  counter-increment: hg;
+  content: counter(hg) ".";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #97a2ae;
+}
+
+.reveal ol.hang > li strong {
+  display: block;
+  color: #003d7a;
+  margin-bottom: 0.1em;
+}
+
+.reveal ol.hang > li em {
+  font-style: normal;
+  font-weight: 400;
+  color: #8a95a3;
+}
+
+.reveal ol.hang.two {
+  column-count: 2;
+  column-gap: 2.6em;
+}
+
+.reveal ol.hang.two > li {
+  break-inside: avoid;
+}
+
+/* --- сопоставление «хуже / лучше» ------------------------------------- */
+.reveal .pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1.8em;
+  align-items: start;
+  margin-top: 0.2em;
+}
+
+.reveal .pair > div > p,
+.reveal .pair > section > p {
+  margin: 0;
+}
+
+.reveal .pair .lbl {
+  display: block;
+  font-size: 0.46em;
+  line-height: 1.4;
+  color: #6b7684;
+  padding-bottom: 0.28em;
+  margin-bottom: 0.35em;
+  border-bottom: 1px solid #cdd6df;
+}
+
+.reveal .pair .cap {
+  display: block;
+  font-size: 0.45em;
+  line-height: 1.5;
+  color: #6b7684;
+  margin-top: 0.4em;
+}
+
+.reveal .pair img,
+.reveal .pair svg {
+  width: 100%;
+  height: auto;
+  max-height: 44vh;
+}
+
+.reveal .solo img,
+.reveal .solo svg {
+  width: 100%;
+  height: auto;
+  max-height: 58vh;
+}
+
+/* --- таблицы ---------------------------------------------------------- */
+.reveal table.plain {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.58em;
+  line-height: 1.45;
+}
+
+.reveal table.plain th {
+  background: transparent !important;
+  color: #6b7684 !important;
+  font-weight: 400;
+  text-align: left;
+  padding: 0 0.9em 0.4em 0;
+  border-bottom: 1px solid #97a2ae;
+}
+
+.reveal table.plain td {
+  padding: 0.45em 0.9em 0.45em 0;
+  border-bottom: 1px solid #e9edf2;
+  color: #46525f;
+  vertical-align: top;
+}
+
+.reveal table.plain tbody tr:nth-child(even) {
+  background: transparent;
+}
+
+.reveal table.plain td:first-child {
+  color: #2c3e50;
+}
+
+.reveal table.raw {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.5em;
+  line-height: 1.45;
+}
+
+.reveal table.raw th {
+  background: transparent !important;
+  color: #8a95a3 !important;
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+  padding: 0 0.9em 0.35em 0;
+  border-bottom: 1px solid #b6c0cb;
+}
+
+.reveal table.raw td {
+  padding: 0.28em 0.9em 0.28em 0;
+  border-bottom: 1px solid #f1f4f7;
+  color: #46525f;
+  white-space: nowrap;
+}
+
+.reveal table.raw tbody tr:nth-child(even) {
+  background: transparent;
+}
+
+.reveal table.raw td.num {
+  text-align: right;
+}
+
+.reveal .src {
+  display: block;
+  font-size: 0.54em;
+  line-height: 1.55;
+  color: #6b7684;
+  margin-top: 0.75em;
+  max-width: 62em;
+}
+
+/* --- код: без подложки и рамки, только линейка слева ------------------ */
+.reveal div.sourceCode,
+.reveal div.sourceCode pre,
+.reveal pre,
+.reveal pre code,
+.reveal code {
+  background: none !important;
+  background-color: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.reveal div.sourceCode {
+  border: none !important;
+  border-left: 1px solid #cdd6df !important;
+  margin: 0.6em 0;
+  padding-left: 0.7em;
+}
+
+.reveal pre {
+  border: none;
+  margin: 0;
+}
+
+.reveal pre code {
+  padding-left: 0.9em;
+}
+
+.reveal code {
+  padding: 0;
+  color: #46525f;
+  letter-spacing: normal;
+}
+
+/* --- QR на ссылку проекта --------------------------------------------- */
+.reveal .qr-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.1em;
+}
+
+.reveal .qr-block img {
+  width: 5.4em;
+  height: 5.4em;
+  flex: none;
+}
+
+.reveal .qr-text {
+  font-size: 0.5em;
+  line-height: 1.5;
+  color: #6b7684;
+  padding-top: 0.2em;
+}
+
+.reveal .qr-text b {
+  display: block;
+  color: #003d7a;
+  margin-bottom: 0.2em;
+}
+
+.reveal .qr-text .url {
+  display: block;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.86em;
+  color: #46525f;
+  margin-top: 0.35em;
+  word-break: break-all;
+}
+
+/* финальный слайд: тёмный фон, поэтому QR получает белую подложку */
+.reveal .qr-block.qr-final {
+  justify-content: center;
+  align-items: center;
+  margin-top: 1.6em;
+}
+
+.reveal .qr-block.qr-final img {
+  background: #ffffff;
+  padding: 0.3em;
+  width: 6em;
+  height: 6em;
+}
+
+.reveal .qr-block.qr-final .qr-text {
+  color: rgba(255, 255, 255, 0.78);
+  padding-top: 0;
+  text-align: left;
+}
+
+.reveal .qr-block.qr-final .qr-text b {
+  color: #ffffff;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 0.92em;
+  letter-spacing: normal;
+}
+
+/* --- пример «код — результат» ----------------------------------------- */
+.reveal .demo {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 0 2em;
+  align-items: start;
+  margin-top: 0.4em;
+}
+
+.reveal .demo > div > p,
+.reveal .demo > section > p {
+  margin: 0;
+}
+
+.reveal .demo .lbl {
+  display: block;
+  font-size: 0.46em;
+  line-height: 1.4;
+  color: #6b7684;
+  padding-bottom: 0.28em;
+  margin-bottom: 0.45em;
+  border-bottom: 1px solid #cdd6df;
+}
+
+.reveal .demo div.sourceCode {
+  margin: 0;
+}
+
+.reveal .demo pre code {
+  font-size: 0.86em;
+}
+
+.reveal .demo table.plain {
+  font-size: 0.52em;
+}
+
+.reveal .demo table.plain td {
+  padding: 0.3em 0.8em 0.3em 0;
+}
+
+.reveal .demo img,
+.reveal .demo svg {
+  width: 100%;
+  height: auto;
+  max-height: 40vh;
+}
+
+/* pandoc заворачивает многострочный HTML внутри div в <p>, из-за чего
+   дочерние элементы перестают быть элементами grid */
+.reveal .facts > p {
+  display: contents;
+}

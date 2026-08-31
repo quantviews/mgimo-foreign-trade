@@ -4,6 +4,7 @@ project:
   resources:
     - figures/bulletin/**
     - figures/nowcast.svg
+    - figures/dataviz/**
     - fonts/**
 
 lang: ru
