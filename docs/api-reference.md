@@ -48,10 +48,12 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
   "metrics": ["kol","netto","stoim"],
   "default_metrics": ["stoim","netto"],
   "include": ["country_name","tnved2_name","tnved4_name","tnved6_name","tnved_name","tnved_name_official","tnved_name_official_level","tnved_name_en","tnved_unit","tnved_name_source","tnved_translated"],
-  "plan": {"code":"pilot","max_rows":1000000},
-  "usage": {"requests_this_month": 42}
+  "plan": {"code":"pilot","max_rows":1000000,"monthly_quota":null,"rate_limit_per_min":120},
+  "usage": {"requests_this_month": 42},
+  "limits": {"monthly_quota":null,"rate_limit_per_min":120,"requests_this_month":42,"remaining":null}
 }
 ```
+Блок `limits` показывает лимиты вашего плана и остаток (`remaining` = `monthly_quota − requests_this_month`; `null` — если квота без лимита).
 
 ### `GET /v1/reference/countries`
 Справочник стран для фильтров/выпадашек: `[{"strana":"CN","country_name":"Китай"}, ...]`.
@@ -133,12 +135,32 @@ GET /v1/trade?strana=CN&napr=im&period_from=2024-01
 - Ошибки — `application/problem+json` (RFC 7807):
   `{"type":"about:blank","title":"...","status":400,"detail":"..."}`.
 - `401` — нет/неверный токен; `400` — некорректные параметры (напр. `kol` без `edizm`).
+- `429` — превышен лимит плана (частота или месячная квота); ответ содержит заголовок
+  `Retry-After` (секунды до следующей попытки). См. раздел «Лимиты и тарифы».
 
-## Лимиты (пилот)
+## Лимиты и тарифы
 
-- `limit` ограничен `plan.max_rows` (на пилоте — щедро). Полная выгрузка больших объёмов —
-  постранично; в будущем объём/страницы ограничиваются тарифом.
-- Технический rate-limit и таймаут запроса защищают сервис (не тарифная квота).
+У каждого пользователя есть **план** (`plan` в `/v1/meta`) с тремя ручками; enforcement
+включён (`NULL` = без лимита):
+
+| Ручка | Что ограничивает | Нарушение |
+|---|---|---|
+| `max_rows` | размер одной страницы (`limit ≤ max_rows`) | `limit` молча урезается до `max_rows` |
+| `rate_limit_per_min` | запросов в минуту | `429` + `Retry-After: 60` |
+| `monthly_quota` | запросов за календарный месяц | `429` + `Retry-After: 3600` |
+
+Текущие тарифы (в `api.plans`, меняются данными без деплоя):
+
+| План | rate/мин | квота/мес | max_rows |
+|---|---|---|---|
+| `pilot` | 120 | ∞ (NULL) | 1 000 000 |
+| `free` | 30 | 5 000 | 50 000 |
+| `pro` | 120 | 100 000 | 1 000 000 |
+
+Остаток месячной квоты виден в `/v1/meta` → `limits.remaining`. Счётчики — в Redis; при
+недоступности Redis лимиты **не применяются** (fail-open, сервис не блокируется). Полная
+выгрузка больших объёмов — постранично (`limit` + `offset`; keyset-курсор — в планах),
+суммарный объём упирается в месячную квоту плана.
 
 ## Excel (Power Query) — пошагово
 
@@ -165,6 +187,12 @@ GET /v1/trade?strana=CN&napr=im&period_from=2024-01
 → Basic-auth (токен) → выбрать `trade` → фильтровать мышкой в редакторе (фолдится в `$filter`) →
 загрузить. Обновление — «Обновить всё».
 
+**Поддержка `$filter`** (подмножество OData v4): сравнения `eq`, `ne`, `gt`, `ge`, `lt`, `le`;
+логические `and`, `or`; скобки. Значения — строки в одинарных кавычках (`'CN'`), числа,
+даты (`2024-01-01`). Поля — из схемы сущности (`STRANA`, `PERIOD`, `NAPR`, `TNVED*`, `STOIM`
+и т.д.). Функции (`contains`, `startswith`) пока не поддержаны. Другие опции: `$select`
+(колонки), `$orderby` (`PERIOD desc`), `$top`/`$skip` (страница), `$count=true` (счётчик).
+
 Пример прямого запроса:
 ```
 GET /odata/trade?$filter=STRANA eq 'CN' and PERIOD ge 2024-01-01&$select=PERIOD,TNVED2,STOIM&$top=1000
@@ -177,6 +205,8 @@ GET /odata/trade?$filter=STRANA eq 'CN' and PERIOD ge 2024-01-01&$select=PERIOD,
 
 ## Дорожная карта
 
-Следующие фазы (см. [api-plan.md](api-plan.md)): личный кабинет в Superset (роль-допуск);
-keyset-cursor экспорт; enforcement квот/rate-limit и дашборд использования; эндпоинты fizob;
-OData-фид для BI; коммерческие тарифы и биллинг.
+Готово и в проде: `/v1/trade`, `/v1/reference/*`, OData-фид, кабинет в Superset (роль-допуск),
+аудит + админ-дашборд использования, enforcement квот/rate-limit.
+
+Осталось (см. [api-plan.md](api-plan.md)): keyset-cursor экспорт; эндпоинты fizob и проверка
+`scopes`; таймаут запроса; TLS + домен (сейчас HTTP); коммерческие тарифы и биллинг.
