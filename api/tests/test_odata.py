@@ -57,7 +57,23 @@ def test_build_query_select_orderby_paging():
 def test_metadata_is_valid_xml_with_entityset():
     root = ET.fromstring(odata.metadata_xml())
     assert root.tag.endswith("Edmx")
-    assert "trade" in odata.metadata_xml()
+    xml = odata.metadata_xml()
+    assert "trade" in xml and "fizob" in xml  # both entity sets described
+
+
+def test_build_fizob_query_derived_and_filter():
+    sql, params, cols = odata.build_query(
+        odata.FIZOB, filter_expr="STRANA eq 'CN' and tn_level eq 2",
+        select="STRANA,tn_name,idx", orderby=None, top=10, skip=0,
+    )
+    assert cols == ["STRANA", "tn_name", "idx"]
+    assert "AS tn_name" in sql  # derived CASE property is aliased
+    assert "FROM fizob_enriched" in sql
+    assert params == ["CN", 2]
+
+    with pytest.raises(odata.ODataError):  # trade-only field is rejected on fizob
+        odata.build_query(odata.FIZOB, filter_expr="TNVED eq '01'",
+                          select=None, orderby=None, top=10, skip=0)
 
 
 # --- smoke against the real DuckDB -----------------------------------------
@@ -85,3 +101,22 @@ def test_entityset_top_filter_count():
         r = c.get("/odata/trade", headers=H, params={"$top": 2, "$count": "true"})
         assert r.json()["@odata.count"] > 0
         assert "@odata.nextLink" in r.json()
+
+
+def test_service_lists_fizob():
+    with TestClient(app) as c:
+        names = {e["name"] for e in c.get("/odata/", headers=H).json()["value"]}
+        assert {"trade", "fizob"} <= names
+
+
+def test_fizob_entityset_filter_and_derived_name():
+    with TestClient(app) as c:
+        r = c.get("/odata/fizob", headers=H,
+                  params={"$filter": "STRANA eq 'CN' and tn_level eq 2", "$top": 3})
+        assert r.status_code == 200
+        j = r.json()
+        assert len(j["value"]) <= 3
+        if j["value"]:
+            row = j["value"][0]
+            assert row["STRANA"] == "CN" and row["tn_level"] == 2
+            assert "idx" in row and "tn_name" in row and "Id" in row

@@ -198,15 +198,19 @@ GET /v1/trade?strana=CN&napr=im&period_from=2024-01
 ## OData-фид (Excel / Power BI)
 
 Нативный доступ для BI без формул — «Из веб-канала OData»:
-- Сервис: `GET /odata/` · схема: `GET /odata/$metadata` · данные: `GET /odata/trade`.
-- Сущность `trade` = строки торговли **с названиями ТНВЭД** (`TNVED_NAME`, `TNVED2_NAME`,
-  `TNVED4_NAME` рядом с кодами; страна — кодом). Поддержаны `$filter`, `$select`, `$orderby`,
-  `$top`, `$skip`, `$count`, серверная пагинация (`@odata.nextLink`).
+- Сервис: `GET /odata/` · схема: `GET /odata/$metadata`. **Два entity set:**
+  - `GET /odata/trade` — строки торговли **с названиями ТНВЭД** (`TNVED_NAME`, `TNVED2_NAME`,
+    `TNVED4_NAME` рядом с кодами; страна — кодом).
+  - `GET /odata/fizob` — индексы физического объёма из `fizob_enriched`
+    (`STRANA, NAPR, PERIOD, tn_level, tn_code, tn_name, fizob, fizob_bp, idx`; `tn_name` —
+    название для уровней 2/4).
+- У обоих: `$filter`, `$select`, `$orderby`, `$top`, `$skip`, `$count`, серверная пагинация
+  (`@odata.nextLink`). Поля `$filter`/`$select` — из схемы **своей** сущности.
 - Авторизация — тот же токен (Basic: имя любое, пароль = токен).
 
 **Excel:** Данные → Получить данные → **Из веб-канала OData** → URL `http://<host>:8090/odata/`
-→ Basic-auth (токен) → выбрать `trade` → фильтровать мышкой в редакторе (фолдится в `$filter`) →
-загрузить. Обновление — «Обновить всё».
+→ Basic-auth (токен) → выбрать `trade` или `fizob` → фильтровать мышкой в редакторе (фолдится
+в `$filter`) → загрузить. Обновление — «Обновить всё».
 
 **Поддержка `$filter`** (подмножество OData v4): сравнения `eq`, `ne`, `gt`, `ge`, `lt`, `le`;
 логические `and`, `or`; скобки. Значения — строки в одинарных кавычках (`'CN'`), числа,
@@ -214,9 +218,10 @@ GET /v1/trade?strana=CN&napr=im&period_from=2024-01
 и т.д.). Функции (`contains`, `startswith`) пока не поддержаны. Другие опции: `$select`
 (колонки), `$orderby` (`PERIOD desc`), `$top`/`$skip` (страница), `$count=true` (счётчик).
 
-Пример прямого запроса:
+Примеры прямых запросов:
 ```
 GET /odata/trade?$filter=STRANA eq 'CN' and PERIOD ge 2024-01-01&$select=PERIOD,TNVED2,STOIM&$top=1000
+GET /odata/fizob?$filter=STRANA eq 'CN' and tn_level eq 4&$select=PERIOD,tn_code,idx&$top=1000
 ```
 
 ## Доступ из Python и R

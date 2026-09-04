@@ -38,6 +38,48 @@ def metadata(user: dict = Depends(authenticate)) -> Response:
     )
 
 
+def _entityset(
+    entity: odata.Entity, request: Request, user: dict,
+    filter_, select, orderby, top, skip, count,
+) -> JSONResponse:
+    """Serve one OData entity set (shared by trade and fizob)."""
+    max_rows = int(user.get("plan", {}).get("max_rows", settings.max_page_rows))
+    page = min(top or odata.DEFAULT_PAGE, max_rows)
+
+    try:
+        sql, params, cols = odata.build_query(
+            entity, filter_expr=filter_, select=select, orderby=orderby, top=page, skip=skip
+        )
+        columns, rows = db.run_query(sql, params)
+    except odata.ODataError as e:
+        raise HTTPException(400, str(e))
+
+    has_more = len(rows) > page
+    rows = rows[:page]
+    request.state.rows_returned = len(rows)
+
+    value = []
+    for i, r in enumerate(rows):
+        rec = {"Id": skip + i + 1}
+        rec.update({c: _jsonable(v) for c, v in zip(columns, r)})
+        value.append(rec)
+
+    base = _base(request)
+    body: dict = {"@odata.context": f"{base}/odata/$metadata#{entity.name}", "value": value}
+
+    if (count or "").lower() == "true":
+        csql, cparams = odata.count_query(entity, filter_)
+        _, crows = db.run_query(csql, cparams)
+        body["@odata.count"] = crows[0][0]
+
+    if has_more:
+        q = dict(request.query_params)
+        q["$skip"] = str(skip + page)
+        body["@odata.nextLink"] = f"{base}/odata/{entity.name}?{urlencode(q)}"
+
+    return JSONResponse(body, headers=_ODATA_HEADERS)
+
+
 @router.get("/odata/trade")
 def trade_entityset(
     request: Request,
@@ -49,38 +91,18 @@ def trade_entityset(
     skip: int = Query(0, alias="$skip", ge=0),
     count: str | None = Query(None, alias="$count"),
 ) -> JSONResponse:
-    max_rows = int(user.get("plan", {}).get("max_rows", settings.max_page_rows))
-    page = min(top or odata.DEFAULT_PAGE, max_rows)
+    return _entityset(odata.TRADE, request, user, filter_, select, orderby, top, skip, count)
 
-    try:
-        sql, params, cols = odata.build_trade_query(
-            filter_expr=filter_, select=select, orderby=orderby, top=page, skip=skip
-        )
-        columns, rows = db.run_query(sql, params)
-    except odata.ODataError as e:
-        raise HTTPException(400, str(e))
 
-    has_more = len(rows) > page
-    rows = rows[:page]
-    request.state.rows_returned = len(rows)
-
-    value = []
-    for idx, r in enumerate(rows):
-        rec = {"Id": skip + idx + 1}
-        rec.update({c: _jsonable(v) for c, v in zip(columns, r)})
-        value.append(rec)
-
-    base = _base(request)
-    body: dict = {"@odata.context": f"{base}/odata/$metadata#trade", "value": value}
-
-    if (count or "").lower() == "true":
-        csql, cparams = odata.count_query(filter_)
-        _, crows = db.run_query(csql, cparams)
-        body["@odata.count"] = crows[0][0]
-
-    if has_more:
-        q = dict(request.query_params)
-        q["$skip"] = str(skip + page)
-        body["@odata.nextLink"] = f"{base}/odata/trade?{urlencode(q)}"
-
-    return JSONResponse(body, headers=_ODATA_HEADERS)
+@router.get("/odata/fizob")
+def fizob_entityset(
+    request: Request,
+    user: dict = Depends(authenticate),
+    filter_: str | None = Query(None, alias="$filter"),
+    select: str | None = Query(None, alias="$select"),
+    orderby: str | None = Query(None, alias="$orderby"),
+    top: int | None = Query(None, alias="$top", ge=1),
+    skip: int = Query(0, alias="$skip", ge=0),
+    count: str | None = Query(None, alias="$count"),
+) -> JSONResponse:
+    return _entityset(odata.FIZOB, request, user, filter_, select, orderby, top, skip, count)
