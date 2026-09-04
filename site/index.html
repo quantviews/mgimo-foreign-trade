@@ -39,7 +39,7 @@ ul.task-list li input[type="checkbox"] {
 <link href="../site_libs/quarto-html/quarto-syntax-highlighting-c8ad9e5dbd60b7b70b38521ab19b7da4.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-0943ece527619acfe8f03f7f3b295170.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-d1bce158d0d79371b334349885a5e466.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -354,24 +354,81 @@ flowchart LR
 <p><strong>Отчёты под задачу</strong> Excel-файлы в вашей структуре с автоматическим обновлением, включая специальные показатели и индексы физических объёмов.</p>
 </div>
 <div class="feature-card accent">
-<p><strong>Доступ по API</strong> Данные напрямую в Excel или Power BI по стандартному протоколу OData: выбираете страны, товары и период — таблица подтягивается и обновляется одной кнопкой, без ручных выгрузок. Личный ключ доступа выдаётся в личном кабинете; тарифы — по объёму запросов.</p>
+<p><strong>Доступ по API</strong> Данные напрямую в Excel, Power BI или ваши скрипты — без ручных выгрузок. Подробнее в разделе ниже.</p>
 </div>
 </div>
 </section>
-<section id="доступ-по-api-данные-сразу-в-ваших-инструментах" class="level2">
-<h2 class="anchored" data-anchor-id="доступ-по-api-данные-сразу-в-ваших-инструментах">Доступ по API — данные сразу в ваших инструментах</h2>
-<p>Для регулярной работы и автоматизации есть программный доступ: данные забираются прямо в Excel, Power BI или собственные скрипты — без ручных выгрузок и копирования.</p>
+<section id="доступ-по-api" class="level2">
+<h2 class="anchored" data-anchor-id="доступ-по-api">Доступ по API</h2>
+<p>Для регулярной работы данные можно забирать программно: они приходят прямо в Excel, Power BI или ваши скрипты, обновляются по кнопке и не требуют ручных выгрузок. Доступ работает по персональному ключу.</p>
+<section id="две-таблицы" class="level3">
+<h3 class="anchored" data-anchor-id="две-таблицы">Две таблицы</h3>
 <div class="feature-grid">
 <div class="feature-card">
-<p><strong>Нативно в Excel и BI</strong> Подключение по стандарту OData: в Excel — «Из веб-канала OData», фильтры по странам, товарам и периодам ставятся мышкой, обновление — кнопкой «Обновить всё». Коды ТН ВЭД сразу с русскими названиями.</p>
+<p><strong>Торговля</strong> Строки внешней торговли: период, страна-партнёр, код ТН ВЭД, направление, стоимость в долларах, вес нетто в килограммах и количество в дополнительной единице. Рядом с кодами — русские названия товаров, поэтому вести собственный справочник ТН ВЭД не нужно. <span class="chip">стоимость · вес · количество</span></p>
 </div>
 <div class="feature-card">
-<p><strong>Личный кабинет и ключ</strong> Каждый пользователь получает персональный ключ доступа в личном кабинете и сам управляет им. Доступ выдаётся администратором по ролям.</p>
+<p><strong>Индексы физических объёмов</strong> Динамика натуральных объёмов, очищенная от изменения цен, на уровнях 2, 4 и 6 знаков ТН ВЭД и в целом по стране. Показателя в таком виде нет ни в TradeMap, ни в UN Comtrade. <span class="chip">по странам и товарным группам</span></p>
+</div>
+</div>
+<p>У каждой строки сохраняется источник и признак «факт или модельная оценка», поэтому оперативный прогноз всегда можно отделить от отчётных данных.</p>
+</section>
+<section id="подключение-в-excel-три-шага-без-программирования" class="level3">
+<h3 class="anchored" data-anchor-id="подключение-в-excel-три-шага-без-программирования">Подключение в Excel — три шага, без программирования</h3>
+<div class="cta-steps">
+<div class="cta-step">
+<span class="cta-num">1</span> <strong>Получить ключ</strong>
+<p>
+В личном кабинете нажать «Выпустить токен». Ключ личный и показывается один раз; при утере перевыпускается там же.
+</p>
+</div>
+<div class="cta-step">
+<span class="cta-num">2</span> <strong>Подключить источник</strong>
+<p>
+Данные → Получить данные → Из других источников → «Из веб-канала OData». В окне входа выбрать «Основной»: имя любое, пароль — ваш ключ.
+</p>
+</div>
+<div class="cta-step">
+<span class="cta-num">3</span> <strong>Отфильтровать и загрузить</strong>
+<p>
+Выбрать таблицу, поставить фильтры по стране, периоду и товару мышкой и нажать «Закрыть и загрузить».
+</p>
+</div>
+</div>
+<p>Дальше это обычная таблица Excel: поверх неё работают сводные таблицы и графики, а кнопка «Обновить всё» подтягивает свежие данные по тем же фильтрам. Отбор выполняется на нашей стороне, поэтому в файл приезжает только нужный срез, а не вся база. Полная инструкция со скриншотами — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-excel-guide.md">в документации проекта</a>.</p>
+</section>
+<section id="для-разработчиков" class="level3">
+<h3 class="anchored" data-anchor-id="для-разработчиков">Для разработчиков</h3>
+<div class="feature-grid">
+<div class="feature-card">
+<p><strong>REST и OData</strong> JSON и CSV для скриптов на Python и R, OData-фид для Excel и Power BI. Авторизация в обоих случаях одним и тем же ключом. Интерактивная схема со всеми параметрами открывается в браузере.</p>
 </div>
 <div class="feature-card">
-<p><strong>Тарифы и контроль</strong> Бесплатный доступ на период пилота; далее — бесплатный уровень с лимитами по числу запросов и расширенные тарифы. Использование каждого пользователя видно в мониторинге.</p>
+<p><strong>Фильтрация и агрегация на сервере</strong> Страна, направление, период, уровень товарного кода, единица измерения. Можно запросить готовые суммы в нужном разрезе, а не выкачивать сырые строки и агрегировать у себя.</p>
+</div>
+<div class="feature-card">
+<p><strong>Справочники в комплекте</strong> Списки стран и кодов ТН ВЭД с русскими названиями отдаются отдельными запросами — чтобы наполнить выпадающие списки в вашем интерфейсе.</p>
 </div>
 </div>
+</section>
+<section id="тарифы" class="level3">
+<h3 class="anchored" data-anchor-id="тарифы">Тарифы</h3>
+<p>На период пилотной эксплуатации доступ предоставляется бесплатно. В дальнейшем предполагается платный доступ; бесплатный уровень сохранится, но с ограничениями по частоте запросов, месячному объёму и размеру одной выгрузки.</p>
+<p>Лимиты не наступают внезапно: текущий план и остаток месячного объёма видны в самом API, а при исчерпании сервис отвечает понятной ошибкой с указанием, когда можно повторить запрос.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Как получить доступ
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Ключ выдаётся вместе с адресом сервиса после согласования — <a href="mailto:m_salihov@fief.ru">напишите нам</a>, указав интересующие страны и товарные группы. Технический справочник по всем эндпоинтам и параметрам — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md">в документации проекта</a>.</p>
+</div>
+</div>
+</section>
 </section>
 <section id="в-сравнении-с-альтернативами" class="level2">
 <h2 class="anchored" data-anchor-id="в-сравнении-с-альтернативами">В сравнении с альтернативами</h2>
