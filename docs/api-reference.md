@@ -6,8 +6,8 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
 [data_model.md](data_model.md).
 
 > Статус: **развёрнуто на VPS (пилот)**. Работают `/health`, `/v1/meta`, `/v1/reference/*`,
-> `/v1/trade` и **OData-фид** (`/odata/*`); токены выдаёт **кабинет в Superset**. Дальше —
-> квоты/тарифы и эндпоинты fizob.
+> `/v1/trade`, `/v1/fizob` и **OData-фид** (`/odata/*`); токены выдаёт **кабинет в Superset**.
+> Дальше — коммерческие тарифы и биллинг.
 
 ## База и версии
 
@@ -127,6 +127,27 @@ GET /v1/trade?strana=CN&napr=im&period_from=2024-01
   ]
 }
 ```
+
+### `GET /v1/fizob` — индексы физических объёмов
+
+Индекс физического объёма (`fizob`) — база-нормированный показатель на уровне
+(`STRANA`, `NAPR`, `tn_level`, `tn_code`, `PERIOD`). Агрегации нет — фильтр и постранично.
+
+| Параметр | Пример | Смысл |
+|---|---|---|
+| `strana` | `CN` (повторяемый) | страна (ISO); `ALL` — сводный уровень |
+| `napr` | `im` / `ex` | направление |
+| `tn_level` | `2` (повторяемый) | уровень кода: `0` (страновой итог), `2`, `4`, `6` |
+| `tn_code` | `27` (повторяемый) | код на этом уровне |
+| `period_from`, `period_to` | `2024-01` | диапазон периодов |
+| `order_by` / `format` / `limit` / `offset` | | как у `/v1/trade` |
+
+Возвращает `STRANA, NAPR, PERIOD, tn_level, tn_code, tn_name, fizob, fizob_bp, idx`:
+`idx` — сам индекс, `fizob_bp` — значение базового периода, `tn_name` — название для уровней
+2/4. Пагинация — по `meta.has_more`/`next_offset`. Методология индексов — см.
+[data_model.md](data_model.md) / техническую документацию.
+
+Пример: `GET /v1/fizob?strana=CN&napr=im&tn_level=4&period_from=2024-01`
 
 ## Формат ответа и ошибки
 
@@ -270,5 +291,5 @@ head(df)
 Готово и в проде: `/v1/trade`, `/v1/reference/*`, OData-фид, кабинет в Superset (роль-допуск),
 аудит + админ-дашборд использования, enforcement квот/rate-limit.
 
-Осталось (см. [api-plan.md](api-plan.md)): keyset-cursor экспорт; эндпоинты fizob и проверка
-`scopes`; таймаут запроса; TLS + домен (сейчас HTTP); коммерческие тарифы и биллинг.
+Осталось (см. [api-plan.md](api-plan.md)): таймаут запроса; TLS + домен (сейчас HTTP);
+коммерческие тарифы и биллинг.
