@@ -381,22 +381,31 @@ p_title_after <- function(fo) {
 # КЕЙС 7. Как честно показать то, чего ещё нет (наукаст)
 # =========================================================================
 p_nowcast <- function(d, napr = "ЭК") {
-  h <- d$headline |> filter(NAPR == napr, PERIOD >= as.Date("2024-01-01"))
+  h <- d$headline |> filter(NAPR == napr, PERIOD >= as.Date("2024-01-01")) |> arrange(PERIOD)
   cut <- min(h$PERIOD[h$nowcast_share > 0], na.rm = TRUE)
-  fact <- h |> filter(PERIOD <= cut) |> transmute(PERIOD, value = stoim_bn_fact)
-  pred <- h |> filter(PERIOD >= cut) |> transmute(PERIOD, value = stoim_bn)
+  last_fact <- max(h$PERIOD[h$PERIOD < cut])
+
+  # Пунктир начинается из последней полностью фактической точки и берёт в ней
+  # фактическое значение. Иначе в месяце cut сплошная линия рисует stoim_bn_fact,
+  # пунктир — stoim_bn, и между ними получается разрыв.
+  fact <- h |> filter(PERIOD <= last_fact) |> transmute(PERIOD, value = stoim_bn_fact)
+  pred <- h |> filter(PERIOD >= last_fact) |>
+    transmute(PERIOD, value = if_else(PERIOD == last_fact, stoim_bn_fact, stoim_bn))
+  # граница подсветки совпадает с началом пунктира, иначе переходный
+  # сегмент оказывается вне залитой области
+  edge <- last_fact
   top <- max(h$stoim_bn, na.rm = TRUE) * 1.14
 
   ggplot() +
-    annotate("rect", xmin = cut, xmax = max(h$PERIOD) + 20, ymin = -Inf, ymax = Inf,
+    annotate("rect", xmin = edge, xmax = max(h$PERIOD) + 20, ymin = -Inf, ymax = Inf,
              fill = viz$orange, alpha = 0.10) +
     geom_line(data = fact, aes(PERIOD, value), colour = viz$navy, linewidth = 1.2) +
     geom_line(data = pred, aes(PERIOD, value), colour = viz$orange,
               linewidth = 1.3, linetype = "21") +
     geom_point(data = tail(pred, 1), aes(PERIOD, value), colour = viz$orange, size = 2.6) +
-    annotate("text", x = cut - 25, y = top, label = "отчётные данные",
+    annotate("text", x = edge - 25, y = top, label = "отчётные данные",
              hjust = 1, vjust = 1, colour = viz$navy, size = 4.1, family = VIZ_FONT) +
-    annotate("text", x = cut + 25, y = top, label = "наукаст",
+    annotate("text", x = edge + 25, y = top, label = "наукаст",
              hjust = 0, vjust = 1, colour = "#a06b0c", fontface = "bold",
              size = 4.1, family = VIZ_FONT) +
     scale_y_continuous(limits = c(0, top), expand = expansion(mult = c(0, 0.02)),
