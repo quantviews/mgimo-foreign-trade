@@ -1,6 +1,8 @@
-/* Стили презентации «Визуализация данных и бизнес-аналитика».
-   Оформление сведено к типографике: без карточек, рамок, заливок и теней.
-   Файл подключается только к этой презентации. */
+/* Типографский слой для презентаций проекта.
+   Оформление сведено к типографике: без карточек, рамок, заливок и теней,
+   иерархия задаётся размером, воздухом и тонкими линейками. Подключается
+   ПОСЛЕ slides.css и гасит его карточные компоненты там, где они мешают.
+   Используется и в dataviz-story.qmd, и в project-overview.qmd. */
 
 /* --- текст слайда ----------------------------------------------------- */
 .reveal .slides section > p,
@@ -488,4 +490,47 @@
    дочерние элементы перестают быть элементами grid */
 .reveal .facts > p {
   display: contents;
+}
+
+/* --- финальный слайд: следующий шаг тремя пунктами ---------------------- */
+.reveal .cta-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.6em;
+  margin: 1.8em auto 0;
+  max-width: 44em;
+  text-align: left;
+}
+
+.reveal .cta-row > div {
+  font-size: 0.44em;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.reveal .cta-row .cta-num {
+  display: block;
+  font-family: "PT Serif", Georgia, serif;
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #ffd6cf;
+  line-height: 1;
+  margin-bottom: 0.3em;
+}
+
+/* --- интерактивные графики бюллетеня во всю ширину ---------------------- */
+.reveal .chart-frame-wrap {
+  margin-top: 0.5em;
+}
+
+/* высоту iframe задаёт slides.css (480px) — здесь не переопределяем */
+
+/* картинка внутри колонки не должна выдавливать вывод слайда */
+.reveal .cols-2 img,
+.reveal .cols-3 img {
+  width: 100%;
+  height: auto;
+  max-height: 250px;
+  display: block;
+  margin-top: 0.4em;
 }
