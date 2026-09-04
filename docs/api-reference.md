@@ -198,6 +198,68 @@ GET /v1/trade?strana=CN&napr=im&period_from=2024-01
 GET /odata/trade?$filter=STRANA eq 'CN' and PERIOD ge 2024-01-01&$select=PERIOD,TNVED2,STOIM&$top=1000
 ```
 
+## Доступ из Python и R
+
+Для скриптов используйте `/v1/trade` (JSON) с заголовком `Authorization: Bearer <токен>`.
+Ниже — выгрузка с автоматической постраничной докачкой в таблицу. Токен — из кабинета;
+базовый URL пилота — `http://217.26.28.186:8090`.
+
+### Python (`requests` + `pandas`)
+```python
+import requests, pandas as pd
+
+BASE, TOKEN = "http://217.26.28.186:8090", "mgt_ВАШ_ТОКЕН"
+HEADERS = {"Authorization": f"Bearer {TOKEN}"}
+
+def fetch_trade(**params) -> pd.DataFrame:
+    rows, offset = [], 0
+    while True:
+        r = requests.get(f"{BASE}/v1/trade", headers=HEADERS,
+                         params={**params, "limit": 10000, "offset": offset})
+        r.raise_for_status()
+        body = r.json()
+        rows += body["data"]
+        if not body["meta"]["has_more"]:
+            break
+        offset = body["meta"]["next_offset"]
+    return pd.DataFrame(rows)
+
+df = fetch_trade(strana="CN", napr="im", period_from="2024-01",
+                 group_by="tnved2,period", include="tnved2_name")
+print(df.head())
+# несколько стран: strana=["CN","DE"] (повторяемый параметр)
+```
+
+### R (`httr2` + `dplyr`)
+```r
+library(httr2); library(dplyr)
+
+base <- "http://217.26.28.186:8090"; token <- "mgt_ВАШ_ТОКЕН"
+
+fetch_trade <- function(...) {
+  out <- list(); offset <- 0
+  repeat {
+    resp <- request(base) |> req_url_path("/v1/trade") |>
+      req_url_query(..., limit = 10000, offset = offset) |>
+      req_auth_bearer_token(token) |> req_perform() |>
+      resp_body_json(simplifyVector = TRUE)
+    out <- append(out, list(resp$data))
+    if (!isTRUE(resp$meta$has_more)) break
+    offset <- resp$meta$next_offset
+  }
+  bind_rows(out)
+}
+
+df <- fetch_trade(strana = "CN", napr = "im", period_from = "2024-01",
+                  group_by = "tnved2,period", include = "tnved2_name")
+head(df)
+```
+
+Примечания: параметры те же, что у [`/v1/trade`](#get-v1trade--основной-эндпоинт); без `group_by`
+приходят сырые строки (тоже с пагинацией). Помните о лимитах плана (`429` при превышении
+частоты/квоты — см. «Лимиты и тарифы»); при большом объёме фильтруйте по стране/периоду.
+Нужен формат для выгрузки в файл — добавьте `format=csv` (UTF-8 BOM, разделитель `;`).
+
 ## Семантика данных
 
 Значения полей (`STOIM` в USD, `NETTO` в кг, `KOL` в доп. единице, `NAPR`, `TYPE`,
