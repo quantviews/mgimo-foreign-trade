@@ -33,6 +33,16 @@ tbats_fun <- function(y, h) {
 # Функции для выделения выбросов:
 #--------------------------------
 
+rnorm(100, 10, 10)
+
+show_outliers(
+   x = rnorm(100,
+             mean = 100,
+             1000),
+   nsd = 6,
+   tv = 1
+   )
+
 show_outliers <- function(x, nsd, tv){
   z <- (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)
   sum((abs(z) > nsd) & (x > tv), na.rm = T)
