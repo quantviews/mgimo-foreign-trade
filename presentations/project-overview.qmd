@@ -12,8 +12,22 @@ format:
     title-slide-attributes:
       data-background-color: "#f8f9fb"
 ---
-
 ## План презентации
+
+```{=html}
+<style>
+/* четыре карточки плана в один ряд */
+.reveal .agenda-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6em; }
+.reveal .agenda-card { font-size: 0.55em; padding: 0.65em 0.7em; min-height: 8.4em; }
+/* шаги «с чего начать» на финальном слайде */
+.reveal .cta-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.4em; margin: 1.6em auto 0; max-width: 46em; }
+.reveal .cta-row > div { font-size: 0.44em; line-height: 1.45;
+  color: rgba(255,255,255,0.82); text-align: left; }
+.reveal .cta-row .cta-num { display: block; font-family: "PT Serif", Georgia, serif;
+  font-size: 1.5em; font-weight: 700; color: #ffd6cf; line-height: 1; margin-bottom: 0.25em; }
+</style>
+```
 
 <div class="title-lead" style="margin-top:0;margin-bottom:0.6em;">
 Единая база данных, API и аналитические инструменты — когда официальные источники недоступны или запаздывают.
@@ -35,8 +49,14 @@ format:
 
 <div class="agenda-card">
 <span class="agenda-num">03</span>
-<strong>Сравнение с другими веб-интерфейсами</strong>
-Ключевые преимущества перед альтернативами (Trademap и Comtrade).
+<strong>Сравнение с альтернативами</strong>
+Чем отличаемся от Trademap и Comtrade и в чём это выражается на практике.
+</div>
+
+<div class="agenda-card accent">
+<span class="agenda-num">04</span>
+<strong>Как вы получаете данные</strong>
+Дашборд, работа в Excel без программирования, API для интеграции.
 </div>
 
 </div>
@@ -223,8 +243,9 @@ flowchart LR
 - **Физические объёмы** - не только USD, но и тонны, штуки, кубометры; восстановление пропусков
 - **Индексы физических объёмов** на уровнях 2/4/6 знаков ТН ВЭД и по странам-партнёрам
 - **Гармонизация** — единые коды стран, согласование единиц измерения
-- **Nowcast (FAVAR)** — оперативные оценки при задержке официальной статистики
-- **Актуальность** — данные зеркальной статистики обновляются регулярно и часто доступны раньше, чем на других ресурсах (например, UN Comtrade)
+- **Nowcast (FAVAR)** — оценка за месяцы, по которым отчётность ещё не пришла; в данных помечена флагом `TYPE = 'pred'`
+- **Контроль качества** — сомнительные значения не удаляются молча, а помечаются: видно, где показатель вызывает вопросы
+- **Прозрачность происхождения** — у каждой записи хранится источник (`SOURCE`) и тип (`TYPE`), видно, откуда пришла цифра
 :::
 
 ## {background-color="#003d7a" .section-slide}
@@ -490,10 +511,133 @@ chart_slide(
 
 </div>
 
+## {background-color="#003d7a" .section-slide}
+
+<div class="section-number">05 · доступ</div>
+
+<div class="section-title">Как вы получаете данные</div>
+
+<div class="section-tagline">
+Три способа под разные задачи: посмотреть глазами, работать в Excel без программирования, встроить в свою систему.
+</div>
+
+## Три способа под разные роли {.slide-compare-table}
+
+<table class="compare-table"><thead><tr><th class="col-criterion">Способ</th><th class="col-them">Кому</th><th class="col-us">Что нужно уметь</th></tr></thead><tbody><tr><td class="criterion">Дашборд</td><td class="cell-mid">руководителю, отраслевому аналитику</td><td class="cell-us">ничего: фильтры мышкой в браузере</td></tr><tr><td class="criterion">Excel</td><td class="cell-mid">аналитику, который живёт в таблицах</td><td class="cell-us">меню «Данные», без формул и кода</td></tr><tr><td class="criterion">API</td><td class="cell-mid">разработчику, интеграции с вашей системой</td><td class="cell-us">HTTP-запрос из Python, R или BI</td></tr></tbody></table>
+
+::: {.slide-takeaway}
+Все три работают с **одной и той же базой** и одним и тем же личным токеном. Данные не расходятся между способами: это один источник, показанный тремя способами.
+:::
+
+## Excel: подключение занимает три шага
+
+<div class="trio-panels">
+
+<div class="trio-panel trio-neutral">
+<span class="panel-label">Шаг 1</span>
+<h3>Личный ключ</h3>
+<p>В кабинете нажать «Выпустить токен» и скопировать ключ вида <code>mgt_…</code>. Ключ личный, показывается один раз, при утере перевыпускается там же.</p>
+</div>
+
+<div class="trio-panel trio-neutral">
+<span class="panel-label">Шаг 2</span>
+<h3>Подключить источник</h3>
+<p>Данные → Получить данные → Из других источников → <strong>Из веб-канала OData</strong>. Вставить адрес фида. В окне входа выбрать «Основной»: имя любое, <strong>пароль — ваш ключ</strong>.</p>
+</div>
+
+<div class="trio-panel trio-positive">
+<span class="panel-label">Шаг 3</span>
+<h3>Выбрать таблицу</h3>
+<p>В навигаторе две таблицы: <code>trade</code> — стоимость, вес и количество, <code>fizob</code> — индекс физического объёма. Нажать <strong>«Преобразовать данные»</strong>, а не «Загрузить».</p>
+</div>
+
+</div>
+
+::: {.slide-takeaway}
+Дальше Excel работает как с обычной таблицей. **Формулы и макросы не нужны**, всё делается через меню.
+:::
+
+## Срез ставится мышкой, обновляется кнопкой
+
+<div class="split-panels">
+
+<div class="split-panel positive">
+<span class="panel-label">Фильтры в редакторе запроса</span>
+<h3>Стрелка в заголовке столбца</h3>
+<ul>
+<li><code>STRANA</code> — страна по ISO-коду: <code>CN</code>, <code>TR</code>, <code>DE</code></li>
+<li><code>PERIOD</code> — период: после даты или диапазон</li>
+<li><code>NAPR</code> — направление: <code>ИМ</code> или <code>ЭК</code></li>
+<li><code>TNVED2</code>, <code>TNVED4</code> — товарная группа</li>
+</ul>
+</div>
+
+<div class="split-divider"></div>
+
+<div class="split-panel positive">
+<span class="panel-label">Дальше</span>
+<h3>Обновление одной кнопкой</h3>
+<ul>
+<li><strong>«Обновить всё»</strong> — свежие данные по тем же фильтрам</li>
+<li>сменить срез — правка шага фильтра, без пересоздания файла</li>
+<li>ваши сводные таблицы и графики поверх продолжают работать</li>
+</ul>
+</div>
+
+</div>
+
+<div class="agenda-footnote">
+Фильтр обязателен: в базе миллионы строк. Отбор идёт на сервере, поэтому в файл приезжает только нужный срез.
+</div>
+
+## Что приходит в Excel {.slide-compare-table}
+
+<table class="compare-table"><thead><tr><th class="col-criterion">Поле</th><th class="col-them">Что означает</th><th class="col-us">Как использовать</th></tr></thead><tbody><tr><td class="criterion">STOIM</td><td class="cell-mid">стоимость, доллары США</td><td class="cell-us">складывается без ограничений</td></tr><tr><td class="criterion">NETTO</td><td class="cell-mid">вес нетто, килограммы</td><td class="cell-us">складывается без ограничений</td></tr><tr><td class="criterion">KOL и EDIZM</td><td class="cell-mid">количество и его единица</td><td class="cell-us">суммируется только внутри одной единицы</td></tr><tr><td class="criterion">TNVED_NAME</td><td class="cell-mid">название товара по-русски</td><td class="cell-us">рядом с кодом, искать не нужно</td></tr><tr><td class="criterion">SOURCE и TYPE</td><td class="cell-mid">источник и признак «факт или оценка»</td><td class="cell-us">видно, где наукаст</td></tr><tr><td class="criterion">idx</td><td class="cell-mid">индекс физобъёма в таблице fizob</td><td class="cell-us">динамика без влияния цен</td></tr></tbody></table>
+
+::: {.slide-takeaway}
+Названия товаров приходят **вместе с данными**. Не нужно вести у себя справочник ТН ВЭД и сопоставлять коды вручную.
+:::
+
+## API для интеграции
+
+<div class="feature-grid">
+
+<div class="feature-card accent">
+<strong>Два формата на выбор</strong>
+REST c JSON и CSV для скриптов на Python и R; OData-фид для Excel и Power BI без единой строки кода.
+<span class="chip">/v1/trade · /v1/fizob · /odata</span>
+</div>
+
+<div class="feature-card">
+<strong>Фильтрация и агрегация на сервере</strong>
+Страна, направление, период, уровень ТН ВЭД, единица измерения. Можно запросить готовые суммы в нужном разрезе, а не сырые строки.
+<span class="chip">group_by · metrics · include</span>
+</div>
+
+<div class="feature-card">
+<strong>Справочники в комплекте</strong>
+Списки стран и кодов ТН ВЭД с русскими названиями — для выпадающих списков в вашем интерфейсе.
+<span class="chip">/v1/reference</span>
+</div>
+
+<div class="feature-card accent">
+<strong>Прозрачные лимиты</strong>
+У каждого доступа свой план: частота запросов, месячная квота, размер страницы. Остаток квоты виден в самом API.
+<span class="chip">/v1/meta</span>
+</div>
+
+</div>
+
+<div class="agenda-footnote">
+Сейчас API работает в пилотном режиме: доступ выдаётся по согласованию и ограничен на уровне сети. Интерактивная документация со схемой всех параметров открывается в браузере.
+</div>
+
 ## {background-color="#003d7a" .center-slide}
 
 <div class="continue-note">
-<span class="continue-title">Национальная торговая статистика</span>
-База данных · API · бюллетень · аналитика
-<span class="continue-sub">dd.mgimo.ru/trade</span>
+<span class="continue-title">С чего начать</span>
+Демо-доступ к дашборду и файл Excel с вашим срезом — по запросу
+<span class="continue-sub">quantviews.github.io/mgimo-foreign-trade</span>
 </div>
+
+<div class="cta-row"><div><span class="cta-num">1</span>Называете страны и товарные группы, которые вам интересны</div><div><span class="cta-num">2</span>Присылаем Excel-файл с этим срезом и личный токен</div><div><span class="cta-num">3</span>Обновляете данные кнопкой и решаете, нужен ли доступ дальше</div></div>
