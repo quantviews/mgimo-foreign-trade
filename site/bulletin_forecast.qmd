@@ -1,0 +1,421 @@
+---
+title: "Сравнение моделей nowcast"
+subtitle: "Точность и скорость прогноза внешней торговли"
+date: last-modified
+lang: ru
+format:
+  html:
+    theme:
+      - cosmo
+      - styles/mgimo.scss
+    toc: true
+    toc-title: ""
+    toc-depth: 2
+    toc-location: left
+    code-fold: true
+    fig-align: center
+    include-in-header:
+      - text: |
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+          <style>
+            body, .quarto-title-banner, main#quarto-document-content {
+              font-family: "Source Sans Pro", sans-serif;
+            }
+          </style>
+---
+
+```{r}
+#| include: false
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 11,
+  fig.height = 7
+)
+
+library(tidyverse)
+library(plotly)
+library(showtext)
+library(sysfonts)
+library(kableExtra)
+
+font_add_google("Source Sans 3", "ssp")
+showtext_auto()
+
+mgimo_colors <- c(
+  primary    = "#003d7a",
+  secondary  = "#e74c3c",
+  accent1    = "#27ae60",
+  accent2    = "#3498db",
+  accent3    = "#f39c12",
+  text       = "#2c3e50",
+  light_bg   = "#f8f9fa"
+)
+
+site_bg <- mgimo_colors[["light_bg"]]
+exp_palette <- unname(mgimo_colors[c("primary", "secondary", "accent3", "accent1", "accent2")])
+
+theme_groups <- function() {
+  theme_minimal(base_size = 16, base_family = "ssp") +
+    theme(
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom",
+      panel.background = element_rect(fill = site_bg, colour = NA),
+      plot.background = element_rect(fill = site_bg, colour = NA),
+      strip.background = element_blank(),
+      axis.title.x = element_text(size = 13, color = "grey40", family = "ssp"),
+      axis.title.y = element_text(size = 13, color = "grey40", family = "ssp")
+    )
+}
+
+as_plotly <- function(p, tooltip = "text") {
+  ggplotly(p, tooltip = tooltip) %>%
+    layout(
+      paper_bgcolor = site_bg,
+      plot_bgcolor = site_bg,
+      font = list(family = "Source Sans Pro", color = mgimo_colors[["text"]])
+    ) %>%
+    config(displayModeBar = FALSE)
+}
+
+metric_names <- c("Time_sec", "WMAE", "RMSE", "MAE")
+
+parse_col <- function(nm) {
+  if (tolower(nm) == "model") {
+    return(NULL)
+  }
+  for (m in metric_names) {
+    if (identical(nm, m)) {
+      return(tibble(column = nm, metric = m, experiment = NA_character_))
+    }
+    prefix <- paste0(m, "_")
+    if (startsWith(nm, prefix)) {
+      return(tibble(
+        column = nm,
+        metric = m,
+        experiment = substring(nm, nchar(prefix) + 1L)
+      ))
+    }
+  }
+  NULL
+}
+
+experiment_key <- function(x) {
+  year <- as.integer(stringr::str_extract(x, "20[0-9]{2}"))
+  q <- as.integer(stringr::str_extract(x, "(?<=Q)[1-4]"))
+  dplyr::coalesce(year, 9999L) * 10L + dplyr::coalesce(q, 0L)
+}
+
+scale_bg <- function(x) {
+  ok <- is.finite(x)
+  out <- rep("#ffffff", length(x))
+  if (!any(ok)) {
+    return(out)
+  }
+  rng <- range(x[ok])
+  if (diff(rng) < 1e-12) {
+    out[ok] <- "#f7dc6f"
+    return(out)
+  }
+  u <- (x - rng[1]) / diff(rng)
+  pal <- scales::col_numeric(
+    palette = c("#1e8449", "#f7dc6f", "#c0392b"),
+    domain = c(0, 1),
+    na.color = "#ffffff"
+  )
+  out[ok] <- pal(u[ok])
+  out
+}
+
+fg_on <- function(bg) {
+  rgb <- grDevices::col2rgb(bg) / 255
+  lum <- 0.2126 * rgb[1, ] + 0.7152 * rgb[2, ] + 0.0722 * rgb[3, ]
+  ifelse(lum < 0.45, "#ffffff", mgimo_colors[["text"]])
+}
+
+color_cols <- function(df, cols, digits = 3) {
+  for (nm in cols) {
+    x <- df[[nm]]
+    bg <- scale_bg(x)
+    df[[nm]] <- cell_spec(
+      ifelse(is.finite(x), sprintf(paste0("%.", digits, "f"), x), "—"),
+      format = "html",
+      background = bg,
+      color = fg_on(bg),
+      extra_css = "display:block; margin:-4px -8px; padding:4px 8px;"
+    )
+  }
+  df
+}
+
+results_path <- c(
+  "../data_analytics/forecast_analysis/results/results_table.xlsx",
+  "data_analytics/forecast_analysis/results/results_table.xlsx"
+) |>
+  purrr::keep(file.exists) |>
+  dplyr::first()
+
+if (length(results_path) == 0 || is.na(results_path)) {
+  stop("Не найден results_table.xlsx")
+}
+
+raw <- readxl::read_excel(results_path)
+names(raw) <- stringr::str_trim(names(raw))
+names(raw)[tolower(names(raw)) == "model"] <- "model"
+
+if (!"model" %in% names(raw)) {
+  stop("В Excel нет колонки model")
+}
+
+col_map <- purrr::map_dfr(names(raw), parse_col)
+
+results_long <- raw %>%
+  pivot_longer(
+    cols = all_of(col_map$column),
+    names_to = "column",
+    values_to = "value"
+  ) %>%
+  left_join(col_map, by = "column") %>%
+  mutate(value = as.numeric(value))
+
+experiments <- results_long %>%
+  filter(!is.na(experiment), experiment != "") %>%
+  distinct(experiment) %>%
+  mutate(ord = experiment_key(experiment)) %>%
+  arrange(ord) %>%
+  pull(experiment)
+
+if (length(experiments) == 0) {
+  experiments <- "все окна"
+}
+
+time_global <- results_long %>%
+  filter(metric == "Time_sec", is.na(experiment)) %>%
+  select(model, Time_sec = value)
+
+time_by_exp <- results_long %>%
+  filter(metric == "Time_sec", !is.na(experiment)) %>%
+  select(model, experiment, Time_sec = value)
+
+time_one <- if (nrow(time_global) > 0) {
+  time_global
+} else {
+  time_by_exp %>%
+    group_by(model) %>%
+    summarise(Time_sec = median(Time_sec, na.rm = TRUE), .groups = "drop")
+}
+
+accuracy <- results_long %>%
+  filter(metric %in% c("MAE", "RMSE", "WMAE"), !is.na(value)) %>%
+  mutate(
+    experiment = ifelse(is.na(experiment), experiments[[1]], experiment)
+  )
+
+accuracy$experiment <- factor(accuracy$experiment, levels = experiments)
+
+# 2×N окон (MAE, WMAE) + 1 скорость. Итог — средний ранг по этим местам.
+quality_ranks <- accuracy %>%
+  filter(metric %in% c("MAE", "WMAE")) %>%
+  group_by(metric, experiment) %>%
+  mutate(place = rank(value, ties.method = "min")) %>%
+  ungroup() %>%
+  mutate(score_name = paste(metric, as.character(experiment), sep = " · "))
+
+speed_ranks <- time_one %>%
+  mutate(
+    place = rank(Time_sec, ties.method = "min"),
+    score_name = "Время"
+  ) %>%
+  select(model, score_name, place)
+
+score_levels <- c(
+  paste("MAE", experiments, sep = " · "),
+  paste("WMAE", experiments, sep = " · "),
+  "Время"
+)
+
+all_places <- bind_rows(
+  quality_ranks %>% select(model, score_name, place),
+  speed_ranks
+) %>%
+  mutate(
+    score_name = factor(
+      score_name,
+      levels = intersect(score_levels, unique(score_name))
+    )
+  )
+
+ranking <- all_places %>%
+  group_by(model) %>%
+  summarise(
+    mean_place = mean(place, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(`Итог` = rank(mean_place, ties.method = "min")) %>%
+  arrange(`Итог`, mean_place, model)
+
+model_order <- ranking$model
+n_score <- n_distinct(all_places$score_name)
+
+rank_wide <- all_places %>%
+  tidyr::pivot_wider(names_from = score_name, values_from = place) %>%
+  left_join(ranking, by = "model") %>%
+  mutate(model = factor(model, levels = model_order)) %>%
+  arrange(model) %>%
+  relocate(model, `Итог`, mean_place)
+
+wmae_df <- accuracy %>%
+  filter(metric == "WMAE") %>%
+  mutate(
+    model = factor(model, levels = rev(model_order)),
+    hover = paste0(
+      "<b>", model, "</b><br>",
+      experiment, "<br>WMAE: ", sprintf("%.3f", value)
+    )
+  )
+
+wmae_place <- quality_ranks %>%
+  filter(metric == "WMAE") %>%
+  left_join(ranking, by = "model") %>%
+  mutate(
+    model = factor(model, levels = rev(model_order)),
+    hover = paste0(
+      "<b>", model, "</b><br>",
+      experiment, "<br>Место по WMAE: ", place, "<br>Итог: ", `Итог`
+    )
+  )
+
+wmae_range <- wmae_df %>%
+  group_by(model) %>%
+  summarise(
+    xmin = min(value, na.rm = TRUE),
+    xmax = max(value, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+join_time <- function(wide) {
+  if (nrow(time_one) > 0) {
+    wide %>% left_join(time_one, by = "model")
+  } else {
+    wide
+  }
+}
+
+style_table <- function(shown) {
+  knitr::kable(
+    shown,
+    format = "html",
+    escape = FALSE,
+    align = c("l", rep("r", ncol(shown) - 1))
+  ) %>%
+    kable_styling(
+      bootstrap_options = c("hover", "condensed"),
+      full_width = FALSE,
+      font_size = 13,
+      position = "left"
+    ) %>%
+    row_spec(0, color = "white", background = mgimo_colors[["primary"]])
+}
+
+fmt_metric <- function(metric) {
+  
+  wide <- accuracy %>%
+    filter(metric == .env$metric) %>%
+    select(model, experiment, value) %>%
+    tidyr::pivot_wider(names_from = experiment, values_from = value) %>%
+    join_time() %>%
+    mutate(model = factor(model, levels = model_order)) %>%
+    arrange(model)
+  
+  num_cols <- names(wide)[vapply(wide, is.numeric, logical(1))]
+  shown <- color_cols(wide, num_cols, digits = 3) %>%
+    rename(Модель = model)
+  
+  if ("Time_sec" %in% names(shown)) {
+    shown <- rename(shown, `Время, с` = Time_sec)
+  }
+  
+  style_table(shown)
+}
+
+best_overall <- ranking$model[[1]]
+```
+
+Для анализа качества арогнозов мы оцениваем ансамбль моделей, кок одномерных, так и многомерных. Лучшая модель определяется при помощи скоринга.
+
+::: {.callout-note}
+Итог: **`r best_overall`** (средний ранг `r sprintf("%.2f", ranking$mean_place[[1]])`).
+:::
+
+## 1. Основной результат
+
+Лучший вариант - **model averaging между SARIMA и ETS+DFM**. Итоговый рейтинг: среднее место по **MAE** и **WMAE** (взвешенная MAE по стоимости) во всех окнах плюс место по **скорости** (`r n_score` показателей). 1 = лучше.
+
+```{r}
+rank_shown <- rank_wide %>%
+  color_cols("mean_place", digits = 2) %>%
+  color_cols(
+    setdiff(names(rank_wide), c("model", "mean_place")),
+    digits = 0
+  ) %>%
+  rename(
+    Модель = model,
+    `Средний ранг` = mean_place
+  )
+
+style_table(rank_shown)
+```
+
+## 2. Сводная таблица
+
+::: {.panel-tabset}
+
+### WMAE
+
+```{r}
+fmt_metric("WMAE")
+```
+
+### MAE
+
+```{r}
+fmt_metric("MAE")
+```
+
+### RMSE
+
+```{r}
+fmt_metric("RMSE")
+```
+
+:::
+
+## 3. Разброс WMAE по окнам
+
+В целом видно, что каество прогнозов отличается не сильно..
+
+```{r}
+#| fig-height: 8
+
+p_cleveland <- ggplot() +
+  geom_linerange(
+    data = wmae_range,
+    aes(xmin = xmin, xmax = xmax, y = model),
+    color = "grey70",
+    linewidth = 0.8
+  ) +
+  geom_point(
+    data = wmae_df,
+    aes(x = value, y = model, color = experiment, text = hover),
+    size = 3.2
+  ) +
+  scale_color_manual(values = exp_palette, name = NULL) +
+  labs(x = "WMAE", y = NULL) +
+  theme_groups()
+
+as_plotly(p_cleveland)
+```

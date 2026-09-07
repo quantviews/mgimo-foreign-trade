@@ -63,26 +63,91 @@ fc_periods <- interval(fc_from, fc_to) %/% months(1) + 1
   
 # Табличка с сырыми данными. Она нам понадобится потом для join-а, поэтому пусть будет в памяти.
 
-df_raw <- dbGetQuery(con, "
-  SELECT PERIOD, TNVED2, NAPR, STOIM, TYPE
+dbGetQuery(con, "
+  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA, TYPE
   FROM unified_trade_data"
 ) %>%
-  filter(TYPE == 'fact') %>%
-  reframe(stoim = sum(STOIM, na.rm = T),
-          .by = c('PERIOD', 'TNVED2', 'NAPR') 
-  ) %>%
-  arrange(TNVED2, NAPR, PERIOD) %>%
-  mutate(gr = paste0(TNVED2, '_', NAPR))
+   filter(TYPE == 'fact') %>%
+   reframe(last_period = max(PERIOD),
+           .by = c(STRANA)
+   ) %>%
+   filter(last_period > max(last_period) %m-% months(11)) %>%
+   ggplot(aes(x = last_period)) +
+   geom_histogram()
+
+fc_dates  <- 
+   dbGetQuery(con, "
+  SELECT PERIOD, TNVED2, NAPR, STOIM, STRANA, TYPE
+  FROM unified_trade_data"
+   ) %>%
+   filter(TYPE == 'fact') %>%
+   reframe(last_period = max(PERIOD),
+           .by = c(STRANA)
+   ) %>%
+   filter(last_period > last(last_period) %m-% months(11)) %>%
+   arrange(last_period) %>%
+   mutate(last_period_cdf = cume_dist(last_period)) %>%
+   filter(last_period_cdf >= 0.5) # Нужно обсудить
+
+fc_from <- 
+   fc_dates %>%
+   pull(last_period) %>%
+   min()
+
+fc_to <- 
+   fc_dates %>%
+   pull(last_period) %>%
+   max()
+
+fc_periods <- interval(fc_from, fc_to) %/% months(1) + 1
+
+# ----------------------------------------------
+# Теперь мы хотим сделать прогноз на fc_periods
+# ----------------------------------------------
+
+# Табличка с сырыми данными.
+# Обновлённый вариант, исключает ошибки с пропусками данных для групп при моделировании
+
+df_raw <- dbGetQuery(con, "
+  SELECT PERIOD, TNVED2, NAPR, STOIM, TYPE
+  FROM unified_trade_data
+") %>%
+   filter(TYPE == "fact") %>%
+   reframe(
+      stoim = sum(STOIM, na.rm = TRUE),
+      .by = c("PERIOD", "TNVED2", "NAPR")
+   )
+
+periods <- seq(
+   from = min(df_raw$PERIOD),
+   to   = max(df_raw$PERIOD),
+   by   = "month"
+)
+
+groups <- df_raw %>%
+   distinct(TNVED2, NAPR)
+
+df_raw <- groups %>%
+   crossing(PERIOD = periods) %>% # Как cross_join только между df и вектором  
+   left_join(
+      df_raw,
+      by = c("TNVED2", "NAPR", "PERIOD")
+   ) %>%
+   mutate(
+      stoim = replace_na(stoim, 0),
+      gr = paste0(TNVED2, "_", NAPR)
+   ) %>%
+   arrange(TNVED2, NAPR, PERIOD)
 
 # Трансформация данных (log1p %>% diff).
-# Почему log1p? Потому что у нас есть значения 0, а сами значения STOIM большие, поэтому прибавка 1 не искажает результат.
+# Почему log1p? Потому что у нас "могут быть" значения 0, а сами значения STOIM большие, поэтому прибавка 1 не искажает результат.
 
 df_var_1 <- df_raw %>%
-  mutate(stoim = c(0, diff(log1p(stoim))) %>%
-           as.numeric(),
-         .by = 'gr') %>%
-  filter(PERIOD > as_date('2019-01-01')) %>%
-  select(PERIOD, gr, stoim) 
+   mutate(stoim = c(0, diff(log1p(stoim))) %>%
+             as.numeric(),
+          .by = 'gr') %>%
+   filter(PERIOD > as_date('2019-01-01')) %>%
+   select(PERIOD, gr, stoim) 
 
 # Картинка
 
@@ -108,59 +173,36 @@ df_var_1_train <-
   filter(PERIOD %in% train_dates) %>%
   select(-PERIOD)
 
-# Диагностика для DFM
+# Оценка моделей
 
-df_var_1_train %>% 
-  is.na() %>%
-  colSums()
-
-ic <- ICr(df_var_1_train)
-
-plot(ic)
-screeplot(ic)
-
-n_var_lags <- vars::VARselect(ic$F_pca[, 1:ic$r.star[3]]) # 2 2 лага VAR
-
-# Оценка модели. Я относительно гибко настроил выбор кол-ва параметров для оценки:
-
-model <- DFM(df_var_1_train,
-               r = ic$r.star[3],
-               p = min(c(n_var_lags$selection %>% min(), 2))
+model_dfm <-
+   fit_model(
+   data = df_var_1_train,
+   method = 'dfm_ets',
+   specs = list(max_p = 6, max_p_final = 2)
 )
 
-# Работает достаточно быстро, оценка занимает около 5 секунд.
-
-# Диагностика факторов
-
-plot(model, method = "all", type = "individual")
-
-# Оценённые значения (fitted)
-
-fitted(model, orig.format = TRUE) %>%
-  mutate(PERIOD = train_dates) %>%
-  pivot_longer(-PERIOD) %>%
-  ggplot(aes(x = PERIOD, y = value, color = name)) +
-  geom_line(show.legend = F)
+model_sarima <-
+   fit_model(
+      data = df_var_1_train,
+      method = 'sarima',
+      specs = list(max_p = 2, max_q = 2, max_P = 1, max_Q = 1)
+   )
 
 # Прогноз
 
-forecast_test <- predict(model, h = fc_periods)
-forecast_test <- forecast_test$X_fcst %>%
-  as_tibble(.name_repair = 'minimal') %>%
-  mutate(PERIOD = test_dates,
-         type = 'pred') %>%
-  pivot_longer(-c(PERIOD, type),
-               names_to = 'gr',
-               values_to = 'stoim')
+fc_dfm    <- forecast_model(model_dfm,    method = "dfm_ets", h = fc_periods)
+fc_sarima <- forecast_model(model_sarima, method = "sarima",  h = fc_periods)
+fc_avg    <- 0.5 * fc_dfm + 0.5 * fc_sarima
 
-df_var_1 %>%
-  filter(PERIOD %in% test_dates) %>%
-  mutate(type = 'fact') %>%
-  bind_rows(forecast_test) %>%
-  filter(str_starts(gr, '5')) %>% # здесь можно выбрать группы, для которых мы хотим показать результаты
-  ggplot(aes(x = PERIOD, y = stoim, color = type)) +
-  geom_line() +
-  facet_wrap(~ gr)
+forecast_test <-
+   fc_avg %>% 
+   as_tibble(.name_repair = 'minimal') %>%
+   mutate(PERIOD = test_dates,
+          type = 'pred') %>%
+   pivot_longer(-c(PERIOD, type),
+                names_to = 'gr',
+                values_to = 'stoim')
 
 # Возвращаем в исходный вид
 

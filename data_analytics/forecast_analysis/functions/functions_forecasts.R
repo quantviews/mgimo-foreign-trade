@@ -1,11 +1,17 @@
 source('data_analytics/forecast_analysis/functions/naive.R')
+source('data_analytics/forecast_analysis/functions/snaive.R')
 source('data_analytics/forecast_analysis/functions/static.R')
 source('data_analytics/forecast_analysis/functions/ar.R')
+source('data_analytics/forecast_analysis/functions/covid.R')
+source('data_analytics/forecast_analysis/functions/ets.R')
 source('data_analytics/forecast_analysis/functions/ma.R')
 source('data_analytics/forecast_analysis/functions/arima.R')
+source('data_analytics/forecast_analysis/functions/sarima.R')
 source('data_analytics/forecast_analysis/functions/var.R')
 source('data_analytics/forecast_analysis/functions/dfm.R')
-source('data_analytics/forecast_analysis/functions/bvar.R') #*
+source('data_analytics/forecast_analysis/functions/dfm_stl.R')
+source('data_analytics/forecast_analysis/functions/dfm_ets.R')
+source('data_analytics/forecast_analysis/functions/bvar.R')
 source('data_analytics/forecast_analysis/functions/fadreg.R')
 
 #######################
