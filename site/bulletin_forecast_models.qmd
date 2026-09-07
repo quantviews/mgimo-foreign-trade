@@ -1,0 +1,337 @@
+---
+title: "Модели nowcast"
+subtitle: "Техническое описание спецификаций"
+date: last-modified
+lang: ru
+format:
+  html:
+    theme:
+      - cosmo
+      - styles/mgimo.scss
+    toc: true
+    toc-title: ""
+    toc-depth: 3
+    toc-location: left
+    code-fold: true
+    fig-align: center
+    html-math-method: katex
+    include-in-header:
+      - text: |
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+          <style>
+            body, .quarto-title-banner, main#quarto-document-content {
+              font-family: "Source Sans Pro", sans-serif;
+            }
+          </style>
+---
+
+```{r}
+#| include: false
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+Для наукаста отстающих временных рядов мы разработали набор моделей. СИх сравнение и выбор лучшей модели позволяет обеспечивать качество и интерпретируемость данных. В этом файле мы приводим каталог моделей: одномерных и многомерных. Сравнение точности — в [бюллетене nowcast](bulletin_forecast.qmd). Здесь — что именно оценивается, как выбирается спецификация и [как вызывать оценку и прогноз](#api).
+
+::: {.callout-note}
+Все модели работают на одной шкале. Стоимость $S_t$ превращается в месячный прирост $\log(1+S_t)$:
+
+$$
+y_t = \Delta \log(1 + S_t),\qquad t \ge \text{февраль 2019}.
+$$
+
+Модели оцениваются для агрегированных групп по направлению и коду на втором знаке. Напрмер: `05_ЭК` bkb `19_ИМ` - всего примерно 196 временных рядов.
+:::
+
+Одномерные модели оцениваются **независимо по каждому ряду**. Многомерные используют **всю панель**: общие факторы, затем возврат в пространство групп. Порядок и лаги, где они не заданы заранее, выбираются информационным критерием или короткой валидацией.
+
+## 1. Одномерные модели
+
+### Static
+
+Константа ноль на горизонте прогноза:
+
+$$
+\hat y_{T+h|T} = 0.
+$$
+
+Ряд не изменяется, прирост = 0. Модель всегда прогнозирует, что ряд остаётся на последнем наблюдённом уровне и используется скорее как бенчмарк для всего остального. Если модель не бьёт static, она совсем плохая.
+
+### Naive
+
+Повтор последнего наблюдения:
+
+$$
+\hat y_{T+h|T} = y_T.
+$$
+
+Ряд изменяется, как изменялся в последний раз. Тоже модель-бенчмарк.
+
+### Seasonal naive
+
+Повтор того же месяца прошлого года $s = 12$:
+
+$$
+\hat y_{T+h|T} = y_{T+h-s}.
+$$
+
+Замораживает последний сезонный цикл.
+
+### AR
+
+Авторегрессия с константой, порядок $p \in \{0,\ldots,12\}$ выбирается по AIC, оценка ML:
+
+$$
+y_t = c + \sum_{i=1}^{p} \phi_i y_{t-i} + \varepsilon_t.
+$$
+
+Реализация: [`stats::arima`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html) с `order = c(p, 0, 0)`.
+
+### AR + COVID
+
+Тот же AR(\(p\)), плюс дамми на март–декабрь 2020:
+
+$$
+y_t = c + \sum_{i=1}^{p} \phi_i y_{t-i} + \beta\, D^{\mathrm{covid}}_t + \varepsilon_t.
+$$
+
+На горизонте прогноза $D^{\mathrm{covid}} = 0$: шок считается одноразовым. \(p\) снова по AIC. Оценка через `arima(..., xreg = ...)`.
+
+### MA
+
+Скользящее среднее, $q \in \{0,\ldots,12\}$ по AIC:
+
+$$
+y_t = c + \varepsilon_t + \sum_{j=1}^{q} \theta_j \varepsilon_{t-j}.
+$$
+
+Реализация: [`stats::arima`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html), `order = c(0, 0, q)`.
+
+### ARIMA
+
+Сетка $(p,0,q)$, $p,q \le 6$, выбор числа параметров по минимальному AIC:
+
+$$
+\phi(L)\, (y_t - c) = \theta(L)\, \varepsilon_t.
+$$
+
+Это не `auto.arima`: $d$ не выбирается, Только перебор по правдоподобию. Документация той же [`stats::arima`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html).
+
+### SARIMA
+
+Сезонная сетка на уже стационарном ряде, период 12:
+
+$$
+\phi(L)\, \Phi(L^{12})\, (y_t - c) = \theta(L)\, \Theta(L^{12})\, \varepsilon_t,
+$$
+
+где $p,q \le 2$, $P,Q \le 1$. См. документацию в разделе `seasonal` в [`stats::arima`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html).
+
+### ETS
+
+Экспоненциальное сглаживание в пространстве состояний (Hyndman et al.). Аддитивная система (ошибка / тренд / сезон — A или N; тренд может быть затухающим):
+
+$$
+\begin{aligned}
+y_t &= \ell_{t-1} + b_{t-1} + s_{t-12} + \varepsilon_t, \\
+\ell_t &= \ell_{t-1} + b_{t-1} + \alpha \varepsilon_t, \\
+b_t &= b_{t-1} + \beta \varepsilon_t, \\
+s_t &= s_{t-12} + \gamma \varepsilon_t.
+\end{aligned}
+$$
+
+Некоторые компоненты можно выключить: тогда соответствующее слагаемое равно нулю. Выбор спецификации — AICc внутри [`forecast::ets`](https://pkg.robjhyndman.com/forecast/reference/ets.html). Разбор моделей: [FPP, гл. 8](https://otexts.com/fpp3/ets.html).
+
+## 2. Многомерные модели
+
+Общая логика факторных моделей. Панель $X_t \in \mathbb{R}^N$ (у нас $N \approx 196$) сжимается в $r \ll N$ факторов, что положительно сказывается на производительности:
+
+$$
+X_t = F_t \Lambda + e_t.
+$$
+
+Число факторов — критерии Бай–Нга (2002), реализованные в [`dfms::ICr`](https://docs.ropensci.org/dfms/reference/ICr.html):
+
+$$
+\mathrm{IC}_{r} = \ln(\mathrm{NSSR}(r)) + r \cdot \mathrm{penalty}(N,T).
+$$
+
+Три штрафа дают три $r^\star$. **PCA + VAR** и **PCA + BVAR** берут $r^\star$ по IC3 (слабее штраф, обычно больше факторов). **DFM** и его сезонные реализации берут $\min\{r^\star_{\mathrm{IC1}}, r^\star_{\mathrm{IC2}}, r^\star_{\mathrm{IC3}}\}$. См. документацию `ICr`, оптимальное кол-во факторов в большинстве случаев равно $\min\{r^\star_{\mathrm{IC1}}, r^\star_{\mathrm{IC2}}, r^\star_{\mathrm{IC3}}\}$.
+
+Максимальное число лагов вфакторном VAR, `lag.max = 6`, само число лагов выбирается по AIC ([`vars::VARselect`](https://www.rdocumentation.org/packages/vars/topics/VARselect)). У DFM лаг $p \le 2$.
+
+### PCA + VAR
+
+1. PCA-факторы из `ICr`, $r = r^\star_{\mathrm{IC3}}$.
+2. Нагрузки $\Lambda$ — регрессия $X$ на $F$ (`qr.solve`).
+3. VAR(p) на факторах с константой, $p$ по AIC.
+4. Прогноз: $\hat X_{T+h} = \hat F_{T+h}\, \Lambda$.
+
+Это «статический» фактор + VAR, без фильтра Калмана. VAR: [`vars::VAR`](https://www.rdocumentation.org/packages/vars/topics/VAR).
+
+### DFM
+
+Динамическая факторная модель, где факторы - скрытые процессы, которые влияют на наблюдаемые временные ряды.
+
+$$
+\begin{aligned}
+X_t &= \Lambda F_t + \varepsilon_t, \\
+F_t &= A_1 F_{t-1} + \cdots + A_p F_{t-p} + u_t.
+\end{aligned}
+$$
+
+Оценка EM + Калман в [`dfms::DFM`](https://docs.ropensci.org/dfms/reference/DFM.html); прогноз — `predict(..., standardized = FALSE)`. Введение: [vignette dfms](https://docs.ropensci.org/dfms/articles/introduction.html).
+
+Отличие от PCA + VAR: у факторов есть уравнение динамики.
+
+### STL + DFM
+
+Сначала с каждого ряда снимается сезон STL (`s.window = "periodic"`, `robust = TRUE`): сезон — средний календарный цикл по выборке. DFM ставится на сезонно скорректированные приросты; в прогнозе последний цикл длины 12 прибавляется обратно.
+
+$$
+y_t = y^{\mathrm{sa}}_t + s_t,\qquad
+\hat y_{T+h} = \widehat{y}^{\mathrm{sa}}_{T+h} + s_{T+h-12}.
+$$
+
+Periodic STL не даёт эволюционирующей сезонности: COVID и 2022 входят в «средний» цикл. Документация: [`stats::stl`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/stl.html).
+
+### ETS + DFM
+
+Та же схема, но сезон извлекает ETS. Если ряд без сезонность, то он идёт в DFM как есть. Оценить сезонность через ETS не удалось, откат к STL.
+
+Идея: сезонность решать **по рядам** (ETS сам решает, нужна ли она), общее — фактором. ETS: [`forecast::ets`](https://pkg.robjhyndman.com/forecast/reference/ets.html); DFM как выше.
+
+### PCA + BVAR
+
+Как PCA + VAR, но на факторах — байесовский VAR с априорным распределением Миннесоты.
+
+- среднее собственных лагов $b = 0$ (ряд уже в приростах; классическая миннесота для уровней ставит $b = 1$);
+- масштаб остатков $\psi$ — SD остатков OLS AR($p$);
+- прогноз факторов — **медиана** апостериорного распределения прогнозов.
+
+Пакет: [`BVAR::bvar`](https://rdrr.io/cran/BVAR/man/bvar.html), априор [`bv_minnesota`](https://rdrr.io/cran/BVAR/man/bv_minnesota.html).
+
+### FADREG
+
+Factor-augmented regression: у каждого ряда своё уравнение, факторы — общие регрессоры.
+
+$$
+y_{i,t} = c_i + \sum_{j=1}^{p} \phi_{i,j}\, y_{i,t-j} + \sum_{j=0}^{q} \gamma_{i,j}' F_{t-j} + \varepsilon_{i,t}.
+$$
+
+$F_t$ — PCA по панели. Будущие факторы — VAR. Сетка $r \le 5$, $p \le 3$, $q \le 1$ (в том числе современный фактор, $j = 0$. Выбор $(r,p,q)$ — не AIC, а средняя MAE одношагового прогноза на последних 6 точках обучающей выборки. Ссылка -  [`stats::lm`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html). Отдельной библиотеки нет: это регрессия на собственных лагах и факторах в духе Stock–Watson.
+
+### Avg(SARIMA, ETS+DFM)
+
+Усреднение одномерного сезонного ARIMA и DFM после сезонной корректировки ETS:
+
+$$
+\hat y_{T+h}^{\mathrm{avg}} = \tfrac12 \hat y_{T+h}^{\mathrm{SARIMA}} + \tfrac12 \hat y_{T+h}^{\mathrm{ETS+DFM}}.
+$$
+
+Идея - усреднить результаты лучших одномерной и многомерной моделей.
+
+## 3. Как оценивать и прогнозировать {#api}
+
+Диспетчер живёт в `data_analytics/forecast_analysis/functions/functions_forecasts.R`. Он не хранит имя модели внутри объекта: `fit_*` возвращает список, а `forecast_model()` по `method` вызывает `forecast_{method}`.
+
+```r
+source("data_analytics/forecast_analysis/functions/functions_forecasts.R")
+```
+
+### Данные
+
+На вход — **широкая** таблица без `PERIOD`: строки = месяцы, столбцы = группы (`01_ИМ`, `02_ЭК`, …), значения уже \(y_t = \Delta\log(1+S_t)\).
+
+```r
+x_train <- df_wide %>%
+  filter(PERIOD >= train_from, PERIOD <= train_to) %>%
+  select(-PERIOD)
+```
+
+### `fit_model()`
+
+Сигнатура: `fit_model(data, method, specs)`.
+
+`specs` — **именованный список списков**, ключ = имя метода. Диспетчер подставляет `specs[[method]]` в `fit_{method}`:
+
+```r
+fit_model <- function(data, method, specs) {
+  args <- c(list(data = data), specs[[method]])
+  do.call(paste0("fit_", method), args)
+}
+```
+
+Поэтому так **не сработает как задумано**:
+
+```r
+# specs[["dfm_ets"]] == NULL → гиперпараметры игнорируются, идут дефолты fit_dfm_ets()
+fit_model(
+  data = x_train,
+  method = "dfm_ets",
+  specs = list(max_p = 6, max_p_final = 2)
+)
+```
+
+Правильно — вложенный список (как в bake-off) или прямой вызов `fit_*`:
+
+```r
+model_specs <- list(
+  dfm_ets = list(max_p = 6, max_p_final = 2),
+  sarima  = list(max_p = 2, max_q = 2, max_P = 1, max_Q = 1)
+)
+
+model_dfm    <- fit_model(x_train, method = "dfm_ets", specs = model_specs)
+model_sarima <- fit_model(x_train, method = "sarima",  specs = model_specs)
+
+# то же самое без диспетчера:
+# model_dfm    <- fit_dfm_ets(x_train, max_p = 6, max_p_final = 2)
+# model_sarima <- fit_sarima(x_train, max_p = 2, max_q = 2, max_P = 1, max_Q = 1)
+```
+
+`method` — строка, совпадающая с суффиксом функций: `"sarima"` → `fit_sarima` / `forecast_sarima`, `"dfm_ets"` → `fit_dfm_ets` / `forecast_dfm_ets`.
+
+### `forecast_model()`
+
+Сигнатура: `forecast_model(model, method, h)`.
+
+`method` обязателен: объект модели его не содержит. `h` — число месяцев вперёд. Результат — матрица \(h \times N\) (строки = горизонт, столбцы = группы).
+
+```r
+forecast_model <- function(model, method, h) {
+  do.call(paste0("forecast_", method), list(model = model, h = h))
+}
+```
+
+```r
+fc_dfm    <- forecast_model(model_dfm,    method = "dfm_ets", h = 1)
+fc_sarima <- forecast_model(model_sarima, method = "sarima",  h = 1)
+
+# или напрямую:
+# fc_dfm    <- forecast_dfm_ets(model_dfm, h = 1)
+# fc_sarima <- forecast_sarima(model_sarima, h = 1)
+```
+
+Ошибка `argument "method" is missing` — как раз вызов без `method`.
+
+### Model averaging (модель-лидер)
+
+Отдельной `fit_avg_*` нет, поэтому просто оцениваются 2 модели, затем берётся средний прогноз (как в бенчмарках).
+
+```r
+h <- 1  # или length(test_dates), если горизонт длиннее
+
+fc_dfm    <- forecast_model(model_dfm,    method = "dfm_ets", h = h)
+fc_sarima <- forecast_model(model_sarima, method = "sarima",  h = h)
+
+fc_avg <- 0.5 * fc_dfm + 0.5 * fc_sarima
+colnames(fc_avg) <- names(x_train)
+```
+
+Метод называется как модель.

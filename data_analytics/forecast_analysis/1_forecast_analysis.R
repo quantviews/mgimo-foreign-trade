@@ -129,14 +129,22 @@ experiments <- tribble(
    "q1_2026",        as_date("2019-02-01"),    as_date("2025-12-01"),   as_date("2026-01-01"), as_date("2026-03-01")
 )
 
+#################
+
 model_specs <- list(
    static = list(),
    naive  = list(),
+   snaive = list(period = 12),
    ar     = list(max_p = 12),
+   covid  = list(max_p = 12, start = as_date("2019-02-01")),
    ma     = list(max_q = 12),
    arima  = list(),
+   sarima = list(max_p = 2, max_q = 2, max_P = 1, max_Q = 1),
+   ets    = list(),
    var    = list(max_p = 6),
    dfm    = list(max_p = 6, max_p_final = 2),
+   dfm_stl = list(max_p = 6, max_p_final = 2),
+   dfm_ets = list(max_p = 6, max_p_final = 2),
    bvar   = list(max_p = 6),
    fadreg = list()
 )
@@ -149,6 +157,19 @@ forecast_results <- map_dfr(
       model_specs = model_specs,
       experiments = experiments
    )
+)
+
+# Equal-weight average of SARIMA and ETS+DFM (no extra fit)
+forecast_results <- bind_rows(
+   forecast_results,
+   forecast_results %>%
+      filter(model %in% c("sarima", "dfm_ets")) %>%
+      pivot_wider(names_from = model, values_from = forecast) %>%
+      mutate(
+         forecast = 0.5 * sarima + 0.5 * dfm_ets,
+         model = "avg_sarima_dfm_ets"
+      ) %>%
+      select(PERIOD, gr, forecast, experiment, model)
 )
 
 # тест на полноту:
@@ -191,7 +212,8 @@ accuracy_results <- forecast_results_u %>%
    ) %>%
    arrange(experiment, RMSE)
 
-forecast_results_u %>%
+table_wmae <- 
+   forecast_results_u %>%
    reframe(
       mean_mae = mean(abs(actual - forecast)),
       .by = c(gr, experiment, model)
@@ -212,8 +234,7 @@ forecast_results_u %>%
       WMAE = weighted.mean(mean_mae, total_stoim),
       .by = c(model, experiment)
    ) %>%
-   arrange(experiment, WMAE) %>%
-   View()
+   arrange(experiment, WMAE)
 
 # Бенчмарки скорости
 
@@ -238,6 +259,18 @@ benchmark_results <- crossing(
       }
    )
 
+# Ensemble time ≈ sum of components (average itself is O(hk))
+benchmark_results <- bind_rows(
+   benchmark_results,
+   benchmark_results %>%
+      filter(model %in% c("sarima", "dfm_ets")) %>%
+      summarise(
+         across(c(median_sec, mean_sec, min_sec), sum),
+         .by = experiment
+      ) %>%
+      mutate(model = "avg_sarima_dfm_ets")
+)
+
 benchmark_results %>%
    arrange(experiment, median_sec)
 
@@ -246,16 +279,27 @@ results <- accuracy_results %>%
       benchmark_results %>%
          select(experiment, model, median_sec),
       by = c("experiment", "model")
+   ) %>%
+   left_join(
+      table_wmae,
+      by = c('model', 'experiment')
    )
 
 model_labels <- c(
    static = "Static",
    naive  = "Naive",
+   snaive = "Seasonal naive",
    ar     = "AR",
+   covid  = "AR + COVID",
    ma     = "MA",
    arima  = "ARIMA",
+   sarima = "SARIMA",
+   ets    = "ETS",
    var    = "PCA + VAR",
    dfm    = "DFM",
+   dfm_stl = "STL + DFM",
+   dfm_ets = "ETS + DFM",
+   avg_sarima_dfm_ets = "Avg(SARIMA, ETS+DFM)",
    bvar   = "PCA + BVAR",
    fadreg = "FADREG"
 )
@@ -269,17 +313,16 @@ final_table <- results %>%
       model,
       MAE,
       RMSE,
+      WMAE,
       Time_sec = median_sec
    ) %>%
    mutate(
       across(
-         c(MAE, RMSE, Time_sec),
+         c(MAE, RMSE, WMAE, Time_sec),
          ~ round(.x, 3)
       )
    ) %>%
-   arrange(experiment, MAE)
-
-final_table_wide <- final_table %>%
+   arrange(experiment, MAE) %>%
    mutate(
       experiment = recode(
          experiment,
@@ -290,56 +333,13 @@ final_table_wide <- final_table %>%
    ) %>%
    pivot_wider(
       names_from = experiment,
-      values_from = c(MAE, RMSE, Time_sec),
+      values_from = c(MAE, RMSE, WMAE, Time_sec),
       names_glue = "{.value}_{experiment}"
    ) %>%
    arrange(MAE_2025)
 
-final_table_wide %>%
-   select(-c(`Time_sec_Q1 2026`, `Time_sec_2025`)) %>%
+final_table %>%
+   select(-c(`Time_sec_Q1 2026`, `Time_sec_2025`),
+          starts_with('RMSE')) %>%
    rename(Time_sec = `Time_sec_Q4 2025`) %>%
    writexl::write_xlsx('data_analytics/forecast_analysis/results/results_table.xlsx')
-
-##############################
-
-df_train <- 
-   df_wide %>%
-   filter(PERIOD >= experiments$train_from[1],
-          PERIOD <= experiments$train_to[1]) %>%
-   select(-PERIOD)
-
-df_test <- 
-   df_wide %>%
-   filter(PERIOD >= experiments$test_from[1],
-          PERIOD <= experiments$test_to[1])
-
-fit_model(
-   data = df_train,
-   method = 'naive',
-   specs = model_specs
-)
-
-fit_model(
-   data = df_train,
-   method = "ar",
-   specs = model_specs
-)
-
-fit_model(
-   data = df_train,
-   method = "ma",
-   specs = model_specs
-)
-
-fit_model(
-   data = df_train,
-   method = "var",
-   specs = model_specs
-)
-
-fit_model(
-   data = df_train,
-   method = "dfm",
-   specs = model_specs
-)
-

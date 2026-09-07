@@ -4,7 +4,7 @@ fit_dfm <- function(data, max_p = 6, max_p_final = 2) {
    
    # Выбор числа факторов
    ic <- ICr(data)
-   r <- ic$r.star[3]
+   r <- ic$r.star %>% min()
    
    # Выбор числа лагов VAR для факторов
    var_sel <- vars::VARselect(
