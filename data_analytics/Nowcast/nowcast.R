@@ -1,6 +1,10 @@
 library(tidyverse)
 library(duckdb)
 library(dfms)
+library(arrow)
+
+# загрузка функций для прогнозирования. Для удобства можно переместить.
+source('data_analytics/forecast_analysis/functions/functions_forecasts.R')
 
 con <- dbConnect(
   duckdb::duckdb(),
