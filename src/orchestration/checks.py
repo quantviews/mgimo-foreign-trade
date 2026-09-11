@@ -45,6 +45,18 @@ MIXED_SCRIPT_NAME_REGEX = r'[А-Яа-яЁё][A-Za-z]|[A-Za-z][А-Яа-яЁё]'
 # а не падением сборки.
 GENERATED_NAME_SOURCES = ("mt", "manual")
 
+# Completeness. National processors (Китай/Индия/Турция) публикуют помесячно
+# сплошняком, поэтому у них ловим: скелет-месяцы (вся строка нулевая — плейсхолдер
+# MEIDB, как майская Индия 2026), внутренние дырки в помесячном ряду и резкие
+# провалы объёма (обрезка/частичный месяц, как экспорт Германии на 50000 строк).
+NATIONAL_SOURCE = "national"
+# Месяц считается «провалом», если fact-строк в нём меньше этой доли от медианы
+# группы (STRANA, SOURCE); последние месяцы могут быть частичными по естественным
+# причинам, поэтому свежий хвост из проверки исключаем.
+LOW_VOLUME_RATIO = 0.4
+LOW_VOLUME_SKIP_RECENT_MONTHS = 2
+MAX_COMPLETENESS_EXAMPLES = 50
+
 
 class SqlQualityCheckError(RuntimeError):
     """Raised when one or more SQL quality checks fail."""
@@ -72,11 +84,124 @@ def _check_non_empty_relation(
         failures.append(f"{relation_name} is empty")
 
 
+def _check_completeness(
+    conn: duckdb.DuckDBPyConnection,
+    results: dict[str, Any],
+    failures: list[str],
+    *,
+    fail_on_national_gaps: bool,
+) -> None:
+    """Data-completeness checks over fact rows (TYPE <> 'pred').
+
+    - all-zero "skeleton" months per (STRANA, SOURCE) -> hard failure for
+      national sources (they should never carry a placeholder month);
+    - internal month gaps in each national country's monthly run -> metric,
+      optionally a failure;
+    - months whose fact-row count collapses far below the group's median -> metric.
+    """
+    # 1. Skeleton months: STOIM, KOL and NETTO all sum to zero.
+    zero_months = conn.execute(
+        """
+        SELECT UPPER(TRIM(STRANA)) AS STRANA, LOWER(TRIM(SOURCE)) AS SOURCE,
+               CAST(PERIOD AS DATE) AS PERIOD
+        FROM unified_trade_data
+        WHERE LOWER(TRIM(TYPE)) <> 'pred' AND PERIOD IS NOT NULL
+        GROUP BY 1, 2, 3
+        HAVING SUM(COALESCE(STOIM, 0)) = 0
+           AND SUM(COALESCE(KOL, 0)) = 0
+           AND SUM(COALESCE(NETTO, 0)) = 0
+        ORDER BY 1, 2, 3
+        """
+    ).fetchall()
+    results["zero_value_fact_months"] = len(zero_months)
+    results["zero_value_fact_month_examples"] = [
+        {"STRANA": s, "SOURCE": src, "PERIOD": str(p)}
+        for s, src, p in zero_months[:MAX_COMPLETENESS_EXAMPLES]
+    ]
+    national_zero = [f"{s} {p}" for s, src, p in zero_months if src == NATIONAL_SOURCE]
+    if national_zero:
+        failures.append(
+            f"national source has {len(national_zero)} all-zero (skeleton) months: "
+            f"{national_zero[:MAX_COMPLETENESS_EXAMPLES]}"
+        )
+
+    # 2. Internal month gaps per national country (between its own min and max).
+    gaps = conn.execute(
+        f"""
+        WITH months AS (
+            SELECT DISTINCT UPPER(TRIM(STRANA)) AS STRANA, CAST(PERIOD AS DATE) AS P
+            FROM unified_trade_data
+            WHERE LOWER(TRIM(SOURCE)) = '{NATIONAL_SOURCE}'
+              AND LOWER(TRIM(TYPE)) <> 'pred' AND PERIOD IS NOT NULL
+        ),
+        bounds AS (SELECT STRANA, MIN(P) AS mn, MAX(P) AS mx FROM months GROUP BY STRANA),
+        grid AS (
+            SELECT b.STRANA, gs::DATE AS P
+            FROM bounds b,
+                 generate_series(b.mn, b.mx, INTERVAL 1 MONTH) AS t(gs)
+        )
+        SELECT g.STRANA, g.P
+        FROM grid g
+        LEFT JOIN months m ON g.STRANA = m.STRANA AND g.P = m.P
+        WHERE m.P IS NULL
+        ORDER BY g.STRANA, g.P
+        """
+    ).fetchall()
+    gaps_by_country: dict[str, list[str]] = {}
+    for strana, period in gaps:
+        gaps_by_country.setdefault(strana, []).append(str(period))
+    results["national_month_gap_count"] = len(gaps)
+    results["national_month_gaps"] = [
+        {"STRANA": strana, "missing": periods}
+        for strana, periods in sorted(gaps_by_country.items())
+    ]
+    if gaps and fail_on_national_gaps:
+        failures.append(
+            f"national sources have {len(gaps)} internal month gaps: "
+            f"{results['national_month_gaps']}"
+        )
+
+    # 3. Volume collapse in a national series: a month far below the country's
+    #    median row count, ignoring the freshest months (which may be legitimately
+    #    partial). Scoped to national sources on purpose — Comtrade carries many
+    #    genuinely sparse series (e.g. UA after 2022) that would drown the signal,
+    #    and its completeness is covered by the collector manifest + truncation SQL.
+    low_volume = conn.execute(
+        f"""
+        WITH counts AS (
+            SELECT UPPER(TRIM(STRANA)) AS STRANA, LOWER(TRIM(SOURCE)) AS SOURCE,
+                   CAST(PERIOD AS DATE) AS P, COUNT(*) AS n
+            FROM unified_trade_data
+            WHERE LOWER(TRIM(SOURCE)) = '{NATIONAL_SOURCE}'
+              AND LOWER(TRIM(TYPE)) <> 'pred' AND PERIOD IS NOT NULL
+            GROUP BY 1, 2, 3
+        ),
+        ranked AS (
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY STRANA, SOURCE ORDER BY P DESC) AS recency,
+                   MEDIAN(n) OVER (PARTITION BY STRANA, SOURCE) AS med
+            FROM counts
+        )
+        SELECT STRANA, SOURCE, P, n, med
+        FROM ranked
+        WHERE recency > {LOW_VOLUME_SKIP_RECENT_MONTHS}
+          AND med > 0 AND n < {LOW_VOLUME_RATIO} * med
+        ORDER BY n * 1.0 / med
+        """
+    ).fetchall()
+    results["low_volume_month_flag_count"] = len(low_volume)
+    results["low_volume_month_flags"] = [
+        {"STRANA": s, "SOURCE": src, "PERIOD": str(p), "rows": int(n), "median": int(med)}
+        for s, src, p, n, med in low_volume[:MAX_COMPLETENESS_EXAMPLES]
+    ]
+
+
 def run_sql_quality_checks(
     db_path: str | Path = DEFAULT_DB_PATH,
     *,
     min_unified_rows: int = 1,
     require_fizob: bool = False,
+    fail_on_national_gaps: bool = False,
 ) -> dict[str, Any]:
     """Run SQL checks against the final DuckDB artifact.
 
@@ -231,6 +356,10 @@ def run_sql_quality_checks(
                 {"SOURCE": source, "TYPE": type_value, "row_count": count}
                 for source, type_value, count in source_type_counts
             ]
+
+            _check_completeness(
+                conn, results, failures, fail_on_national_gaps=fail_on_national_gaps
+            )
 
         if "tnved_reference" in table_names:
             reference_columns = {

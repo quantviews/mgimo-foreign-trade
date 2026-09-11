@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for SQL quality checks against the final DuckDB artifact."""
 
+import datetime as dt
 from pathlib import Path
 
 import duckdb
@@ -16,8 +17,14 @@ def create_quality_test_db(
     pred_overlap: bool = False,
     mixed_script_name: str | None = None,
     mixed_script_source: str = "mt",
+    extra_rows: list[tuple] | None = None,
 ) -> None:
-    """Create a minimal DuckDB file with the relations required by quality checks."""
+    """Create a minimal DuckDB file with the relations required by quality checks.
+
+    ``extra_rows`` appends raw unified_trade_data rows (14-tuple in column order:
+    NAPR, PERIOD, STRANA, TNVED, EDIZM, EDIZM_ISO, STOIM, NETTO, KOL, TNVED4,
+    TNVED6, TNVED2, SOURCE, TYPE) so completeness scenarios can be built.
+    """
     conn = duckdb.connect(str(path))
     try:
         conn.execute(
@@ -72,6 +79,13 @@ def create_quality_test_db(
                 ('ИМ', DATE '2024-02-01', 'CN', '0101010000', NULL, NULL,
                  90.0, 9.0, NULL, '0101', '010101', '01', 'nowcast', 'pred')
                 """
+            )
+
+        if extra_rows:
+            conn.executemany(
+                "INSERT INTO unified_trade_data VALUES "
+                "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                extra_rows,
             )
 
         conn.execute(
@@ -170,3 +184,76 @@ def test_sql_quality_checks_fail_when_required_tables_missing(tmp_path):
 
     with pytest.raises(SqlQualityCheckError, match="Missing required tables"):
         run_sql_quality_checks(db_path)
+
+
+# --- Completeness checks ----------------------------------------------------
+
+def _nat_row(strana, period, *, stoim=100.0, netto=10.0, kol=2.0, tnved="0202300000"):
+    """One national fact row for unified_trade_data (14-tuple in column order)."""
+    return (
+        "ИМ", period, strana, tnved, "KGS", "166", stoim, netto, kol,
+        tnved[:4], tnved[:6], tnved[:2], "national", "fact",
+    )
+
+
+def test_completeness_metrics_clean_on_valid_db(tmp_path):
+    """Базовая валидная БД: метрики полноты присутствуют и пусты."""
+    db_path = tmp_path / "clean.duckdb"
+    create_quality_test_db(db_path)
+
+    metrics = run_sql_quality_checks(db_path)
+
+    assert metrics["zero_value_fact_months"] == 0
+    assert metrics["national_month_gap_count"] == 0
+    assert metrics["low_volume_month_flag_count"] == 0
+
+
+def test_completeness_fails_on_national_skeleton_month(tmp_path):
+    """Месяц national-источника со всеми нулями (скелет MEIDB) роняет сборку."""
+    db_path = tmp_path / "skeleton.duckdb"
+    create_quality_test_db(
+        db_path,
+        extra_rows=[_nat_row("IN", dt.date(2026, 5, 1), stoim=0.0, netto=0.0, kol=0.0)],
+    )
+
+    with pytest.raises(SqlQualityCheckError, match="skeleton"):
+        run_sql_quality_checks(db_path)
+
+
+def test_completeness_reports_internal_month_gap(tmp_path):
+    """Дырка в помесячном ряду national-страны — метрика; опционально — отказ."""
+    db_path = tmp_path / "gap.duckdb"
+    create_quality_test_db(
+        db_path,
+        extra_rows=[
+            _nat_row("TR", dt.date(2024, 1, 1)),
+            _nat_row("TR", dt.date(2024, 3, 1)),  # февраль пропущен
+        ],
+    )
+
+    metrics = run_sql_quality_checks(db_path)
+    assert metrics["national_month_gap_count"] == 1
+    tr_gap = [g for g in metrics["national_month_gaps"] if g["STRANA"] == "TR"]
+    assert tr_gap and tr_gap[0]["missing"] == ["2024-02-01"]
+
+    # По умолчанию не валит (у Индии бывает лаг); с флагом — валит.
+    with pytest.raises(SqlQualityCheckError, match="internal month gaps"):
+        run_sql_quality_checks(db_path, fail_on_national_gaps=True)
+
+
+def test_completeness_flags_low_volume_month(tmp_path):
+    """Месяц с обвалом числа строк (обрезка/частичный) попадает в метрику."""
+    rows = []
+    for month in range(1, 7):  # 2024-01 … 2024-06
+        count = 1 if month == 2 else 10  # февраль — резкий провал
+        for i in range(count):
+            rows.append(_nat_row("TR", dt.date(2024, month, 1), tnved=f"02023000{i:02d}"))
+    db_path = tmp_path / "lowvol.duckdb"
+    create_quality_test_db(db_path, extra_rows=rows)
+
+    metrics = run_sql_quality_checks(db_path)
+    flagged = [
+        f for f in metrics["low_volume_month_flags"]
+        if f["STRANA"] == "TR" and f["PERIOD"] == "2024-02-01"
+    ]
+    assert flagged and flagged[0]["rows"] == 1 and flagged[0]["median"] == 10
