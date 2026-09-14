@@ -397,7 +397,8 @@ p_title_after <- function(fo) {
     scale_y_continuous(labels = percent_format(accuracy = 1)) +
     scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
     labs(
-      title = "Бум экспорта в Индию закончился: объёмы сокращаются второй год",
+      title = "Бум экспорта в Индию закончился:
+объёмы сокращаются второй год",
       subtitle = "Изменение физического объёма экспорта год к году · Китай и Турция — серым",
       x = NULL, y = NULL,
       caption = "Тот же график. Изменились только заголовок, цвет и подпись."
