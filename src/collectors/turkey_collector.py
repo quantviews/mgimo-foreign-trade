@@ -1,6 +1,13 @@
 """
+УСТАРЕЛО. Сбор по Турции переехал в отдельный проект turkey-foreign-trade
+(лежит рядом с этим репозиторием). Причина: ТУИК перенёс данные из старой формы
+biruni.tuik.gov.tr в BI-портал на Qlik, и прежний способ сбора там не работает.
+Подробности и порядок запуска: docs/turkey-collector-docs.md.
+
 Модуль позволяет выгружать HS8 коды и сырые данные с сайта института статистики Турции в виде html таблиц. HS8 коды
 сохраняются отдельно в виде json файлов.
+
+Модуль оставлен как история, запускать его не нужно.
 """
 
 import argparse, asyncio, re, json, time, sys
@@ -10,6 +17,17 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+DEPRECATION_NOTICE = (
+    "\n"
+    "  ВНИМАНИЕ: этот скрипт устарел и больше не используется.\n"
+    "  Сбор по Турции выполняет проект turkey-foreign-trade (лежит рядом):\n"
+    "      python -m pipeline.cli update\n"
+    "      python -m pipeline.cli compat-export\n"
+    "  Результат кладётся в data_processed/tr_full.parquet.\n"
+    "  Подробности: docs/turkey-collector-docs.md\n"
+)
+
 from collectors._base import get_project_root, valid_year as _valid_year_str
 
 # Константы коллектора (модульная область — модуль импортируем и тестируем)
@@ -312,4 +330,5 @@ async def main(args):
 
 
 if __name__ == "__main__":
+    print(DEPRECATION_NOTICE, file=sys.stderr)
     asyncio.run(main(parse_arguments()))

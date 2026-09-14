@@ -1,6 +1,13 @@
 """
+УСТАРЕЛО. Сбор по Турции переехал в отдельный проект turkey-foreign-trade
+(лежит рядом с этим репозиторием). Причина: ТУИК перенёс данные из старой формы
+biruni.tuik.gov.tr в BI-портал на Qlik, и прежний способ сбора там не работает.
+Подробности и порядок запуска: docs/turkey-collector-docs.md.
+
 Модуль находит сырые данные в виде html файлов, производит их предварительную обработку и  объединяет в единый датасет,
 который затем гармонизируется в соответствии с моделью данных и сохраняется в виде parquet файла.
+
+Модуль оставлен как история, запускать его не нужно.
 """
 
 import re, os, argparse, sys
@@ -12,6 +19,17 @@ import numpy as np
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+DEPRECATION_NOTICE = (
+    "\n"
+    "  ВНИМАНИЕ: этот скрипт устарел и больше не используется.\n"
+    "  Сбор по Турции выполняет проект turkey-foreign-trade (лежит рядом):\n"
+    "      python -m pipeline.cli update\n"
+    "      python -m pipeline.cli compat-export\n"
+    "  Результат кладётся в data_processed/tr_full.parquet.\n"
+    "  Подробности: docs/turkey-collector-docs.md\n"
+)
+
 from collectors._base import get_project_root, valid_year
 from core.country_processor_contract import (
     CountryProcessorInput,
@@ -314,6 +332,18 @@ def build_for_year(year):
 
 def main():
     args = parse_arguments()
+
+    # Скрипт пишет в data_processed/tr_full.parquet, куда сейчас кладётся
+    # выгрузка нового пайплайна. Молча затирать её нельзя.
+    print(DEPRECATION_NOTICE, file=sys.stderr)
+    print(
+        "  Запуск перезапишет data_processed/tr_full.parquet данными старой схемы.\n"
+        "  Продолжить, только если вы точно этого хотите: наберите 'yes'.",
+        file=sys.stderr,
+    )
+    if input("  > ").strip().lower() != "yes":
+        print("  Отменено.", file=sys.stderr)
+        return
 
     # Определяем путь относительно корня проекта для сохранения файлов
     script_dir = get_project_root()
