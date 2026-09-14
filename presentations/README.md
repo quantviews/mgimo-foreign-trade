@@ -52,7 +52,7 @@ python -c "import segno; segno.make('https://quantviews.github.io/mgimo-foreign-
 |-------|------------------------|
 | Капча на портале КНР, проверка валюты выгрузки | `docs/china-collector-docs.md` |
 | CSRF-токен и три отдельных запроса MEIDB | `docs/india-collector-docs.md` |
-| HTML-страницы и формат чисел `1.234,56` | `docs/turkey-collector-docs.md` |
+| Qlik-дашборд ТУИК, сбор через браузер | репозиторий `turkey-foreign-trade`, README |
 | «Скелет» таблицы за неопубликованный месяц | `docs/india-collector-docs.md`, шаг 8 |
 | Молчаливая обрезка ответа по `maxRecords` | `docs/comtrade-collector-docs.md`, разд. 7 |
 | Пересмотры отчётности и манифест | `docs/comtrade-collector-docs.md`, разд. 5 |
