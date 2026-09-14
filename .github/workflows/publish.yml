@@ -13,6 +13,14 @@ on:
       - "other/**/*.qmd"
       - "lessons/**/*.qmd"
       - "lessons/**/*.css"
+      # занятие по визуализации собирается отдельным шагом ниже
+      - "presentations/dataviz-story.qmd"
+      - "presentations/scripts/dataviz_helpers.R"
+      - "presentations/slides.css"
+      - "presentations/styles/**"
+      - "presentations/figures/dataviz/**"
+      - "presentations/fonts/**"
+      - "presentations/_quarto*.yml"
       - "_quarto.yml"
       - "site/_quarto.yml"
       - ".github/workflows/publish.yml"
@@ -91,6 +99,18 @@ jobs:
 
       - name: Render site
         run: quarto render .
+
+      # presentations/ — отдельный проект Quarto (свой _quarto.yml), корневой
+      # рендер туда не заходит. Собираем занятие одним самодостаточным файлом
+      # и кладём рядом с сайтом.
+      - name: Render dataviz lesson (single file)
+        run: quarto render presentations/dataviz-story.qmd --profile standalone
+
+      - name: Copy dataviz lesson into site
+        run: |
+          mkdir -p _site/presentations
+          cp presentations/dataviz-story.html _site/presentations/dataviz-story.html
+          ls -lh _site/presentations/
 
       - name: Publish _site to gh-pages
         uses: peaceiris/actions-gh-pages@v4
