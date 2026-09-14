@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - supports running this file directly
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-NOWCAST_R_PACKAGES = ("tidyverse", "duckdb", "dfms", "arrow", "vars")
+NOWCAST_R_PACKAGES = ("tidyverse", "duckdb", "dfms", "arrow", "vars", "forecast")
 FIZOB_R_PACKAGES = ("tidyverse", "slider", "duckdb")
 
 

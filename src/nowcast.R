@@ -3,7 +3,14 @@ suppressPackageStartupMessages({
   library(duckdb)
   library(dfms)
   library(arrow)
+  library(forecast)
 })
+
+# Forecast model functions: fit_model()/forecast_model() dispatchers plus the
+# per-method fit_/forecast_ implementations. The source() paths inside are
+# relative to the repo root, so this script must run from the repo root (the
+# pipeline flow does).
+source("data_analytics/forecast_analysis/functions/functions_forecasts.R")
 
 run_started_at <- Sys.time()
 
@@ -187,26 +194,29 @@ log_step(sprintf(
   fmt_n(sum(missing_by_group > 0))
 ))
 
-ic <- ICr(df_var_1_train)
-# ic$r.star holds factor-count picks from three Bai-Ng information criteria
-# (ICp1/ICp2/ICp3); [3] takes the third (ICp3), the most parsimonious of them.
-log_step(sprintf("Selected number of factors by IC: %s", fmt_n(ic$r.star[3])))
-
-n_var_lags <- vars::VARselect(ic$F_pca[, 1:ic$r.star[3]])
-# Cap VAR lag order at 2: the monthly factor panel is short, higher lags overfit.
-selected_lags <- min(c(n_var_lags$selection %>% min(), 2))
-log_step(sprintf("Selected VAR lag order: %s", fmt_n(selected_lags)))
-
-model <- DFM(
-  df_var_1_train,
-  r = ic$r.star[3],
-  p = selected_lags
+# Two-model ensemble: 0.5 * (ETS+DFM) + 0.5 * SARIMA. Factor count and VAR lag
+# order are picked inside fit_dfm (called by fit_dfm_ets); SARIMA orders are
+# picked by AIC inside fit_sarima. Both forecast_* return an h x group matrix in
+# the same column order, so the averaging is element-wise.
+model_specs <- list(
+  dfm_ets = list(max_p = 6, max_p_final = 2),
+  sarima  = list(max_p = 2, max_q = 2, max_P = 1, max_Q = 1)
 )
 
-log_step("DFM model fitted")
+model_dfm    <- fit_model(df_var_1_train, method = "dfm_ets", specs = model_specs)
+model_sarima <- fit_model(df_var_1_train, method = "sarima",  specs = model_specs)
+log_step(sprintf(
+  "Models fitted: ETS+DFM (r = %s, p = %s) and SARIMA",
+  fmt_n(model_dfm$dfm$r),
+  fmt_n(model_dfm$dfm$p)
+))
 
-forecast_test <- predict(model, h = fc_periods)
-forecast_test <- forecast_test$X_fcst %>%
+fc_dfm    <- forecast_model(model_dfm,    method = "dfm_ets", h = fc_periods)
+fc_sarima <- forecast_model(model_sarima, method = "sarima",  h = fc_periods)
+fc_avg    <- 0.5 * fc_dfm + 0.5 * fc_sarima
+log_step("Averaged forecast: 0.5 * (ETS+DFM) + 0.5 * SARIMA")
+
+forecast_test <- fc_avg %>%
   as_tibble(.name_repair = "minimal") %>%
   mutate(PERIOD = test_dates, type = "pred") %>%
   pivot_longer(
