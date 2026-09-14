@@ -111,6 +111,15 @@ viz_example_data <- function(cache = EXAMPLE_CACHE) {
 strana_ru <- c(CN = "Китай", IN = "Индия", TR = "Турция",
                OTHER = "Прочие страны", ALL = "Все страны")
 
+# Заголовки графиков не должны устаревать при обновлении базы, поэтому
+# числа в них считаются из данных. Для этого нужно склонение.
+ru_months <- function(n) {
+  word <- if (n %% 10 == 1 && n %% 100 != 11) "месяц"
+          else if (n %% 10 %in% 2:4 && !(n %% 100 %in% 12:14)) "месяца"
+          else "месяцев"
+  paste(n, word)
+}
+
 # =========================================================================
 # КЕЙС 1. Спагетти: 98 товарных групп на одном графике
 # =========================================================================
@@ -289,6 +298,23 @@ p_decomposed_good <- function(d) {
                            levels = c("Прочие страны", "Китай", "Индия", "Турция")))
   lastp <- dec |> group_by(series) |> filter(PERIOD == max(PERIOD)) |> ungroup()
 
+  # подпись строится по данным: при обновлении базы цифры меняются
+  tot <- dec |> summarise(s = sum(STOIM), .by = PERIOD) |> arrange(PERIOD)
+  edge <- function(country, pos) {
+    v <- dec$STOIM[dec$series == country]
+    p <- dec$PERIOD[dec$series == country]
+    v[order(p)][if (pos == "first") 1L else length(v)]
+  }
+  # десятичный разделитель в русском тексте — запятая
+  fmt <- function(x, d = 0) sub("[.]", ",", formatC(x, format = "f", digits = d))
+  cap <- sprintf(
+    "Итог %s → %s млрд $. Прочие страны %s → %s, Китай %s → %s, Индия %s → %s",
+    fmt(tot$s[1]), fmt(tot$s[nrow(tot)]),
+    fmt(edge("Прочие страны", "first")), fmt(edge("Прочие страны", "last")),
+    fmt(edge("Китай", "first")), fmt(edge("Китай", "last")),
+    fmt(edge("Индия", "first"), 1), fmt(edge("Индия", "last"), 1)
+  )
+
   ggplot(dec, aes(PERIOD, STOIM, colour = series)) +
     geom_line(linewidth = 1.2) +
     geom_point(data = lastp, size = 2.4) +
@@ -297,10 +323,10 @@ p_decomposed_good <- function(d) {
     scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
     scale_y_continuous(labels = label_number(), limits = c(0, NA)) +
     labs(
-      title = "Экспорт не столько упал, сколько сменил адрес",
+      title = "Главное изменение — не в сумме, а в её составе",
       subtitle = "Тот же ряд, разложенный по странам-получателям, млрд $ в месяц",
       x = NULL, y = "млрд $",
-      caption = "Итог почти не изменился: 34 → 31 млрд $. Состав изменился полностью."
+      caption = cap
     ) +
     theme_viz()
 }
@@ -330,7 +356,9 @@ p_axis_good <- function(ax) {
     scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.08)),
                        labels = label_number(suffix = " млрд $")) +
     scale_x_date(date_labels = "%m.%y", date_breaks = "3 months") +
-    labs(title = "Экспорт колеблется в коридоре 22–32 млрд $", x = NULL, y = NULL) +
+    labs(title = sprintf("Экспорт колеблется в коридоре %.0f–%.0f млрд $",
+                         min(ax$stoim_bn), max(ax$stoim_bn)),
+         x = NULL, y = NULL) +
     theme_viz(base_size = 14)
 }
 
@@ -394,6 +422,7 @@ p_nowcast <- function(d, napr = "ЭК") {
   # граница подсветки совпадает с началом пунктира, иначе переходный
   # сегмент оказывается вне залитой области
   edge <- last_fact
+  n_pred <- sum(h$nowcast_share > 0, na.rm = TRUE)
   top <- max(h$stoim_bn, na.rm = TRUE) * 1.14
 
   ggplot() +
@@ -413,7 +442,7 @@ p_nowcast <- function(d, napr = "ЭК") {
     scale_x_date(date_labels = "%m.%y", date_breaks = "3 months",
                  expand = expansion(mult = c(0.02, 0.04))) +
     labs(
-      title = "Последние три месяца — не факт, а оценка, и это видно",
+      title = sprintf("Последние %s — не факт, а оценка, и это видно", ru_months(n_pred)),
       subtitle = "Экспорт по месяцам, млрд $: сплошная линия — отчётные данные, пунктир — наукаст",
       x = NULL, y = "млрд $",
       caption = "Прогноз нельзя рисовать той же линией, что и факт: читатель не обязан догадываться"
@@ -433,7 +462,8 @@ p_example_cn_export <- function(ex) {
     scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.08)),
                        labels = label_number()) +
     labs(
-      title = "Экспорт в Китай: около 13 млрд $ в месяц",
+      title = sprintf("Экспорт в Китай: около %.0f млрд $ в месяц",
+                      mean(tail(ex$export_bn[order(ex$PERIOD)], 12))),
       x = NULL, y = "млрд $"
     ) +
     theme_viz(base_size = 13)

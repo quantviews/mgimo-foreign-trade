@@ -55,13 +55,13 @@ ex <- viz_example_data()
 
 ## Вот наши данные
 
-<table class="raw"><thead><tr><th>NAPR</th><th>PERIOD</th><th>STRANA</th><th>TNVED</th><th>EDIZM</th><th>STOIM</th><th>NETTO</th><th>KOL</th><th>SOURCE</th><th>TYPE</th></tr></thead><tbody><tr><td>ИМ</td><td>2024-06-01</td><td>CN</td><td>8402120000</td><td>—</td><td class="num">69 794</td><td class="num">2</td><td class="num">NULL</td><td>national</td><td>fact</td></tr><tr><td>ИМ</td><td>2024-06-01</td><td>CN</td><td>8402900000</td><td>—</td><td class="num">340 757</td><td class="num">98 933</td><td class="num">0</td><td>national</td><td>fact</td></tr><tr><td>ИМ</td><td>2024-06-01</td><td>CN</td><td>8403101000</td><td>—</td><td class="num">11 191 887</td><td class="num">52 614</td><td class="num">NULL</td><td>national</td><td>fact</td></tr><tr><td>ЭК</td><td>2019-01-01</td><td>AD</td><td>2208600000</td><td>—</td><td class="num">6 380,6</td><td class="num">1 380,0</td><td class="num">NULL</td><td>comtrade</td><td>fact</td></tr><tr><td>ИМ</td><td>2019-01-01</td><td>AD</td><td>4202210000</td><td>—</td><td class="num">1 188,8</td><td class="num">12,9</td><td class="num">NULL</td><td>comtrade</td><td>fact</td></tr><tr><td>ИМ</td><td>2024-01-01</td><td>GE</td><td>2204210000</td><td>ЛИТР</td><td class="num">13 272 667</td><td class="num">5 047 930</td><td class="num">5 047 930</td><td>comtrade</td><td>fact</td></tr><tr><td>ЭК</td><td>2026-05-01</td><td>IN</td><td>2709001000</td><td>—</td><td class="num">4 156 717 645</td><td class="num">8 381 065 593</td><td class="num">NULL</td><td>nowcast</td><td>pred</td></tr></tbody></table>
+<table class="raw"><thead><tr><th>NAPR</th><th>PERIOD</th><th>STRANA</th><th>TNVED</th><th>EDIZM</th><th>STOIM</th><th>NETTO</th><th>KOL</th><th>SOURCE</th><th>TYPE</th></tr></thead><tbody><tr><td>ИМ</td><td>2024-06-01</td><td>CN</td><td>8402120000</td><td>—</td><td class="num">69 794</td><td class="num">2</td><td class="num">NULL</td><td>national</td><td>fact</td></tr><tr><td>ИМ</td><td>2024-06-01</td><td>CN</td><td>8402900000</td><td>—</td><td class="num">340 757</td><td class="num">98 933</td><td class="num">0</td><td>national</td><td>fact</td></tr><tr><td>ИМ</td><td>2024-06-01</td><td>CN</td><td>8403101000</td><td>—</td><td class="num">11 191 887</td><td class="num">52 614</td><td class="num">NULL</td><td>national</td><td>fact</td></tr><tr><td>ЭК</td><td>2019-01-01</td><td>AD</td><td>2208600000</td><td>—</td><td class="num">6 380,6</td><td class="num">1 380,0</td><td class="num">NULL</td><td>comtrade</td><td>fact</td></tr><tr><td>ИМ</td><td>2019-01-01</td><td>AD</td><td>4202210000</td><td>—</td><td class="num">1 188,8</td><td class="num">12,9</td><td class="num">NULL</td><td>comtrade</td><td>fact</td></tr><tr><td>ИМ</td><td>2024-01-01</td><td>GE</td><td>2204210000</td><td>ЛИТР</td><td class="num">13 272 667</td><td class="num">5 047 930</td><td class="num">5 047 930</td><td>comtrade</td><td>fact</td></tr><tr><td>ЭК</td><td>2026-07-01</td><td>IN</td><td>2709001000</td><td>—</td><td class="num">6 485 607 679</td><td class="num">11 530 164 600</td><td class="num">NULL</td><td>nowcast</td><td>pred</td></tr></tbody></table>
 
 <span class="src">Семь строк из `unified_trade_data`. Вопрос залу: что здесь происходит с российской торговлей — она растёт или падает?</span>
 
 ## Почему таблицу не читают
 
-<div class="facts"><div><span class="fig">7 416 603</span><span class="cap">строки в базе</span></div><div><span class="fig">141</span><span class="cap">страна-партнёр</span></div><div><span class="fig">17 793</span><span class="cap">кода ТН ВЭД</span></div><div><span class="fig">90</span><span class="cap">месяцев, 2019–2026</span></div></div>
+<div class="facts"><div><span class="fig">7 059 418</span><span class="cap">строк в базе</span></div><div><span class="fig">141</span><span class="cap">страна-партнёр</span></div><div><span class="fig">17 839</span><span class="cap">кодов ТН ВЭД</span></div><div><span class="fig">91</span><span class="cap">месяц, 2019–2026</span></div></div>
 
 В таблице не читают, а ищут, и для поиска нужно заранее знать, что искать. Глаз при этом хорошо оценивает длину, положение и направление, но плохо — числа. Визуализация переводит данные из первого режима во второй.
 
@@ -109,10 +109,10 @@ WHERE STRANA = 'CN' AND NAPR = 'ИМ' AND TYPE = 'fact'
 GROUP BY 1, 2
 ```
 
-<table class="plain"><thead><tr><th>Уровень</th><th>Кодов в срезе</th><th>Строк в ответе</th><th>Сумма импорта</th><th>Что с этим можно делать</th></tr></thead><tbody><tr><td>ТН ВЭД-2</td><td>98 товарных групп</td><td>2 902</td><td>279,9 млрд $</td><td>помещается на один график</td></tr><tr><td>ТН ВЭД-4</td><td>1 097 позиций</td><td>28 499</td><td>279,9 млрд $</td><td>уже только таблица</td></tr><tr><td>ТН ВЭД-6</td><td>4 447 субпозиций</td><td>104 972</td><td>279,9 млрд $</td><td>только поиск по коду</td></tr><tr><td>полный код</td><td>6 760 позиций</td><td>147 120</td><td>279,9 млрд $</td><td>это выгрузка, а не срез</td></tr></tbody></table>
+<table class="plain"><thead><tr><th>Уровень</th><th>Кодов в срезе</th><th>Строк в ответе</th><th>Сумма импорта</th><th>Что с этим можно делать</th></tr></thead><tbody><tr><td>ТН ВЭД-2</td><td>98 товарных групп</td><td>2 999</td><td>292,2 млрд $</td><td>помещается на один график</td></tr><tr><td>ТН ВЭД-4</td><td>1 100 позиций</td><td>29 456</td><td>292,2 млрд $</td><td>уже только таблица</td></tr><tr><td>ТН ВЭД-6</td><td>4 455 субпозиций</td><td>108 539</td><td>292,2 млрд $</td><td>только поиск по коду</td></tr><tr><td>полный код</td><td>6 777 позиций</td><td>152 150</td><td>292,2 млрд $</td><td>это выгрузка, а не срез</td></tr></tbody></table>
 
 ::: {.concl}
-Ответить можно на четырёх уровнях детализации: запрос отличается одним словом, а сумма импорта во всех четырёх случаях одна и та же. Меняется только подробность разбивки, поэтому уровень выбирают под то, что читатель способен удержать: 98 групп можно обсудить вслух, 6 760 кодов — только искать в них нужную позицию.
+Ответить можно на четырёх уровнях детализации: запрос отличается одним словом, а сумма импорта во всех четырёх случаях одна и та же. Меняется только подробность разбивки, поэтому уровень выбирают под то, что читатель способен удержать: 98 групп можно обсудить вслух, 6 777 кодов — только искать в них нужную позицию.
 :::
 
 ## Что делать с 98 товарными группами
@@ -169,7 +169,7 @@ p_usd_vs_volume(d)
 
 Единицы измерения внутри товарной группы 27 (топливо), поле `KOL`:
 
-<table class="raw"><thead><tr><th>EDIZM — единица измерения</th><th>строк</th><th>SUM(KOL)</th></tr></thead><tbody><tr><td>КУБИЧЕСКИЙ МЕТР</td><td class="num">693</td><td class="num">999 798 580 882</td></tr><tr><td>ЛИТР</td><td class="num">1 823</td><td class="num">76 284 555 781</td></tr><tr><td>1000 КИЛОВАТТ-ЧАС</td><td class="num">693</td><td class="num">52 341 503</td></tr><tr><td>1000 ЛИТРОВ</td><td class="num">153</td><td class="num">4 944 499</td></tr><tr><td>1000 КУБИЧЕСКИХ МЕТРОВ</td><td class="num">35</td><td class="num">46 918 572</td></tr><tr><td>КВАДРАТНЫЙ МЕТР</td><td class="num">1</td><td class="num">1 324 000 000</td></tr><tr><td>ШТУКА</td><td class="num">10</td><td class="num">23 825</td></tr><tr><td>МЕТР</td><td class="num">1</td><td class="num">9 007</td></tr></tbody></table>
+<table class="raw"><thead><tr><th>EDIZM — единица измерения</th><th>строк</th><th>SUM(KOL)</th></tr></thead><tbody><tr><td>КУБИЧЕСКИЙ МЕТР</td><td class="num">756</td><td class="num">1 028 176 278 890</td></tr><tr><td>ЛИТР</td><td class="num">1 867</td><td class="num">76 270 871 480</td></tr><tr><td>1000 КИЛОВАТТ-ЧАС</td><td class="num">706</td><td class="num">54 257 753</td></tr><tr><td>1000 ЛИТРОВ</td><td class="num">158</td><td class="num">5 549 015</td></tr><tr><td>1000 КУБИЧЕСКИХ МЕТРОВ</td><td class="num">30</td><td class="num">46 664 880</td></tr><tr><td>КВАДРАТНЫЙ МЕТР</td><td class="num">1</td><td class="num">1 324 000 000</td></tr><tr><td>ШТУКА</td><td class="num">33</td><td class="num">5 391 568</td></tr><tr><td>МЕТР</td><td class="num">1</td><td class="num">9 007</td></tr></tbody></table>
 
 <span class="src">`SUM(KOL)` по группе 27 складывает кубометры с киловатт-часами и квадратными метрами. SQL выполнит это и вернёт число; на графике оно будет неотличимо от осмысленного.</span>
 
@@ -200,9 +200,9 @@ p_usd_vs_volume(d)
 
 ## Метрику диктуют данные
 
-<div class="facts"><div><span class="fig">100%</span><span class="cap">строк имеют стоимость STOIM</span></div><div><span class="fig">91%</span><span class="cap">фактических строк имеют вес нетто NETTO</span></div><div><span class="fig">22%</span><span class="cap">фактических строк имеют количество KOL</span></div></div>
+<div class="facts"><div><span class="fig">100%</span><span class="cap">строк имеют стоимость STOIM</span></div><div><span class="fig">92%</span><span class="cap">фактических строк имеют вес нетто NETTO</span></div><div><span class="fig">33%</span><span class="cap">фактических строк имеют количество KOL</span></div></div>
 
-График, построенный на `KOL`, молча отбросит три четверти торговли и никак этого не покажет. Пропуски вообще не видны на картинке: линия просто идёт ниже, и выглядит это как сокращение поставок.
+График, построенный на `KOL`, молча отбросит две трети торговли и никак этого не покажет. Пропуски вообще не видны на картинке: линия просто идёт ниже, и выглядит это как сокращение поставок.
 
 Поэтому индекс в проекте считается на `NETTO`, а `KOL` используется там, где он заполнен. Перед тем как строить график, полезно отдельно посчитать, сколько строк отвалилось на выбранном срезе.
 
@@ -221,7 +221,7 @@ p_usd_vs_volume(d)
 p_pie_bad(st)
 ```
 
-[Сегменты 7,0% и 6,6% на глаз неразличимы, порядок алфавитный, а на каждый сегмент нужен отдельный взгляд в легенду.]{.cap}
+[Сегменты 2,2%, 2,2% и 2,1% на глаз неразличимы, порядок алфавитный, а на каждый сегмент нужен отдельный взгляд в легенду.]{.cap}
 :::
 
 ::: {.c}
@@ -242,7 +242,7 @@ p_bar_good(st)
 Пирог уместен, когда частей две-три и вопрос звучит как «больше или меньше половины». Десять сегментов — почти всегда ошибка.
 :::
 
-## Ровная линия обычно что-то скрывает
+## Итог скрывает, что состав изменился
 
 :::: {.pair}
 
@@ -255,7 +255,7 @@ p_bar_good(st)
 p_aggregate_bad(d)
 ```
 
-[По этому графику вывод такой: в 2022 году был пик, затем спад, сейчас около 31 млрд долларов. Всё верно и мимо главного.]{.cap}
+[По этому графику вывод такой: в 2022 году был пик, затем спад, сейчас около 41 млрд долларов. Всё верно и мимо главного.]{.cap}
 :::
 
 ::: {.c}
@@ -267,13 +267,13 @@ p_aggregate_bad(d)
 p_decomposed_good(d)
 ```
 
-[Те же числа в разбивке. Итог почти не изменился, состав торговли изменился полностью.]{.cap}
+[Те же числа в разбивке. Итог вырос на пятую часть, а состав торговли изменился полностью.]{.cap}
 :::
 
 ::::
 
 ::: {.note}
-Практическое правило: увидели ровную линию — разложите её хотя бы по одному измерению. Стабильный итог часто складывается из двух тенденций, которые компенсируют друг друга.
+Практическое правило: увидели агрегат — разложите его хотя бы по одному измерению. Итоговая линия часто складывается из тенденций, которые гасят друг друга.
 :::
 
 ## Ось решает, что читатель увидит
@@ -289,7 +289,7 @@ p_decomposed_good(d)
 p_axis_bad(ax)
 ```
 
-[Ось начинается с 22 млрд долларов. Столбцы отличаются в разы визуально и на 30% фактически.]{.cap}
+[Ось начинается с 25 млрд долларов. Столбцы отличаются в разы визуально и наполовину фактически.]{.cap}
 :::
 
 ::: {.c}
@@ -610,7 +610,7 @@ SELECT STRANA,
        ROUND(SUM(STOIM) / 1e9, 1) AS import_bn
 FROM unified_trade_data
 WHERE NAPR = 'ИМ' AND TYPE = 'fact'
-  AND PERIOD >= DATE '2025-06-01'
+  AND PERIOD >= DATE '2025-08-01'
 GROUP BY STRANA
 ORDER BY import_bn DESC
 LIMIT 8
@@ -620,7 +620,7 @@ LIMIT 8
 ::: {.c}
 [результат]{.lbl}
 
-<table class="plain"><thead><tr><th>STRANA</th><th>import_bn</th></tr></thead><tbody><tr><td>CN</td><td>124,8</td></tr><tr><td>DE</td><td>6,5</td></tr><tr><td>TR</td><td>6,5</td></tr><tr><td>IN</td><td>4,1</td></tr><tr><td>IT</td><td>3,7</td></tr><tr><td>UZ</td><td>2,5</td></tr><tr><td>CH</td><td>2,5</td></tr><tr><td>JP</td><td>2,4</td></tr></tbody></table>
+<table class="plain"><thead><tr><th>STRANA</th><th>import_bn</th></tr></thead><tbody><tr><td>CN</td><td>119,7</td></tr><tr><td>DE</td><td>7,4</td></tr><tr><td>TR</td><td>6,7</td></tr><tr><td>KZ</td><td>5,7</td></tr><tr><td>IN</td><td>4,3</td></tr><tr><td>IT</td><td>3,5</td></tr><tr><td>UZ</td><td>2,8</td></tr><tr><td>CH</td><td>2,7</td></tr></tbody></table>
 :::
 
 ::::
@@ -628,7 +628,7 @@ LIMIT 8
 ::: {.note}
 Импорт из Китая на порядок больше, чем из любой другой страны: столбчатая диаграмма по этим восьми строкам будет состоять из одного столбца и семи чёрточек. Это случай, когда таблица информативнее графика, а на график имеет смысл выносить только вторую восьмёрку.
 
-И обратите внимание на седьмую строку: `CH` здесь — Швейцария, та самая, из-за которой китайские данные однажды попали в базу дважды.
+И обратите внимание на последнюю строку: `CH` здесь — Швейцария, та самая, из-за которой китайские данные однажды попали в базу дважды.
 :::
 
 ## Один запрос вместо доверия к данным
@@ -653,7 +653,7 @@ ORDER BY rows DESC
 ::: {.c}
 [результат]{.lbl}
 
-<table class="plain"><thead><tr><th>SOURCE</th><th>rows</th><th>netto</th><th>kol</th></tr></thead><tbody><tr><td>comtrade</td><td>4 882 265</td><td>99,2%</td><td>32,7%</td></tr><tr><td>national</td><td>1 355 748</td><td>66,9%</td><td>32,5%</td></tr></tbody></table>
+<table class="plain"><thead><tr><th>SOURCE</th><th>rows</th><th>netto</th><th>kol</th></tr></thead><tbody><tr><td>comtrade</td><td>5 083 529</td><td>99,1%</td><td>32,6%</td></tr><tr><td>national</td><td>1 383 855</td><td>66,8%</td><td>32,3%</td></tr></tbody></table>
 :::
 
 ::::
@@ -684,7 +684,7 @@ ggplot(ex, aes(PERIOD, export_bn)) +
   geom_line(linewidth = 1.2, colour = "#003d7a") +
   scale_y_continuous(limits = c(0, NA)) +
   labs(title = "Экспорт в Китай:
-       около 13 млрд $ в месяц",
+       около 12 млрд $ в месяц",
        x = NULL, y = "млрд $") +
   theme_minimal()
 ```
@@ -703,7 +703,7 @@ p_example_cn_export(ex)
 ::::
 
 ::: {.note}
-Между выгрузкой и графиком здесь нет ни одного промежуточного файла: запрос возвращает 54 строки, они сразу же рисуются. Заголовок написан руками — это тот самый пятый шаг, который не делает за вас ни один пакет.
+Между выгрузкой и графиком здесь нет ни одного промежуточного файла: запрос возвращает 55 строк, они сразу же рисуются. Заголовок написан руками — это тот самый пятый шаг, который не делает за вас ни один пакет.
 :::
 
 ## Что стоит запомнить
