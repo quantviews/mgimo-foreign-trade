@@ -264,6 +264,58 @@ ul.task-list li input[type="checkbox"] {
 </table>
 <p>Индексы физобъёмов хранятся отдельно (<code>fizob_index</code>), названия стран и товаров — в справочниках. При выгрузке можно выбрать нужные таблицы и уровень агрегации. Полное описание схемы — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a>.</p>
 </section>
+<section id="программный-доступ-api" class="level2">
+<h2 class="anchored" data-anchor-id="программный-доступ-api">Программный доступ (API)</h2>
+<p>Поверх базы работает read-only сервис: тонкая прослойка над DuckDB, без собственного хранилища. Статус пилотный, доступ выдаётся по согласованию.</p>
+<p><strong>Авторизация.</strong> Каждый запрос, кроме <code>/health</code>, требует персонального токена. Для скриптов это заголовок <code>Authorization: Bearer &lt;токен&gt;</code>, для Excel и Power BI — HTTP Basic, где имя пользователя любое, а пароль и есть токен. Токен пользователь выпускает сам в личном кабинете, он показывается один раз и перевыпускается там же.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 45%">
+<col style="width: 54%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Эндпоинт</th>
+<th>Что отдаёт</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>GET /health</code></td>
+<td>живость сервиса и версия данных, без авторизации</td>
+</tr>
+<tr class="even">
+<td><code>GET /v1/meta</code></td>
+<td>доступные измерения, меры и поля, ваш план и остаток квоты</td>
+</tr>
+<tr class="odd">
+<td><code>GET /v1/reference/countries</code></td>
+<td>справочник стран с русскими названиями</td>
+</tr>
+<tr class="even">
+<td><code>GET /v1/reference/tnved</code></td>
+<td>коды ТН ВЭД и наименования, уровень задаётся параметром <code>level</code></td>
+</tr>
+<tr class="odd">
+<td><code>GET /v1/trade</code></td>
+<td>основной эндпоинт: фильтрация и агрегация торговых данных</td>
+</tr>
+<tr class="even">
+<td><code>GET /v1/fizob</code></td>
+<td>индексы физических объёмов по уровням <code>0/2/4/6</code></td>
+</tr>
+<tr class="odd">
+<td><code>GET /odata/trade</code>, <code>GET /odata/fizob</code></td>
+<td>те же данные OData-фидом для Excel и Power BI</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Два режима <code>/v1/trade</code>.</strong> Если задан <code>group_by</code>, возвращаются измерения и суммы мер; если не задан — строки как есть. Фильтры: <code>strana</code>, <code>napr</code>, <code>type</code>, <code>source</code>, <code>tnved2/4/6</code>, <code>edizm_iso</code>, <code>period_from</code>, <code>period_to</code>. Меры задаются в <code>metrics</code> (по умолчанию <code>stoim,netto</code>), названия стран и товаров подтягиваются через <code>include</code>. Формат ответа — JSON или CSV.</p>
+<p><strong>Важное ограничение.</strong> Мера <code>kol</code> аддитивна только внутри одной единицы измерения, поэтому при <code>metrics=...,kol</code> параметр <code>edizm</code> обязан быть в <code>group_by</code>, иначе сервис вернёт <code>400</code>. <code>stoim</code> в долларах и <code>netto</code> в килограммах складываются без оговорок. Это то же самое ограничение, что и в самой базе: количество в разных единицах суммировать нельзя.</p>
+<p><strong>Лимиты.</strong> У каждого доступа есть план с тремя ограничениями: размер одной страницы, число запросов в минуту и месячная квота. При превышении сервис отвечает <code>429</code> с заголовком <code>Retry-After</code>; текущий остаток квоты виден в <code>/v1/meta</code>. Ошибки отдаются в формате RFC 7807.</p>
+<p><strong>OData.</strong> Поддерживается подмножество OData v4: <code>$filter</code> со сравнениями и логическими операторами, <code>$select</code>, <code>$orderby</code>, <code>$top</code>, <code>$skip</code>, <code>$count</code> и серверная пагинация. Функции вроде <code>contains</code> пока не поддержаны. Фильтры, поставленные мышкой в редакторе запросов Excel, сворачиваются в <code>$filter</code> и выполняются на сервере, так что в файл приезжает только нужный срез.</p>
+<p>Интерактивная схема со всеми параметрами открывается в браузере по <code>/docs</code>. Справочник — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md">api-reference.md</a>, инструкция для аналитиков без кода — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-excel-guide.md">api-excel-guide.md</a>.</p>
+</section>
 <section id="документация-и-код" class="level2">
 <h2 class="anchored" data-anchor-id="документация-и-код">Документация и код</h2>
 <p>Проект открыт. Полная документация — в папке <a href="https://github.com/quantviews/mgimo-foreign-trade/tree/main/docs"><code>docs/</code></a> репозитория. Ключевые материалы:</p>
@@ -273,6 +325,7 @@ ul.task-list li input[type="checkbox"] {
 <li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md">orchestration.md</a> — порядок запуска, nowcast/fizob и проверки качества</li>
 <li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md">documentation_fizob.md</a> — методика индексов физических объёмов</li>
 <li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md">testing-docs.md</a> — тесты и проверки</li>
+<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md">api-reference.md</a> — справочник API: эндпоинты, параметры, лимиты</li>
 </ul>
 <p>Исходный код: расчёт физобъёмов — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/fizob_queries.R"><code>src/fizob_queries.R</code></a>, оперативный прогноз — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/nowcast.R"><code>src/nowcast.R</code></a>, сборка базы — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/pipelines/merge_pipeline.py"><code>src/pipelines/merge_pipeline.py</code></a>.</p>
 </section>
