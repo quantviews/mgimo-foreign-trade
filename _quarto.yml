@@ -1,6 +1,8 @@
 project:
   type: website
   output-dir: _site
+  resources:
+    - site/country_bulletins/**/*.pdf
   render:
     - site/index.qmd
     - site/technical.qmd
