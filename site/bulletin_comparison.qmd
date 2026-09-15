@@ -596,3 +596,12 @@ ggsave(fig_import, plot = plot_import, width = 10, height = 8, device = svglite:
 patch_ggbreak_svg(fig_import)
 knitr::include_graphics(fig_import)
 ```
+
+
+## Бюллетени по странам
+
+Этот выпуск сводный: он охватывает всех партнёров вместе. По каждой стране выходит отдельный бюллетень, где та же картина разобрана подробнее: ключевые цифры месяца и торговое сальдо, изменение экспорта и импорта по товарным категориям и страница с объяснением показателей.
+
+- [Китай](country_bulletins/china/bulletin_china_pdf.pdf), PDF
+- [Индия](country_bulletins/india/bulletin_india_pdf.pdf), PDF
+- [Турция](country_bulletins/turkey/bulletin_turkey_pdf.pdf), PDF
