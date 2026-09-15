@@ -69,6 +69,54 @@ title: "Как это работает"
 
 Индексы физобъёмов хранятся отдельно (`fizob_index`), названия стран и товаров — в справочниках. При выгрузке можно выбрать нужные таблицы и уровень агрегации. Полное описание схемы — в [data_model.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md).
 
+## Программный доступ (API)
+
+Поверх базы работает read-only сервис: тонкая прослойка над DuckDB, без собственного
+хранилища. Статус пилотный, доступ выдаётся по согласованию.
+
+**Авторизация.** Каждый запрос, кроме `/health`, требует персонального токена.
+Для скриптов это заголовок `Authorization: Bearer <токен>`, для Excel и Power BI —
+HTTP Basic, где имя пользователя любое, а пароль и есть токен. Токен пользователь
+выпускает сам в личном кабинете, он показывается один раз и перевыпускается там же.
+
+| Эндпоинт | Что отдаёт |
+|----------|------------|
+| `GET /health` | живость сервиса и версия данных, без авторизации |
+| `GET /v1/meta` | доступные измерения, меры и поля, ваш план и остаток квоты |
+| `GET /v1/reference/countries` | справочник стран с русскими названиями |
+| `GET /v1/reference/tnved` | коды ТН ВЭД и наименования, уровень задаётся параметром `level` |
+| `GET /v1/trade` | основной эндпоинт: фильтрация и агрегация торговых данных |
+| `GET /v1/fizob` | индексы физических объёмов по уровням `0/2/4/6` |
+| `GET /odata/trade`, `GET /odata/fizob` | те же данные OData-фидом для Excel и Power BI |
+
+**Два режима `/v1/trade`.** Если задан `group_by`, возвращаются измерения и суммы мер;
+если не задан — строки как есть. Фильтры: `strana`, `napr`, `type`, `source`,
+`tnved2/4/6`, `edizm_iso`, `period_from`, `period_to`. Меры задаются в `metrics`
+(по умолчанию `stoim,netto`), названия стран и товаров подтягиваются через `include`.
+Формат ответа — JSON или CSV.
+
+**Важное ограничение.** Мера `kol` аддитивна только внутри одной единицы измерения,
+поэтому при `metrics=...,kol` параметр `edizm` обязан быть в `group_by`, иначе сервис
+вернёт `400`. `stoim` в долларах и `netto` в килограммах складываются без оговорок.
+Это то же самое ограничение, что и в самой базе: количество в разных единицах
+суммировать нельзя.
+
+**Лимиты.** У каждого доступа есть план с тремя ограничениями: размер одной страницы,
+число запросов в минуту и месячная квота. При превышении сервис отвечает `429`
+с заголовком `Retry-After`; текущий остаток квоты виден в `/v1/meta`. Ошибки
+отдаются в формате RFC 7807.
+
+**OData.** Поддерживается подмножество OData v4: `$filter` со сравнениями и логическими
+операторами, `$select`, `$orderby`, `$top`, `$skip`, `$count` и серверная пагинация.
+Функции вроде `contains` пока не поддержаны. Фильтры, поставленные мышкой в редакторе
+запросов Excel, сворачиваются в `$filter` и выполняются на сервере, так что в файл
+приезжает только нужный срез.
+
+Интерактивная схема со всеми параметрами открывается в браузере по `/docs`. Справочник —
+[api-reference.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md),
+инструкция для аналитиков без кода —
+[api-excel-guide.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-excel-guide.md).
+
 ## Документация и код
 
 Проект открыт. Полная документация — в папке [`docs/`](https://github.com/quantviews/mgimo-foreign-trade/tree/main/docs) репозитория. Ключевые материалы:
@@ -78,6 +126,7 @@ title: "Как это работает"
 - [orchestration.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md) — порядок запуска, nowcast/fizob и проверки качества
 - [documentation_fizob.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md) — методика индексов физических объёмов
 - [testing-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md) — тесты и проверки
+- [api-reference.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md) — справочник API: эндпоинты, параметры, лимиты
 
 Исходный код: расчёт физобъёмов — [`src/fizob_queries.R`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/fizob_queries.R), оперативный прогноз — [`src/nowcast.R`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/nowcast.R), сборка базы — [`src/pipelines/merge_pipeline.py`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/pipelines/merge_pipeline.py).
 
