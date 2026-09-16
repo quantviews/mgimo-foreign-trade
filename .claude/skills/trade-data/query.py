@@ -35,7 +35,14 @@ except (AttributeError, ValueError):
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    # Skill lives at <root>/.claude/skills/trade-data/query.py. Walk up to the
+    # repo root by looking for a .env or .git marker, so the .env fallback works
+    # regardless of nesting or the current working directory.
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / ".env").exists() or (parent / ".git").exists():
+            return parent
+    return here.parents[3]
 
 
 def load_token() -> str:
