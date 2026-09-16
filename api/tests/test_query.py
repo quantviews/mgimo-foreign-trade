@@ -78,3 +78,31 @@ def test_limit_fetches_one_extra():
     sql, _, meta = _build(group_by=["period"], limit=50)
     assert "LIMIT 51 OFFSET 0" in sql
     assert meta["page_rows"] == 50
+
+
+def test_order_by_defaults_to_grouped_dim_not_period():
+    # Regression: group_by without period must not default to ORDER BY PERIOD,
+    # which is neither grouped nor aggregated (was a silent HTTP 500).
+    sql, _, _ = _build(group_by=["tnved2"], metrics=["stoim"])
+    assert "ORDER BY tnved2" in sql
+    assert "ORDER BY PERIOD" not in sql
+
+
+def test_order_by_uses_period_alias_when_grouped():
+    sql, _, _ = _build(group_by=["strana", "period"])
+    assert "ORDER BY period" in sql
+
+
+def test_order_by_descending_metric():
+    sql, _, _ = _build(group_by=["tnved2"], metrics=["stoim"], order_by="-stoim")
+    assert "ORDER BY stoim DESC" in sql
+
+
+def test_order_by_ungrouped_dimension_rejected():
+    with pytest.raises(QueryError):
+        _build(group_by=["tnved2"], order_by="strana")
+
+
+def test_raw_mode_defaults_to_order_by_period():
+    sql, _, _ = _build(filters={"strana": ["CN"]})
+    assert "ORDER BY PERIOD" in sql

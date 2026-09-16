@@ -200,15 +200,34 @@ def build_trade_query(
         if where:
             sql += f" WHERE {where}"
 
-    # ORDER BY (default: period).
-    ob = (order_by or "period").strip().lower()
-    if ob in _GROUP_DIMS:
+    # ORDER BY. Must reference a selected column or the SQL is invalid. Default to
+    # period when it is grouped (raw mode always has it), else the first grouping
+    # dimension. A leading '-' sorts descending.
+    if order_by and order_by.strip():
+        ob = order_by.strip().lower()
+    elif group_by:
+        ob = "period" if "period" in group_by else group_by[0]
+    else:
+        ob = "period"
+
+    descending = ob.startswith("-")
+    ob = ob.lstrip("-")
+
+    if group_by:
+        # In aggregation mode only selected aliases are orderable, otherwise the
+        # column is neither grouped nor aggregated (was a silent 500).
+        if ob in group_by or ob in metrics:
+            ob_expr = ob
+        else:
+            raise QueryError(
+                f"order_by '{ob}' must be a grouped dimension or a selected metric"
+            )
+    elif ob in _GROUP_DIMS:
         ob_expr = _GROUP_DIMS[ob]
-    elif ob in _METRICS and group_by:
-        ob_expr = ob  # metric alias exists in SELECT
     else:
         raise QueryError(f"Unknown order_by: {ob}")
-    sql += f" ORDER BY {ob_expr}"
+
+    sql += f" ORDER BY {ob_expr}" + (" DESC" if descending else "")
 
     # LIMIT/OFFSET. limit/offset are validated ints (limit is already capped to the
     # plan's max_page_rows by the caller), safe to inline. We fetch page+1 rows to
