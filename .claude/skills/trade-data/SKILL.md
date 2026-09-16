@@ -119,6 +119,12 @@ calls to files and load them with `json.load(open(path, encoding="utf-8"))`.
   A large swing in a fact month, especially in India's national data (MEIDB has
   skeleton months, lags and valuation quirks), is more likely a source artifact than
   a real event: say so and suggest re-checking after the data is revised.
+- **Lean on relative comparisons, not absolute levels.** Gaps, ratios, ranks, shares
+  and month-over-month or year-over-year change are verifiable inside the data; an
+  absolute level (a price in $/bbl, a value in USD) usually cannot be checked against
+  the outside world here. Prefer "India pays a widening premium to China" over "the
+  price was $123/bbl". When an absolute figure carries the point, say it cannot be
+  externally validated and could be a level shift in the source.
 
 ## Examples
 
