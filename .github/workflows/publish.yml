@@ -108,8 +108,12 @@ jobs:
       # общий site_libs, а figures/шрифты/стили копируются один раз (без
       # self-contained дублирования). Готовый бандл кладём рядом с сайтом.
       # Профили dist/standalone остаются для отдачи заказчику одним файлом.
+      # inline_charts:true встраивает графики из закоммиченных .rds, поэтому не
+      # нужны figures/bulletin/*.html (их генерирует export_bulletin_charts.R, и
+      # в git их нет - на чистом раннере iframe-ссылки на них давали бы 404).
+      # Тяжёлые либы (revealjs, plotly) всё равно общие в site_libs.
       - name: Render presentations project (shared assets)
-        run: quarto render presentations
+        run: quarto render presentations -P inline_charts:true
 
       - name: Copy presentations into site
         run: |
