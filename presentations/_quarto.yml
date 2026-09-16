@@ -1,6 +1,7 @@
 project:
   title: "МГИМО — Национальная торговая статистика"
-  type: default
+  type: website
+  output-dir: _site
   resources:
     - figures/bulletin/**
     - figures/nowcast.svg

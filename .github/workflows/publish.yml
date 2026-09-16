@@ -103,28 +103,18 @@ jobs:
       - name: Render site
         run: quarto render .
 
-      # presentations/ — отдельный проект Quarto (свой _quarto.yml), корневой
-      # рендер туда не заходит. Собираем занятие одним самодостаточным файлом
-      # и кладём рядом с сайтом.
-      - name: Render dataviz lesson (single file)
-        run: quarto render presentations/dataviz-story.qmd --profile standalone
+      # presentations/ - отдельный Quarto website-проект (свой _quarto.yml),
+      # корневой рендер туда не заходит. Рендерим его как проект: деки делят
+      # общий site_libs, а figures/шрифты/стили копируются один раз (без
+      # self-contained дублирования). Готовый бандл кладём рядом с сайтом.
+      # Профили dist/standalone остаются для отдачи заказчику одним файлом.
+      - name: Render presentations project (shared assets)
+        run: quarto render presentations
 
-      - name: Copy dataviz lesson into site
+      - name: Copy presentations into site
         run: |
           mkdir -p _site/presentations
-          cp presentations/dataviz-story.html _site/presentations/dataviz-story.html
-          ls -lh _site/presentations/
-
-      # project-overview — тот же приём. Профиль dist делает self-contained файл
-      # с встроенными графиками (inline_charts), но переименовывает вывод, поэтому
-      # при копировании возвращаем ожидаемое имя project-overview.html.
-      - name: Render project overview (single file)
-        run: quarto render presentations/project-overview.qmd --profile dist
-
-      - name: Copy project overview into site
-        run: |
-          mkdir -p _site/presentations
-          cp presentations/project-overview-standalone.html _site/presentations/project-overview.html
+          cp -r presentations/_site/. _site/presentations/
           ls -lh _site/presentations/
 
       - name: Publish _site to gh-pages
