@@ -102,6 +102,24 @@ When you post-process a response with your own Python on Windows, open files wit
 codepage raises UnicodeDecodeError, forcing a slow retry. Simplest: pipe the two
 calls to files and load them with `json.load(open(path, encoding="utf-8"))`.
 
+## Sanity-check before you conclude
+
+- **Split price from volume.** A value change is price times quantity. Before
+  calling a move "mostly price" (or "mostly volume"), pull `netto` too and split it:
+  value ratio = ($/kg ratio) x (kg ratio). Report both parts. Do not attribute a
+  surge to price without checking that weight did not also move.
+- **Cross-check `netto` against `fizob`.** For a physical-volume claim, compare raw
+  weight (`netto`, kg) with the `fizob` index. When they disagree (weight doubles
+  but `idx` is flat, say), do not pick one: flag the contradiction and treat the
+  series as suspect. `fizob` can be distorted by an anomalous base period (a spike
+  in the base month inflates `fizob_bp`), so a flat or tiny `idx` next to a moving
+  `netto` is a red flag, not a finding.
+- **Implausible unit values are data, not news.** Compute `$/kg` and reality-check
+  it (e.g. crude oil far above the world price; Russian grades trade at a discount).
+  A large swing in a fact month, especially in India's national data (MEIDB has
+  skeleton months, lags and valuation quirks), is more likely a source artifact than
+  a real event: say so and suggest re-checking after the data is revised.
+
 ## Examples
 
 ```bash
