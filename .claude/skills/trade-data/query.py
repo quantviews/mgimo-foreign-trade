@@ -102,10 +102,12 @@ def cmd_trade(a: argparse.Namespace) -> None:
     for key in ("strana", "napr", "type", "source", "tnved2", "tnved4", "tnved6", "tnved", "edizm"):
         for v in getattr(a, key) or []:
             p.append((key, v))
-    for key in ("period_from", "period_to", "group_by", "metrics", "include", "order_by", "limit"):
+    for key in ("period_from", "period_to", "group_by", "metrics", "include", "limit"):
         v = getattr(a, key)
         if v is not None:
             p.append((key, v))
+    if a.order_by:
+        p.append(("order_by", ("-" + a.order_by) if a.desc else a.order_by))
     emit(call("/v1/trade", p))
 
 
@@ -119,10 +121,12 @@ def cmd_fizob(a: argparse.Namespace) -> None:
         p.append(("tn_level", v))
     for v in a.tn_code or []:
         p.append(("tn_code", v))
-    for key in ("period_from", "period_to", "order_by", "limit"):
+    for key in ("period_from", "period_to", "limit"):
         v = getattr(a, key)
         if v is not None:
             p.append((key, v))
+    if a.order_by:
+        p.append(("order_by", ("-" + a.order_by) if a.desc else a.order_by))
     emit(call("/v1/fizob", p))
 
 
@@ -131,7 +135,11 @@ def cmd_meta(a: argparse.Namespace) -> None:
 
 
 def cmd_reference(a: argparse.Namespace) -> None:
-    p = [("limit", a.limit)] if a.limit is not None else None
+    p: list[tuple[str, str]] = []
+    if a.level is not None:
+        p.append(("level", a.level))
+    if a.limit is not None:
+        p.append(("limit", a.limit))
     emit(call(f"/v1/reference/{a.name}", p))
 
 
@@ -157,7 +165,8 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--group-by", dest="group_by", help="e.g. strana,tnved2,period")
     t.add_argument("--metrics", help="stoim,netto,kol (default stoim,netto)")
     t.add_argument("--include", help="name fields, e.g. tnved2_name")
-    t.add_argument("--order-by", dest="order_by")
+    t.add_argument("--order-by", dest="order_by", help="a grouped dimension or a selected metric")
+    t.add_argument("--desc", action="store_true", help="sort --order-by descending")
     t.add_argument("--limit")
     t.set_defaults(func=cmd_trade)
 
@@ -168,15 +177,17 @@ def build_parser() -> argparse.ArgumentParser:
     f.add_argument("--tn-code", dest="tn_code", action="append")
     f.add_argument("--period-from", dest="period_from")
     f.add_argument("--period-to", dest="period_to")
-    f.add_argument("--order-by", dest="order_by")
+    f.add_argument("--order-by", dest="order_by", help="period, strana, napr, tn_level, tn_code or idx")
+    f.add_argument("--desc", action="store_true", help="sort --order-by descending")
     f.add_argument("--limit")
     f.set_defaults(func=cmd_fizob)
 
     m = sub.add_parser("meta", help="usage/plan + data version (/v1/meta)")
     m.set_defaults(func=cmd_meta)
 
-    r = sub.add_parser("reference", help="code dictionaries (/v1/reference/<name>)")
-    r.add_argument("name", nargs="?", default="tnved")
+    r = sub.add_parser("reference", help="code dictionaries: countries, or tnved --level N")
+    r.add_argument("name", nargs="?", default="countries", help="countries or tnved")
+    r.add_argument("--level", help="TNVED level for name=tnved: 2, 4, 6, 8 or 10")
     r.add_argument("--limit")
     r.set_defaults(func=cmd_reference)
 

@@ -30,8 +30,11 @@ python .claude/skills/trade-data/query.py <subcommand> [flags]
 - `trade`   aggregated trade (`/v1/trade`)
 - `fizob`   physical-volume index (`/v1/fizob`)
 - `meta`    your usage/plan and the data version
-- `reference [name]`  code dictionaries (default `tnved`)
+- `reference`  code dictionaries: `countries`, or `tnved --level N` (2/4/6/8/10)
 - `get PATH`  arbitrary GET, for OData (`/odata/trade`, `/odata/fizob`)
+
+Sort descending with `--order-by <col> --desc` (not a leading `-`, which argparse
+reads as a flag). `--order-by` must name a grouped dimension or a selected metric.
 
 Filters that accept lists (`--strana`, `--napr`, `--tnved2`, `--tn-level`, ...) are
 repeatable: pass the flag again per value.
@@ -71,6 +74,11 @@ repeatable: pass the flag again per value.
 - Read `meta` in the response (rows, table, has_more) and the units above before
   stating a figure. State the unit (USD / kg / index) and the period.
 - Values are USD and kg in absolute units; format large numbers readably (bln/mln).
+- **Growth / "what grew most" questions** compare two periods: run the same
+  aggregation twice (e.g. `--period-from 2025-01 --period-to 2025-07` and the 2026
+  window), join by the grouping key locally, and rank by the difference. Report both
+  the absolute change and the percent, and note a small base when a percent looks huge.
+  For price-cleaned growth use `fizob` (`idx`) instead of `stoim`.
 
 ## Examples
 
@@ -83,7 +91,7 @@ python .claude/skills/trade-data/query.py trade \
 # Top import product groups from Turkey in 2025 (value), names included
 python .claude/skills/trade-data/query.py trade \
   --strana TR --napr im --group-by tnved2 --include tnved2_name \
-  --period-from 2025-01 --order-by "-stoim" --limit 15
+  --period-from 2025-01 --order-by stoim --desc --limit 15
 
 # Physical-volume index: China imports, HS4 level, from 2024
 python .claude/skills/trade-data/query.py fizob \
