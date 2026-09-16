@@ -74,11 +74,33 @@ repeatable: pass the flag again per value.
 - Read `meta` in the response (rows, table, has_more) and the units above before
   stating a figure. State the unit (USD / kg / index) and the period.
 - Values are USD and kg in absolute units; format large numbers readably (bln/mln).
-- **Growth / "what grew most" questions** compare two periods: run the same
-  aggregation twice (e.g. `--period-from 2025-01 --period-to 2025-07` and the 2026
-  window), join by the grouping key locally, and rank by the difference. Report both
-  the absolute change and the percent, and note a small base when a percent looks huge.
-  For price-cleaned growth use `fizob` (`idx`) instead of `stoim`.
+
+## Fast answers: keep it to 1-2 calls
+
+The API computes SUM/GROUP BY server-side in tens of milliseconds, so let it do the
+work: one aggregation for a plain question, two for a comparison. Do not pull raw
+rows and slice locally, size `--limit` to the answer (e.g. 15, not thousands), and
+do not add breakdowns (per country, per source, nowcast vs fact) unless the user
+asked. `fact`+`pred` combined is the default; separate only on request. Following
+these recipes keeps a question to a couple of calls instead of an open exploration.
+
+- **"How much did <country> import/export of <X>"**: one `trade` call, group by
+  `period` (or `year`), filter country/napr/product, metric `stoim`.
+- **"Top products / partners by value"**: one `trade` call, group by `tnved2` (or
+  `strana`), `--include tnved2_name`, `--order-by stoim --desc --limit 15`.
+- **"What grew / fell most (value)"**: exactly two `trade` calls (the two periods),
+  grouped by `tnved2`; join by code locally, rank by the difference. Give the
+  absolute change and the percent, and flag a small base.
+- **"...in physical terms / tonnage"**: same as growth but metric `netto` (kg), not
+  `stoim`. Weight is additive across countries, so group by `tnved2` directly.
+- **"Real / price-cleaned volume dynamics of <country>'s <product>"**: use `fizob`
+  (`idx`) at the matching `tn_level`; `idx` is already a volume index. Do not sum
+  `idx` across products (not additive) - compare one series over time.
+
+When you post-process a response with your own Python on Windows, open files with
+`encoding="utf-8"` (both read and write) - the JSON has Cyrillic, and the default
+codepage raises UnicodeDecodeError, forcing a slow retry. Simplest: pipe the two
+calls to files and load them with `json.load(open(path, encoding="utf-8"))`.
 
 ## Examples
 
