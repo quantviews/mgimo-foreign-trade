@@ -1,0 +1,1039 @@
+/* Дополнительные классы для слайдов reveal.js */
+
+@font-face {
+  font-family: "PT Sans";
+  font-style: normal;
+  font-weight: 400;
+  src: url("fonts/PTSans-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "PT Sans";
+  font-style: normal;
+  font-weight: 700;
+  src: url("fonts/PTSans-Bold.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "PT Sans";
+  font-style: italic;
+  font-weight: 400;
+  src: url("fonts/PTSans-Italic.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "PT Serif";
+  font-style: normal;
+  font-weight: 700;
+  src: url("fonts/PTSerif-Bold.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400 700;
+  src: url("fonts/SourceSans3-Variable.ttf") format("truetype");
+}
+
+.reveal .slides section {
+  text-align: left;
+}
+
+.reveal .slides section.center-slide {
+  text-align: center;
+}
+
+.reveal .slides section.center-slide .continue-note {
+  margin-top: 0;
+}
+
+/* Титульный слайд */
+.reveal .quarto-title-block {
+  text-align: left;
+  padding: 0.5em 0.2em;
+}
+
+.reveal .title-badge {
+  display: inline-block;
+  font-size: 0.42em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #e74c3c;
+  font-weight: 700;
+  margin-bottom: 0.8em;
+}
+
+.reveal .title-lead {
+  font-size: 0.62em;
+  color: #5e6b7a;
+  max-width: 88%;
+  line-height: 1.35;
+  margin-top: 1.2em;
+}
+
+/* ── Секционные слайды (полноэкранные) ── */
+
+.reveal .slides section.section-slide {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1.2em 1.4em !important;
+}
+
+/* Пустой заголовок ## не должен занимать угол слайда */
+.reveal .slides section.section-slide > h2,
+.reveal .slides section.center-slide > h2 {
+  display: none !important;
+  margin: 0 !important;
+  height: 0 !important;
+}
+
+.reveal .slides section.section-slide .section-number {
+  font-size: 0.52em;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  margin-bottom: 0.6em;
+}
+
+.reveal .slides section.section-slide .section-title {
+  font-family: "PT Serif", Georgia, serif;
+  font-size: 1.55em;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.15;
+  margin: 0 0 0.55em 0;
+  border-bottom: 4px solid #e74c3c;
+  padding-bottom: 0.2em;
+  max-width: 92%;
+}
+
+.reveal .slides section.section-slide .section-tagline {
+  font-size: 0.72em;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.4;
+  max-width: 88%;
+  margin: 0;
+}
+
+.reveal .slides section.section-slide .section-icon {
+  font-size: 2.2em;
+  margin-bottom: 0.25em;
+  opacity: 0.85;
+}
+
+/* ── План презентации ── */
+
+.reveal .agenda-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75em;
+  margin-top: 0.6em;
+}
+
+.reveal .agenda-card {
+  background: #ffffff;
+  border: 1px solid #dce4ee;
+  border-top: 5px solid #003d7a;
+  border-radius: 12px;
+  padding: 0.75em 0.8em;
+  font-size: 0.62em;
+  line-height: 1.35;
+  box-shadow: 0 10px 28px rgba(0, 61, 122, 0.08);
+  min-height: 9em;
+}
+
+.reveal .agenda-card.accent {
+  border-top-color: #e74c3c;
+}
+
+.reveal .agenda-card .agenda-num {
+  display: inline-block;
+  font-size: 1.6em;
+  font-weight: 700;
+  color: #003d7a;
+  line-height: 1;
+  margin-bottom: 0.25em;
+}
+
+.reveal .agenda-card.accent .agenda-num {
+  color: #e74c3c;
+}
+
+.reveal .agenda-card strong {
+  display: block;
+  font-size: 1.12em;
+  color: #003d7a;
+  margin-bottom: 0.3em;
+}
+
+.reveal .agenda-footnote {
+  margin-top: 0.75em;
+  padding: 0.5em 0.75em;
+  border-radius: 8px;
+  background: #f0f5ff;
+  border-left: 4px solid #003d7a;
+  font-size: 0.55em;
+  line-height: 1.35;
+  color: #2c3e50;
+}
+
+/* ── Два блока с разделителем ── */
+
+.reveal .split-panels {
+  display: grid;
+  grid-template-columns: 1fr 3px 1fr;
+  gap: 0;
+  align-items: stretch;
+  margin-top: 0.35em;
+  min-height: 14em;
+}
+
+.reveal .split-divider {
+  background: linear-gradient(180deg, #e74c3c 0%, #003d7a 100%);
+  border-radius: 2px;
+  margin: 0 0.15em;
+}
+
+.reveal .split-panel {
+  border-radius: 12px;
+  padding: 0.7em 0.85em;
+  font-size: 0.76em;
+  line-height: 1.35;
+}
+
+.reveal .split-panel.negative {
+  background: #fff5f5;
+  border: 2px solid #f0b4b4;
+}
+
+.reveal .split-panel.positive {
+  background: #f0f7ff;
+  border: 2px solid #9ec5e8;
+}
+
+.reveal .split-panel .panel-label {
+  display: inline-block;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.15em 0.5em;
+  border-radius: 6px;
+  margin-bottom: 0.45em;
+}
+
+.reveal .split-panel.negative .panel-label {
+  background: #e74c3c;
+  color: #ffffff;
+}
+
+.reveal .split-panel.positive .panel-label {
+  background: #003d7a;
+  color: #ffffff;
+}
+
+.reveal .split-panel h3 {
+  margin: 0 0 0.4em 0;
+  font-size: 1.1em;
+}
+
+.reveal .split-panel.negative h3 {
+  color: #c0392b !important;
+}
+
+.reveal .split-panel.positive h3 {
+  color: #003d7a !important;
+}
+
+.reveal .split-panel ul {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.reveal .split-panel li {
+  margin-bottom: 0.35em;
+}
+
+.reveal .split-panel li strong {
+  color: inherit;
+}
+
+.reveal .split-panel.positive li::marker {
+  color: #003d7a;
+}
+
+/* ── Три блока (как split-panels, но 3 колонки) ── */
+
+.reveal .trio-panels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65em;
+  align-items: stretch;
+  margin-top: 0.4em;
+  min-height: 13.5em;
+}
+
+.reveal .trio-panel {
+  border-radius: 12px;
+  padding: 0.7em 0.85em;
+  font-size: 0.58em;
+  line-height: 1.35;
+}
+
+.reveal .trio-panel h3 {
+  margin: 0 0 0.4em 0;
+  font-size: 1.08em;
+}
+
+.reveal .trio-panel p {
+  margin: 0;
+}
+
+.reveal .trio-panel ul {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.reveal .trio-panel li {
+  margin-bottom: 0.28em;
+}
+
+.reveal .trio-panel .panel-label {
+  display: inline-block;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.15em 0.5em;
+  border-radius: 6px;
+  margin-bottom: 0.45em;
+}
+
+.reveal .trio-panel.trio-negative {
+  background: #fff5f5;
+  border: 2px solid #f0b4b4;
+}
+
+.reveal .trio-panel.trio-negative .panel-label {
+  background: #e74c3c;
+  color: #ffffff;
+}
+
+.reveal .trio-panel.trio-negative h3 {
+  color: #c0392b !important;
+}
+
+.reveal .trio-panel.trio-neutral {
+  background: #f0f7ff;
+  border: 2px solid #9ec5e8;
+}
+
+.reveal .trio-panel.trio-neutral .panel-label {
+  background: #003d7a;
+  color: #ffffff;
+}
+
+.reveal .trio-panel.trio-neutral h3 {
+  color: #003d7a !important;
+}
+
+.reveal .trio-panel.trio-positive {
+  background: #f0fff4;
+  border: 2px solid #9ed4ad;
+}
+
+.reveal .trio-panel.trio-positive .panel-label {
+  background: #1e7a45;
+  color: #ffffff;
+}
+
+.reveal .trio-panel.trio-positive h3 {
+  color: #1e7a45 !important;
+}
+
+/* ── Карточки «Что мы предлагаем» ── */
+
+.reveal .feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7em;
+  margin-top: 0.35em;
+}
+
+.reveal .feature-card {
+  background: #ffffff;
+  border: 1px solid #e6ebf2;
+  border-left: 5px solid #003d7a;
+  border-radius: 12px;
+  padding: 0.7em 0.85em;
+  box-shadow: 0 8px 22px rgba(0, 61, 122, 0.07);
+  font-size: 0.64em;
+  line-height: 1.35;
+  min-height: 7.5em;
+}
+
+.reveal .feature-card strong {
+  display: block;
+  margin-bottom: 0.25em;
+  font-size: 1.1em;
+  color: #003d7a;
+}
+
+.reveal .feature-card.accent {
+  border-left-color: #e74c3c;
+  background: linear-gradient(135deg, #fff 0%, #fff8f7 100%);
+}
+
+.reveal .feature-card .chip {
+  display: inline-block;
+  margin-top: 0.35em;
+  padding: 0.12em 0.45em;
+  border-radius: 999px;
+  background: #f0f5ff;
+  color: #003d7a;
+  font-size: 0.88em;
+  font-weight: 700;
+}
+
+.reveal .feature-card.accent .chip {
+  background: #fdecea;
+  color: #c0392b;
+}
+
+/* ── Компактная подводка к таблице (3 оси) ── */
+
+.reveal .diff-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  margin-top: 0.45em;
+}
+
+.reveal .diff-item {
+  display: grid;
+  grid-template-columns: 1.1fr 1.6fr auto 1.8fr;
+  gap: 0.45em;
+  align-items: center;
+  font-size: 0.6em;
+  line-height: 1.3;
+  padding: 0.55em 0.7em;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e6ebf2;
+  box-shadow: 0 4px 14px rgba(0, 61, 122, 0.05);
+}
+
+.reveal .diff-label {
+  font-weight: 700;
+  color: #003d7a;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.88em;
+}
+
+.reveal .diff-them {
+  color: #c0392b;
+}
+
+.reveal .diff-arrow {
+  color: #95a5a6;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reveal .diff-us {
+  color: #1e7a45;
+  font-weight: 700;
+}
+
+/* ── Итоговая таблица сравнения ── */
+
+.reveal .slides section.slide-compare-table {
+  padding-top: 0.15em !important;
+}
+
+.reveal .slides section.slide-compare-table h2 {
+  margin-bottom: 0.35em !important;
+}
+
+.reveal .compare-table {
+  width: 100%;
+  font-size: 0.54em;
+  line-height: 1.28;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(0, 61, 122, 0.1);
+  margin-top: 0.2em;
+}
+
+.reveal .compare-table thead th {
+  padding: 0.55em 0.65em;
+  font-weight: 700;
+  text-align: center;
+  border: none;
+}
+
+.reveal .compare-table thead .col-criterion {
+  background: #f4f7fb;
+  width: 28%;
+}
+
+.reveal .compare-table thead .col-them {
+  background: #5e6b7a;
+  color: #ffffff;
+  width: 32%;
+}
+
+.reveal .compare-table thead .col-us {
+  background: #003d7a;
+  color: #ffffff;
+  width: 40%;
+}
+
+.reveal .compare-table tbody td {
+  padding: 0.38em 0.65em;
+  border-bottom: 1px solid #e8edf3;
+  vertical-align: middle;
+}
+
+.reveal .compare-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.reveal .compare-table tbody tr.group-row td {
+  background: #eef2f7;
+  color: #003d7a;
+  font-weight: 700;
+  font-size: 0.92em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.42em 0.65em;
+  border-bottom: 2px solid #dce4ee;
+}
+
+.reveal .compare-table td.criterion {
+  font-weight: 600;
+  color: #2c3e50;
+  background: #fafbfc;
+}
+
+.reveal .compare-table td.cell-no {
+  color: #943126;
+  background: #fff8f8;
+  text-align: center;
+}
+
+.reveal .compare-table td.cell-mid {
+  color: #7d6608;
+  background: #fffdf5;
+  text-align: center;
+}
+
+.reveal .compare-table td.cell-us {
+  color: #003d7a;
+  background: #f0f7ff;
+  font-weight: 600;
+  text-align: center;
+}
+
+.reveal .compare-table .mark-yes {
+  color: #27ae60;
+  font-weight: 700;
+  margin-right: 0.15em;
+}
+
+.reveal .compare-table .mark-no {
+  color: #e74c3c;
+  font-weight: 700;
+  margin-right: 0.15em;
+}
+
+.reveal .compare-table tbody tr:not(.group-row):hover td:not(.criterion) {
+  filter: brightness(0.97);
+}
+
+/* ── Сравнение TradeMap vs платформа (legacy boxes) ── */
+
+.reveal .compare-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8em;
+  align-items: stretch;
+  margin-top: 0.35em;
+}
+
+.reveal .compare-box {
+  border-radius: 12px;
+  padding: 0.7em 0.8em;
+  font-size: 0.62em;
+  line-height: 1.35;
+  min-height: 100%;
+}
+
+.reveal .compare-box .box-title {
+  margin: 0 0 0.45em 0;
+  font-size: 1.08em;
+  font-weight: 700;
+  font-family: "PT Serif", Georgia, serif;
+}
+
+.reveal .compare-box ul {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.reveal .compare-box li {
+  margin-bottom: 0.3em;
+}
+
+.reveal .compare-box.negative {
+  background: #fff5f5;
+  border: 2px solid #f0b4b4;
+}
+
+.reveal .compare-box.negative .box-title {
+  color: #c0392b;
+}
+
+.reveal .compare-box.positive {
+  background: #f0fff4;
+  border: 2px solid #9ed4ad;
+}
+
+.reveal .compare-box.positive .box-title {
+  color: #1e7a45;
+}
+
+/* ── Вывод внизу слайда ── */
+
+.reveal .slide-takeaway {
+  margin-top: 0.65em;
+  padding: 0.5em 0.75em;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #f0f5ff 0%, #ffffff 100%);
+  border-left: 4px solid #003d7a;
+  font-size: 0.58em;
+  line-height: 1.35;
+}
+
+.reveal .slide-takeaway strong {
+  color: #003d7a;
+}
+
+/* ── Ландшафт источников (на весь слайд) ── */
+
+.reveal .slides section.slide-sources {
+  padding-top: 0.2em !important;
+}
+
+.reveal .source-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7em;
+  margin-top: 0.45em;
+  align-items: stretch;
+  min-height: 15em;
+}
+
+.reveal .source-card {
+  background: #ffffff;
+  border-radius: 12px;
+  border: 2px solid #e6ebf2;
+  padding: 0.65em 0.7em;
+  font-size: 0.56em;
+  line-height: 1.32;
+  box-shadow: 0 6px 18px rgba(0, 61, 122, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.reveal .source-card .tag {
+  display: inline-block;
+  font-size: 0.82em;
+  padding: 0.12em 0.5em;
+  border-radius: 999px;
+  background: #f0f5ff;
+  color: #003d7a;
+  font-weight: 700;
+  margin-bottom: 0.4em;
+  align-self: flex-start;
+}
+
+.reveal .source-card .card-title {
+  font-family: "PT Serif", Georgia, serif;
+  font-size: 1.2em;
+  font-weight: 700;
+  color: #003d7a;
+  margin: 0 0 0.35em 0;
+}
+
+.reveal .source-card .card-body {
+  margin-bottom: 0.35em;
+}
+
+.reveal .source-card .card-spec {
+  font-size: 0.92em;
+  line-height: 1.38;
+  color: #4a5568;
+  margin-bottom: 0.45em;
+  padding: 0.4em 0;
+  border-top: 1px dashed #dce4ee;
+  border-bottom: 1px dashed #dce4ee;
+}
+
+.reveal .source-card.highlight .card-spec {
+  color: #2c5282;
+  border-color: #b8d4f0;
+}
+
+.reveal .source-card .card-list {
+  margin: 0;
+  padding-left: 1em;
+}
+
+.reveal .source-card .card-list li {
+  margin-bottom: 0.28em;
+}
+
+.reveal .source-card .card-verdict {
+  margin-top: auto;
+  padding: 0.35em 0.5em;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.92em;
+}
+
+.reveal .source-card .card-verdict.weak {
+  background: #fff5f5;
+  color: #c0392b;
+}
+
+.reveal .source-card .card-verdict.mid {
+  background: #fffbf0;
+  color: #b7791f;
+}
+
+.reveal .source-card.highlight {
+  border-color: #003d7a;
+  background: linear-gradient(160deg, #f0f7ff 0%, #ffffff 55%);
+  box-shadow: 0 14px 32px rgba(0, 61, 122, 0.16);
+  transform: scale(1.02);
+}
+
+.reveal .source-card.highlight .tag {
+  background: #003d7a;
+  color: #ffffff;
+}
+
+.reveal .source-card.highlight .card-title {
+  color: #003d7a;
+}
+
+.reveal .source-card.highlight .card-verdict {
+  background: #003d7a;
+  color: #ffffff;
+}
+
+/* ── Mermaid на весь слайд ── */
+
+.reveal .slides section.slide-diagram .mermaid {
+  margin-top: 0.15em;
+}
+
+.reveal .slides section.slide-diagram .mermaid svg {
+  max-height: 52vh;
+  width: 100% !important;
+}
+
+/* ── Компактные списки ── */
+
+.reveal .compact-list {
+  font-size: 0.78em;
+}
+
+.reveal .compact-list li {
+  margin-bottom: 0.28em;
+}
+
+/* ── Финальный слайд ── */
+
+.reveal .continue-note {
+  text-align: center;
+  font-size: 0.85em;
+  color: #ffffff;
+  line-height: 1.45;
+}
+
+.reveal .continue-note .continue-title {
+  font-family: "PT Serif", Georgia, serif;
+  font-size: 1.5em;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 0.4em;
+  color: #ffffff;
+}
+
+.reveal .continue-note .continue-sub {
+  font-size: 0.62em;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 0.5em;
+}
+
+/* ── Блок аналитики: графики из figures/bulletin/*.html ── */
+
+.reveal .slides section.slide-chart-hero {
+  padding-top: 0.1em !important;
+  padding-bottom: 2.6em !important;
+}
+
+.reveal .slides section.slide-chart-hero h2 {
+  margin-bottom: 0.25em !important;
+  font-size: 1.05em !important;
+}
+
+.reveal .chart-slide-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45em 0.75em;
+  margin-bottom: 0.35em;
+  font-size: 0.52em;
+  line-height: 1.2;
+}
+
+.reveal .chart-tag {
+  display: inline-block;
+  padding: 0.15em 0.55em;
+  border-radius: 999px;
+  background: #003d7a;
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.88em;
+}
+
+.reveal .chart-title {
+  font-weight: 700;
+  color: #003d7a;
+  font-size: 1.05em;
+}
+
+.reveal .chart-period {
+  color: #5e6b7a;
+  margin-left: auto;
+  font-style: italic;
+}
+
+.reveal .insight-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45em;
+  font-size: 0.48em;
+  line-height: 1.32;
+}
+
+.reveal .insight-bar.insight-bar-before-chart {
+  margin-top: 0.15em;
+  margin-bottom: 0.75em;
+}
+
+.reveal .insight-item {
+  background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
+  border-left: 4px solid #003d7a;
+  border-radius: 8px;
+  padding: 0.45em 0.55em;
+  box-shadow: 0 4px 12px rgba(0, 61, 122, 0.06);
+}
+
+.reveal .insight-item strong {
+  color: #003d7a;
+  display: block;
+  margin-bottom: 0.12em;
+}
+
+.reveal .insight-bar.insight-bar-accent .insight-item {
+  border-left-color: #e74c3c;
+  background: linear-gradient(135deg, #fff8f7 0%, #ffffff 100%);
+}
+
+.reveal .insight-bar.insight-bar-accent .insight-item strong {
+  color: #c0392b;
+}
+
+.reveal .chart-frame {
+  width: 100%;
+  height: 480px;
+  border: none;
+}
+
+/* Встроенный plotly (standalone-сборка): как в coding-seminar */
+.reveal .slides section:not(.present) .plotly.html-widget {
+  display: none;
+}
+
+.reveal .chart-inline .plotly.html-widget {
+  width: 100% !important;
+  height: 480px !important;
+  max-width: none;
+  max-height: none;
+}
+
+.reveal .chart-inline .js-plotly-plot,
+.reveal .chart-inline .plotly {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ── Слайд nowcast ── */
+
+.reveal .slides section.slide-nowcast {
+  padding-top: 0 !important;
+  padding-bottom: 1.7em !important;
+}
+
+.reveal .slides section.slide-nowcast h2 {
+  margin-bottom: 0.12em !important;
+  font-size: 1em !important;
+}
+
+.reveal .nowcast-layout {
+  display: block;
+}
+
+.reveal .nowcast-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35em;
+  margin-bottom: 0.22em;
+  align-items: stretch;
+}
+
+.reveal .nowcast-card {
+  background: #ffffff;
+  border: 1px solid #e6ebf2;
+  border-left: 3px solid #003d7a;
+  border-radius: 0 9px 9px 0;
+  padding: 0.32em 0.46em 0.34em;
+  font-size: 0.39em;
+  line-height: 1.24;
+  box-shadow: 0 4px 14px rgba(0, 61, 122, 0.06);
+}
+
+.reveal .nowcast-headline {
+  margin: 0 0 0.18em;
+  font-weight: 700;
+  color: #003d7a;
+  line-height: 1.2;
+}
+
+.reveal .nowcast-ix {
+  color: #003d7a;
+  letter-spacing: 0.03em;
+}
+
+.reveal .nowcast-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reveal .nowcast-points li {
+  position: relative;
+  margin: 0 0 0.16em;
+  padding-left: 0.65em;
+  color: #2c3e50;
+  line-height: 1.22;
+}
+
+.reveal .nowcast-points li:last-child {
+  margin-bottom: 0;
+}
+
+.reveal .nowcast-points li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #003d7a;
+  font-weight: 700;
+  line-height: 1.22;
+}
+
+.reveal .nowcast-em {
+  font-weight: 700;
+  color: #003d7a;
+}
+
+.reveal .nowcast-card--warn {
+  border-left-color: #e74c3c;
+}
+
+.reveal .nowcast-card--warn .nowcast-ix,
+.reveal .nowcast-card--warn .nowcast-points li::before {
+  color: #e74c3c;
+}
+
+.reveal .nowcast-card-highlight {
+  border-left-color: #003d7a;
+  background: linear-gradient(135deg, #f3f8ff 0%, #ffffff 60%);
+  box-shadow: 0 6px 18px rgba(0, 61, 122, 0.1);
+}
+
+.reveal .nowcast-chart-block {
+  display: block;
+}
+
+.reveal .nowcast-chart-header {
+  margin-bottom: 0.1em;
+  font-size: 0.48em;
+  gap: 0.3em 0.5em;
+}
+
+.reveal .nowcast-chart-header .chart-title {
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.reveal .nowcast-figure-wrap {
+  width: 100%;
+  height: 11em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reveal .nowcast-figure {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 11em;
+  object-fit: contain;
+  object-position: center center;
+  margin: 0;
+}
+
+.reveal .viz-placeholder {
+  margin-top: 0.45em;
+  padding: 0.55em 0.75em;
+  border: 2px dashed #b8d4f0;
+  border-radius: 10px;
+  background: #f8fbff;
+  font-size: 0.48em;
+  color: #5e6b7a;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.reveal .viz-placeholder-label {
+  display: block;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #003d7a;
+  margin-bottom: 0.2em;
+  font-size: 0.9em;
+}
