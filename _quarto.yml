@@ -26,8 +26,10 @@ website:
         href: site/technical.qmd
       - text: "Месячный бюллетень"
         href: site/bulletin_comparison.qmd
-      - text: "Занятия"
+      - text: "Презентации"
         menu:
+          - text: "Обзор проекта"
+            href: https://quantviews.github.io/mgimo-foreign-trade/presentations/project-overview.html
           - text: "1. Введение в таможенную статистику"
             href: lessons/lesson_01_intro.qmd
           - text: "2. Старая и новая статистика"

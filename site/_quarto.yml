@@ -22,8 +22,10 @@ website:
         href: bulletin_comparison.qmd
       # Занятия рендерятся отдельным (корневым) проектом; в локальном превью
       # ссылаемся на опубликованные слайды, чтобы не требовать их сборки здесь.
-      - text: "Занятия"
+      - text: "Презентации"
         menu:
+          - text: "Обзор проекта"
+            href: https://quantviews.github.io/mgimo-foreign-trade/presentations/project-overview.html
           - text: "1. Введение в таможенную статистику"
             href: https://quantviews.github.io/mgimo-foreign-trade/lessons/lesson_01_intro.html
           - text: "2. Старая и новая статистика"

@@ -13,12 +13,15 @@ on:
       - "other/**/*.qmd"
       - "lessons/**/*.qmd"
       - "lessons/**/*.css"
-      # занятие по визуализации собирается отдельным шагом ниже
+      # презентации собираются отдельными шагами ниже
       - "presentations/dataviz-story.qmd"
+      - "presentations/project-overview.qmd"
       - "presentations/scripts/dataviz_helpers.R"
       - "presentations/slides.css"
       - "presentations/styles/**"
       - "presentations/figures/dataviz/**"
+      - "presentations/figures/bulletin/**"
+      - "presentations/figures/nowcast.svg"
       - "presentations/fonts/**"
       - "presentations/_quarto*.yml"
       - "_quarto.yml"
@@ -110,6 +113,18 @@ jobs:
         run: |
           mkdir -p _site/presentations
           cp presentations/dataviz-story.html _site/presentations/dataviz-story.html
+          ls -lh _site/presentations/
+
+      # project-overview — тот же приём. Профиль dist делает self-contained файл
+      # с встроенными графиками (inline_charts), но переименовывает вывод, поэтому
+      # при копировании возвращаем ожидаемое имя project-overview.html.
+      - name: Render project overview (single file)
+        run: quarto render presentations/project-overview.qmd --profile dist
+
+      - name: Copy project overview into site
+        run: |
+          mkdir -p _site/presentations
+          cp presentations/project-overview-standalone.html _site/presentations/project-overview.html
           ls -lh _site/presentations/
 
       - name: Publish _site to gh-pages
