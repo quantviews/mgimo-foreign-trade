@@ -1037,3 +1037,24 @@
   margin-bottom: 0.2em;
   font-size: 0.9em;
 }
+
+/* Институциональные логотипы на закрывающем слайде (единообразно с сайтом) */
+.reveal .slides section.logo-slide .deck-logo-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 3.5rem;
+  margin-bottom: 1.6rem;
+}
+.reveal .slides section.logo-slide .deck-logo-strip img {
+  height: 68px;
+  width: auto;
+}
+.reveal .slides section.logo-slide .deck-logo-note {
+  text-align: center;
+  color: #55627a;
+  font-size: 0.72em;
+  line-height: 1.5;
+  margin: 0;
+}
