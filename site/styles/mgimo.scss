@@ -244,6 +244,22 @@ nav[aria-label="Table of contents"] ul li.active a {
   img:last-child { height: 32px; }
 }
 
+// Институциональные логотипы в шапке: МГИМО, ИЭФ, Приоритет 2030.
+// Заметны сразу под подзаголовком, выровнены влево как остальной hero.
+.hero-logos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2.25rem;
+  margin: 1.9rem 0 0.5rem;
+
+  img {
+    height: 46px;
+    width: auto;
+    display: block;
+  }
+}
+
 // Институциональные логотипы в подвале: МГИМО, ИЭФ, Приоритет 2030.
 // Единая высота, по центру, с переносом на узких экранах.
 .logo-strip {
