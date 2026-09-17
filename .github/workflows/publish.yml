@@ -21,6 +21,7 @@ on:
       - "presentations/styles/**"
       - "presentations/figures/dataviz/**"
       - "presentations/figures/bulletin/**"
+      - "presentations/figures/logos/**"
       - "presentations/figures/nowcast.svg"
       - "presentations/fonts/**"
       - "presentations/_quarto*.yml"

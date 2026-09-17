@@ -6,6 +6,7 @@ project:
     - figures/bulletin/**
     - figures/nowcast.svg
     - figures/dataviz/**
+    - figures/logos/**
     - fonts/**
 
 lang: ru
