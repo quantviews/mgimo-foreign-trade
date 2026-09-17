@@ -260,31 +260,6 @@ nav[aria-label="Table of contents"] ul li.active a {
   }
 }
 
-// Институциональные логотипы в подвале: МГИМО, ИЭФ, Приоритет 2030.
-// Единая высота, по центру, с переносом на узких экранах.
-.logo-strip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 2.5rem;
-  margin: 2.5rem 0 0.75rem;
-  padding-top: 1.75rem;
-  border-top: 1px solid #e3e8ef;
-
-  img {
-    height: 38px;
-    width: auto;
-    display: block;
-  }
-}
-
-.logo-strip-note {
-  text-align: center;
-  color: #6b7280;
-  font-size: 0.9rem;
-  margin: 0 0 1rem;
-}
 
 // Вводная подпись над графиком (бюллетень): светлая подложка
 .chart-lead {
