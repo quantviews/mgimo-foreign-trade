@@ -508,13 +508,3 @@ REST с JSON и CSV — для скриптов на Python и R. OData-фид �
 </div>
 
 <div class="cta-row"><div><span class="cta-num">1</span>Называете страны и товарные группы, которые вам интересны</div><div><span class="cta-num">2</span>Присылаем Excel-файл с этим срезом и личный ключ</div><div><span class="cta-num">3</span>Обновляете данные кнопкой и решаете, нужен ли доступ дальше</div></div>
-
-## {background-color="#f8f9fb" .center-slide .logo-slide}
-
-<div class="deck-logo-strip">
-<img src="figures/logos/mgimo-wordmark.svg" alt="МГИМО">
-<img src="figures/logos/ief-logo.svg" alt="Институт энергетики и финансов">
-<img src="figures/logos/priority-logo.svg" alt="Приоритет 2030">
-</div>
-
-<p class="deck-logo-note">Проект МГИМО и Института энергетики и финансов<br>при поддержке программы «Приоритет 2030»</p>
