@@ -249,14 +249,26 @@ nav[aria-label="Table of contents"] ul li.active a {
 .hero-logos {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 2.25rem;
+  flex-wrap: nowrap;          // все логотипы в одну горизонтальную линию
+  gap: 1.75rem;
   margin: 1.9rem 0 0.5rem;
 
   img {
-    height: 46px;
+    height: 40px;
     width: auto;
     display: block;
+  }
+}
+
+// На узких экранах фиксированная высота не влезает в строку — ограничиваем по
+// ширине, высота подстраивается, логотипы остаются на одной линии.
+@media (max-width: 640px) {
+  .hero-logos {
+    gap: 0.8rem;
+  }
+  .hero-logos img {
+    height: auto;
+    max-width: 31%;
   }
 }
 
