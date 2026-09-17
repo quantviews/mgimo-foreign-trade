@@ -11,8 +11,6 @@ project:
 website:
   title: "Национальная торговая статистика"
   navbar:
-    logo: assets/mgimo-logo.svg
-    logo-alt: "МГИМО"
     left:
       - text: "Главная"
         href: index.qmd
