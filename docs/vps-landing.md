@@ -22,15 +22,27 @@
 
 ## Разовая настройка VPS (уже выполнена)
 
-Каталог под сайт (в домашней папке marcel, чтобы деплой шёл по scp без sudo) и
-контейнер nginx:
+Каталог под сайт (в домашней папке marcel, чтобы деплой шёл по scp без sudo),
+конфиг nginx (лендинг + прокси на Superset) и контейнер nginx:
 
 ```bash
+# конфиг nginx из репозитория -> на VPS (с локального ПК):
+scp deploy/landing-nginx.conf mgimo:/home/marcel/landing-nginx.conf
+
 ssh mgimo
 mkdir -p /home/marcel/mgimo-landing
 docker run -d --name landing --restart unless-stopped \
-  -p 80:80 -v /home/marcel/mgimo-landing:/usr/share/nginx/html:ro nginx:alpine
+  --network superset_default \
+  -p 80:80 \
+  -v /home/marcel/mgimo-landing:/usr/share/nginx/html:ro \
+  -v /home/marcel/landing-nginx.conf:/etc/nginx/conf.d/default.conf:ro \
+  nginx:alpine
 ```
+
+- `--network superset_default` — чтобы nginx достучался до Superset по имени
+  сервиса (`superset-superset-1:8088`).
+- монтируется [`deploy/landing-nginx.conf`](../deploy/landing-nginx.conf) —
+  статический сайт на `/` и прокси Superset на `/superset` (см. ниже).
 
 Проверка: `curl -s -o /dev/null -w '%{http_code}\n' http://localhost:80` даёт 200.
 Порт 80 на VPS был свободен. Контейнер поднимается сам после перезагрузки
@@ -117,9 +129,44 @@ VPS, а не в gh-pages):
 ## Структура на сервере
 
 - `/` → мгновенный редирект на `/site/index.html` (главная);
+- `/superset/` — Superset (реверс-прокси на `:8088`, см. ниже);
 - `/site/` — страницы сайта (главная, техдок, месячный бюллетень);
 - `/presentations/` — деки (`project-overview`, `dataviz-story`);
 - `/lessons/` — уроки.
+
+## Superset под /superset
+
+Superset (`:8088`, отдельный Docker-стек) доступен по `http://217.26.28.186/superset/`
+через тот же контейнер `landing`. Прямой доступ по `:8088` при этом сохраняется.
+
+Что настроено:
+
+1. **nginx** ([`deploy/landing-nginx.conf`](../deploy/landing-nginx.conf)):
+   `location /superset/` проксирует на `superset-superset-1:8088` и ставит заголовок
+   `X-Forwarded-Prefix: /superset` (контейнер `landing` подключён к сети
+   `superset_default`).
+2. **superset_config.py** (`/home/marcel/superset/superset_config.py`):
+   - `ENABLE_PROXY_FIX = True` — Superset учитывает X-Forwarded-* (было заранее),
+     поэтому серверные ссылки/редиректы/логин получают префикс `/superset`;
+   - `STATIC_ASSETS_PREFIX = "/superset"` — **добавлено**, чтобы фронтовые ассеты
+     (webpack, CSS/JS) грузились с `/superset/static/...`, а не с голого `/static/`.
+   После правки конфига Superset перезапускается:
+   `docker restart superset-superset-1 superset-worker-1 superset-beat-1`.
+
+Обновить конфиг nginx (после правки `deploy/landing-nginx.conf`):
+
+```bash
+scp deploy/landing-nginx.conf mgimo:/home/marcel/landing-nginx.conf
+ssh mgimo "docker exec landing nginx -t && docker exec landing nginx -s reload"
+```
+
+Проверка подпути:
+- ассеты идут с `/superset/static/...` (не с голого `/static/`):
+  `curl -sL http://217.26.28.186/superset/ | grep -oE '/static/[^"]+' | head`
+  (если видишь голый `/static/` — не применился `STATIC_ASSETS_PREFIX` или не было
+  рестарта Superset);
+- API фронтенда доходит до Superset (401, а не 404):
+  `curl -o /dev/null -w '%{http_code}\n' http://217.26.28.186/superset/api/v1/me/`.
 
 ## Диагностика
 
