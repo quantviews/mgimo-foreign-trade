@@ -149,7 +149,12 @@ Superset (`:8088`, отдельный Docker-стек) доступен по `ht
    - `ENABLE_PROXY_FIX = True` — Superset учитывает X-Forwarded-* (было заранее),
      поэтому серверные ссылки/редиректы/логин получают префикс `/superset`;
    - `STATIC_ASSETS_PREFIX = "/superset"` — **добавлено**, чтобы фронтовые ассеты
-     (webpack, CSS/JS) грузились с `/superset/static/...`, а не с голого `/static/`.
+     (webpack, CSS/JS) грузились с `/superset/static/...`, а не с голого `/static/`;
+   - `APPLICATION_ROOT = "/superset"` — **добавлено**, иначе React-фронтенд считает
+     базой `/` и зовёт API по голому `/api/...` (404) → страница логина остаётся
+     пустой. Superset берёт `application_root` для фронта из этого конфига
+     (`superset/views/base.py`), а не из ProxyFix; маршрутизацию делает SCRIPT_NAME,
+     так что дублирования префикса нет.
    После правки конфига Superset перезапускается:
    `docker restart superset-superset-1 superset-worker-1 superset-beat-1`.
 
