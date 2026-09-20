@@ -14,11 +14,13 @@ subtitle: "Совместный проект МГИМО и Института э
 <span class="chip">физические объёмы и оперативный прогноз</span>
 </div>
 
+```{=html}
 <div class="hero-logos">
 <img src="assets/mgimo-wordmark.svg" alt="МГИМО">
 <img src="assets/ief-logo.svg" alt="Институт энергетики и финансов">
 <img src="assets/priority-logo.svg" alt="Приоритет 2030">
 </div>
+```
 
 ## Зачем это нужно
 
