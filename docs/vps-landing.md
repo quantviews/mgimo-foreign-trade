@@ -44,6 +44,21 @@ docker run -d --name landing --restart unless-stopped \
 bash scripts/deploy_landing_vps.sh
 ```
 
+### Как запускать на Windows
+
+Через **Git Bash**, не через WSL. WSL не нужен: скрипт использует виндовые
+инструменты по MSYS-путям (`/g/R/...`, `H:/conda/envs/py312/...`) и ssh-хост
+`mgimo` из виндового `~/.ssh/config`; в WSL пришлось бы заново ставить
+quarto/R/python и настраивать ssh.
+
+Способы:
+
+- **Git Bash:** открыть Git Bash в корне репозитория и выполнить
+  `bash scripts/deploy_landing_vps.sh`.
+- **Двойной клик:** запустить [`deploy_landing.cmd`](../deploy_landing.cmd) в
+  корне репозитория (или из cmd/PowerShell) — обёртка сама запускает скрипт в
+  Git Bash. Если Git установлен не на `H:`, поправь путь `GITBASH` внутри `.cmd`.
+
 Что делает скрипт (зеркалит сборку из `.github/workflows/publish.yml`, но шлёт на
 VPS, а не в gh-pages):
 
