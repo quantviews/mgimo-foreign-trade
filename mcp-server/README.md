@@ -181,7 +181,7 @@ cd mcp-server && docker compose up -d --build     # собрать + (пере)�
 
 | Переменная | По умолчанию | Примечание |
 |---|---|---|
-| `MGIMO_API_TOKEN` | — | обязательна в stdio-режиме; персональный ключ |
+| `MGIMO_API_TOKEN` | нет | обязательна в stdio-режиме; персональный ключ |
 | `MGIMO_API_BASE` | `https://nts.mgimo.ru/api` | переопределение для локального/dev API |
 | `MCP_TRANSPORT` | `stdio` | `stdio`, `streamable-http` или `sse` |
 | `MCP_HOST` | `127.0.0.1` | адрес привязки для http-транспортов |
