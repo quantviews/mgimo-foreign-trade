@@ -301,7 +301,7 @@ JSON и CSV для скриптов на Python и R, OData-фид для Excel 
 
 <div class="feature-card accent">
 <strong>Удалённый сервер</strong>
-Готовый адрес [nts.mgimo.ru/mcp](https://nts.mgimo.ru/mcp): подключается по персональному ключу, устанавливать ничего не нужно. Работает с Claude Desktop, Claude Code, Cursor, VS Code и вашими агентами.
+Готовый адрес [nts.mgimo.ru/mcp](https://nts.mgimo.ru/mcp): подключается по персональному ключу, устанавливать ничего не нужно. Работает с Claude (десктоп, веб и мобильное приложение), ChatGPT, Cursor, VS Code и вашими агентами.
 </div>
 
 <div class="feature-card">
