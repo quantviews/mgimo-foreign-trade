@@ -1,36 +1,40 @@
-# MGIMO trade — MCP server (local, stdio)
+# MGIMO trade - MCP-сервер
 
-An [MCP](https://modelcontextprotocol.io) server that exposes the MGIMO
-foreign-trade API (`https://nts.mgimo.ru/api`) as tools, so any MCP client
-(Claude Desktop, IDEs, agents) can answer questions over the data in natural
-language. It is a thin wrapper over the HTTP API — authentication, quotas and
-audit all stay in the API.
+[MCP](https://modelcontextprotocol.io)-сервер, который отдаёт API внешней
+торговли МГИМО (`https://nts.mgimo.ru/api`) в виде инструментов, чтобы любой
+MCP-клиент (Claude Desktop, IDE, агенты) мог отвечать на вопросы по данным
+обычным языком. Это тонкая обёртка над HTTP API: авторизация, квоты и аудит
+остаются на стороне API.
 
-## Tools
+Работает в двух режимах: **локально (stdio)** - клиент сам запускает сервер, ключ
+в переменной окружения; и **удалённо (streamable-http)** - хостится на VPS, ключ
+идёт в заголовке каждого запроса.
 
-| Tool | What it does |
+## Инструменты
+
+| Инструмент | Что делает |
 |---|---|
-| `meta` | latest available period + your plan and remaining quota |
-| `reference` | code dictionaries: `countries` (ISO-2 + Russian names) or `tnved` (HS-code names, by `level`) |
-| `trade` | trade rows or server-side aggregates (filters: country, direction, HS code, period, `group_by`, `metrics`) |
-| `fizob` | physical-volume indices (real volumes, price effect removed — a project speciality) |
+| `meta` | последний доступный период + ваш тариф и остаток квоты |
+| `reference` | справочники кодов: `countries` (ISO-2 + русские названия) или `tnved` (названия кодов ТН ВЭД, по `level`) |
+| `trade` | строки торговли или агрегаты на сервере (фильтры: страна, направление, код ТН ВЭД, период, `group_by`, `metrics`) |
+| `fizob` | индексы физобъёмов (реальные объёмы без влияния цен - особенность проекта) |
 
-## Prerequisites
+## Требования
 
 - Python 3.10+.
-- A personal API key. Get one from the Superset cabinet at
-  <https://nts.mgimo.ru/superset/apikey/> (role `API`, granted by an admin).
+- Персональный API-ключ. Получить в кабинете Superset:
+  <https://nts.mgimo.ru/superset/apikey/> (нужна роль `API`, назначает админ).
 
-## Install
+## Установка
 
-With [uv](https://docs.astral.sh/uv/) (recommended — no manual venv):
+Через [uv](https://docs.astral.sh/uv/) (рекомендуется, без ручного venv):
 
 ```bash
 cd mcp-server
 uv sync
 ```
 
-Or plain pip in a virtualenv:
+Или обычный pip в виртуальном окружении:
 
 ```bash
 cd mcp-server
@@ -38,66 +42,67 @@ python -m venv .venv && . .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Configure your MCP client
+## Подключение MCP-клиента (локально, stdio)
 
-Point the client at `server.py` and pass the token in `env`. The token never
-leaves the Authorization header.
+Клиент запускает `server.py`, ключ передаётся в `env`. Токен уходит только в
+заголовок Authorization и нигде не печатается.
 
-**Claude Desktop** — edit `claude_desktop_config.json`
-(macOS: `~/Library/Application Support/Claude/`, Windows:
-`%APPDATA%\Claude\`), then restart Claude Desktop:
+**Claude Desktop** - откройте `claude_desktop_config.json`
+(macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`),
+добавьте сервер и перезапустите Claude Desktop:
 
 ```json
 {
   "mcpServers": {
     "mgimo-trade": {
       "command": "uv",
-      "args": ["run", "--directory", "/ABSOLUTE/PATH/TO/mcp-server", "mgimo-trade-mcp"],
-      "env": { "MGIMO_API_TOKEN": "mgt_YOUR_TOKEN" }
+      "args": ["run", "--directory", "/АБСОЛЮТНЫЙ/ПУТЬ/К/mcp-server", "mgimo-trade-mcp"],
+      "env": { "MGIMO_API_TOKEN": "mgt_ВАШ_ТОКЕН" }
     }
   }
 }
 ```
 
-Without uv, run the script directly with a Python that has the deps installed:
+Без uv - запускайте скрипт напрямую тем Python, где установлены зависимости:
 
 ```json
 {
   "mcpServers": {
     "mgimo-trade": {
-      "command": "/ABSOLUTE/PATH/TO/mcp-server/.venv/bin/python",
-      "args": ["/ABSOLUTE/PATH/TO/mcp-server/server.py"],
-      "env": { "MGIMO_API_TOKEN": "mgt_YOUR_TOKEN" }
+      "command": "/АБСОЛЮТНЫЙ/ПУТЬ/К/mcp-server/.venv/bin/python",
+      "args": ["/АБСОЛЮТНЫЙ/ПУТЬ/К/mcp-server/server.py"],
+      "env": { "MGIMO_API_TOKEN": "mgt_ВАШ_ТОКЕН" }
     }
   }
 }
 ```
 
-On Windows use the full path to `python.exe` and backslashes (or forward
-slashes) in the paths, e.g. `C:\\...\\.venv\\Scripts\\python.exe`.
+На Windows укажите полный путь к `python.exe` и слэши в путях, например
+`C:\\...\\.venv\\Scripts\\python.exe`.
 
-Other MCP clients (Cursor, Continue, etc.) use the same idea: a stdio server
-started with that command + `MGIMO_API_TOKEN` in the environment.
+Другие MCP-клиенты (Cursor, Continue и т.п.) настраиваются так же: stdio-сервер,
+запускаемый этой командой, и `MGIMO_API_TOKEN` в окружении.
 
-## Remote (hosted) server
+## Удалённый (хостинг) сервер
 
-A hosted instance runs on the VPS at **`https://nts.mgimo.ru/mcp`** (Streamable
-HTTP transport, TLS). Nothing to install — each request must carry the client's
-own API key in `Authorization: Bearer <key>`, which the server forwards to the
-API, so quotas and audit stay per-user. The server stores no token.
+На VPS работает готовый экземпляр по адресу **`https://nts.mgimo.ru/mcp`**
+(транспорт Streamable HTTP, TLS). Ставить ничего не нужно: каждый запрос должен
+нести персональный ключ клиента в `Authorization: Bearer <ключ>`, который сервер
+прокидывает в API. Поэтому квоты и аудит считаются по каждому пользователю, а сам
+сервер токен не хранит.
 
-### Connecting AI clients (remote)
+### Подключение ИИ-клиентов (удалённо)
 
-Every client needs the same three things: transport **streamable-http**, URL
-**`https://nts.mgimo.ru/mcp`**, and your own key in an **`Authorization: Bearer`**
-header. Get a key from the Superset cabinet at
-<https://nts.mgimo.ru/superset/apikey/> first. After connecting, the client
-sees the tools `meta`, `reference`, `trade`, `fizob`.
+Всем клиентам нужно одно и то же: транспорт **streamable-http**, URL
+**`https://nts.mgimo.ru/mcp`** и ваш ключ в заголовке **`Authorization: Bearer`**.
+Сначала получите ключ в кабинете Superset:
+<https://nts.mgimo.ru/superset/apikey/>. После подключения клиент увидит
+инструменты `meta`, `reference`, `trade`, `fizob`.
 
-**Claude Desktop** — it expects OAuth for remote servers, so bridge a Bearer key
-with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) (needs Node.js).
-Edit `claude_desktop_config.json` (Windows `%APPDATA%\Claude\`, macOS
-`~/Library/Application Support/Claude/`) and restart:
+**Claude Desktop** - для удалённых серверов он ждёт OAuth, поэтому bearer-ключ
+проще подключить через мост [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)
+(нужен Node.js). Откройте `claude_desktop_config.json` (Windows `%APPDATA%\Claude\`,
+macOS `~/Library/Application Support/Claude/`) и перезапустите:
 
 ```json
 {
@@ -105,35 +110,35 @@ Edit `claude_desktop_config.json` (Windows `%APPDATA%\Claude\`, macOS
     "mgimo-trade": {
       "command": "npx",
       "args": ["-y", "mcp-remote", "https://nts.mgimo.ru/mcp",
-               "--header", "Authorization: Bearer mgt_YOUR_TOKEN"]
+               "--header", "Authorization: Bearer mgt_ВАШ_ТОКЕН"]
     }
   }
 }
 ```
 
-**Claude Code (CLI)** — supports remote HTTP MCP with a header directly:
+**Claude Code (CLI)** - умеет удалённый HTTP MCP с заголовком напрямую:
 
 ```bash
 claude mcp add --transport http mgimo-trade https://nts.mgimo.ru/mcp \
-  --header "Authorization: Bearer mgt_YOUR_TOKEN"
+  --header "Authorization: Bearer mgt_ВАШ_ТОКЕН"
 ```
 
-**Cursor / VS Code** (and similar) — `.cursor/mcp.json` (or the global config),
-remote MCP via `url` + `headers`:
+**Cursor / VS Code** (и похожие) - `.cursor/mcp.json` (или глобальный конфиг),
+удалённый MCP через `url` + `headers`:
 
 ```json
 {
   "mcpServers": {
     "mgimo-trade": {
       "url": "https://nts.mgimo.ru/mcp",
-      "headers": { "Authorization": "Bearer mgt_YOUR_TOKEN" }
+      "headers": { "Authorization": "Bearer mgt_ВАШ_ТОКЕН" }
     }
   }
 }
 ```
 
-**Your own agent (Python)** — or any MCP-compatible framework (LangChain /
-LlamaIndex adapters, a custom loop):
+**Свой агент (Python)** - или любой MCP-совместимый фреймворк (адаптеры
+LangChain / LlamaIndex, собственный цикл):
 
 ```python
 from mcp import ClientSession
@@ -141,62 +146,65 @@ from mcp.client.streamable_http import streamablehttp_client
 
 async with streamablehttp_client(
         "https://nts.mgimo.ru/mcp",
-        headers={"Authorization": "Bearer mgt_YOUR_TOKEN"}) as (r, w, _):
+        headers={"Authorization": "Bearer mgt_ВАШ_ТОКЕН"}) as (r, w, _):
     async with ClientSession(r, w) as s:
         await s.initialize()
         print([t.name for t in (await s.list_tools()).tools])
         print((await s.call_tool("meta", {})).content[0].text)
 ```
 
-Prefer to run it yourself instead of using the hosted URL? Use the local stdio
-mode above (["Configure your MCP client"](#configure-your-mcp-client)) with
-`MGIMO_API_TOKEN` in the environment.
+Хотите запускать у себя, а не через хостинг? Используйте локальный stdio-режим
+выше (["Подключение MCP-клиента"](#подключение-mcp-клиента-локально-stdio)) с
+`MGIMO_API_TOKEN` в окружении.
 
-### Deploy / update the hosted server (VPS)
+### Деплой / обновление хостинг-сервера (VPS)
 
-The server runs as the `trade-mcp` container next to `trade-api`, on Superset's
-Docker network, proxied by the landing nginx at `/mcp` (see
-`deploy/landing-nginx.conf`). It calls the API internally (`trade-api:8000`) and
-holds no token.
+Сервер работает контейнером `trade-mcp` рядом с `trade-api`, в Docker-сети
+Superset, за nginx контейнера `landing` на `/mcp` (см. `deploy/landing-nginx.conf`).
+API он зовёт внутренне (`trade-api:8000`) и токен не хранит.
 
 ```bash
 ssh mgimo
 cd ~/mgimo-foreign-trade && git pull
-cd mcp-server && docker compose up -d --build     # build + (re)start trade-mcp
+cd mcp-server && docker compose up -d --build     # собрать + (пере)запустить trade-mcp
 ```
 
-nginx already has the `/mcp` location; after editing it:
+Локация `/mcp` в nginx уже есть; после её правки:
 `scp deploy/landing-nginx.conf mgimo:/home/marcel/landing-nginx.conf && \
  ssh mgimo "docker exec landing nginx -t && docker exec landing nginx -s reload"`.
 
-Check: `curl -sN -H "Authorization: Bearer mgt_..." https://nts.mgimo.ru/mcp`
-should speak MCP (405/JSON on a bare GET is fine; use a real client to call tools).
+Проверка: `curl -sN -H "Authorization: Bearer mgt_..." https://nts.mgimo.ru/mcp`
+должен говорить на MCP (голый GET отдаёт 406/JSON - это нормально; вызывать
+инструменты нужно настоящим клиентом).
 
-## Configuration (env)
+## Переменные окружения
 
-| Variable | Default | Notes |
+| Переменная | По умолчанию | Примечание |
 |---|---|---|
-| `MGIMO_API_TOKEN` | — | required; personal API key |
-| `MGIMO_API_BASE` | `https://nts.mgimo.ru/api` | override for a local/dev API |
+| `MGIMO_API_TOKEN` | — | обязательна в stdio-режиме; персональный ключ |
+| `MGIMO_API_BASE` | `https://nts.mgimo.ru/api` | переопределение для локального/dev API |
+| `MCP_TRANSPORT` | `stdio` | `stdio`, `streamable-http` или `sse` |
+| `MCP_HOST` | `127.0.0.1` | адрес привязки для http-транспортов |
+| `MCP_PORT` | `8000` | порт для http-транспортов |
 
-As a fallback the server also reads a `MGIMO_API_TOKEN=` line from a `.env` next
-to `server.py` or in the working directory — handy for local testing. Do not
-commit that `.env`.
+В stdio-режиме, как запасной вариант, сервер также читает строку
+`MGIMO_API_TOKEN=` из `.env` рядом с `server.py` или в рабочем каталоге - удобно
+для локальных тестов. Такой `.env` в репозиторий не коммитить.
 
-## Quick check
+## Быстрая проверка
 
-Run the server standalone; it should start and wait on stdio (Ctrl+C to stop):
+Запустите сервер отдельно - он стартует и ждёт на stdio (Ctrl+C для остановки):
 
 ```bash
 MGIMO_API_TOKEN=mgt_... uv run mgimo-trade-mcp
 ```
 
-To exercise the API path without a client, use the sibling
+Чтобы проверить путь к API без клиента, есть соседний
 [`.claude/skills/trade-data/query.py`](../.claude/skills/trade-data/query.py)
-(same endpoints), e.g. `python query.py meta`.
+(те же эндпоинты), например `python query.py meta`.
 
-## Notes
+## Заметки
 
-- Read-only: the tools only issue GET requests to `/v1/*`.
-- The same key powers the OData feed for Excel/Power BI and the trade-data skill.
-- Reference: [`docs/api-reference.md`](../docs/api-reference.md).
+- Только чтение: инструменты делают лишь GET-запросы к `/v1/*`.
+- Тот же ключ работает для OData-фида (Excel/Power BI) и для skill trade-data.
+- Справочник: [`docs/api-reference.md`](../docs/api-reference.md).
