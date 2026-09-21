@@ -245,13 +245,13 @@ Superset (`:8088`, отдельный Docker-стек) доступен по `ht
    `chart/list`) под этот редирект не попадают и работают как есть.
 
 4. **Логотип (`APP_ICON`)** — тот же, что в hero лендинга
-   (`site/assets/mgimo-wordmark.svg`). Задан **полным URL**
-   `http://nts.mgimo.ru/site/assets/mgimo-wordmark.svg`, потому что один и тот же
+   (`site/assets/mgimo-wordmark.svg`). Задан **полным https-URL**
+   `https://nts.mgimo.ru/site/assets/mgimo-wordmark.svg`, потому что один и тот же
    `APP_ICON` отдаётся и на прямом `:8088` (там нужен голый `/static/...`), и под
    `/superset` (там нужен `/superset/static/...`) — относительным путём оба входа
    не покрыть, а абсолютный URL резолвится отовсюду и всегда совпадает с
-   лендингом. `LOGO_RIGHT_TEXT` убран: в wordmark уже есть надпись «МГИМО».
-   Если появится HTTPS — заменить `http://` на `https://` в этом URL.
+   лендингом. https обязателен: на https-странице `http://`-картинка блокируется
+   как mixed-content. `LOGO_RIGHT_TEXT` убран: в wordmark уже есть надпись «МГИМО».
 
    **Важно про адресную строку:** внутренние страницы Superset открываются по
    двойному пути (`.../superset/superset/welcome/`, дашборды тоже). Это рабочее
