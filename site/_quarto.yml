@@ -29,6 +29,9 @@ website:
             href: country_bulletins/turkey/bulletin_turkey_pdf.qmd
       # Занятия рендерятся отдельным (корневым) проектом; в локальном превью
       # ссылаемся на опубликованные слайды, чтобы не требовать их сборки здесь.
+      - text: "Дашборды"
+        href: https://nts.mgimo.ru/superset/
+        target: _blank
       - text: "Презентации"
         menu:
           - text: "Обзор проекта"

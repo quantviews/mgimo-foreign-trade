@@ -37,6 +37,9 @@ website:
             href: site/country_bulletins/india/bulletin_india_pdf.qmd
           - text: "Турция"
             href: site/country_bulletins/turkey/bulletin_turkey_pdf.qmd
+      - text: "Дашборды"
+        href: https://nts.mgimo.ru/superset/
+        target: _blank
       - text: "Презентации"
         menu:
           - text: "Обзор проекта"
