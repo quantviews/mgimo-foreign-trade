@@ -45,4 +45,4 @@ ssh "${VPS}" "set -e; mkdir -p '${DEST}'; rm -rf '${DEST}'/* '${DEST}'/.[!.]* 2>
 
 rm -f _site_deploy.tar.gz
 echo
-echo "Deployed. Open: http://217.26.28.186/"
+echo "Deployed. Open: https://nts.mgimo.ru/"

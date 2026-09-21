@@ -1,7 +1,7 @@
-# Лендинг на VPS (nginx, порт 80)
+# Лендинг на VPS (nginx, HTTPS)
 
 Как статический сайт (лендинг + бюллетень + презентации) публикуется на VPS
-`http://217.26.28.186/` и как его обновлять с локального ПК.
+`https://nts.mgimo.ru/` (TLS, Let's Encrypt) и как его обновлять с локального ПК.
 
 ## Зачем
 
@@ -30,23 +30,97 @@
 scp deploy/landing-nginx.conf mgimo:/home/marcel/landing-nginx.conf
 
 ssh mgimo
-mkdir -p /home/marcel/mgimo-landing
+mkdir -p /home/marcel/mgimo-landing /home/marcel/acme-webroot /home/marcel/letsencrypt
 docker run -d --name landing --restart unless-stopped \
   --network superset_default \
-  -p 80:80 \
+  -p 80:80 -p 443:443 \
   -v /home/marcel/mgimo-landing:/usr/share/nginx/html:ro \
   -v /home/marcel/landing-nginx.conf:/etc/nginx/conf.d/default.conf:ro \
+  -v /home/marcel/letsencrypt:/etc/letsencrypt:ro \
+  -v /home/marcel/acme-webroot:/var/www/acme:ro \
   nginx:alpine
 ```
 
 - `--network superset_default` — чтобы nginx достучался до Superset по имени
   сервиса (`superset-superset-1:8088`).
 - монтируется [`deploy/landing-nginx.conf`](../deploy/landing-nginx.conf) —
-  статический сайт на `/` и прокси Superset на `/superset` (см. ниже).
+  редирект на https на `:80`, статический сайт на `/` и прокси Superset на
+  `/superset` на `:443` (см. ниже).
+- `letsencrypt` — сертификат TLS (см. раздел «HTTPS»); `acme-webroot` — отдельный
+  каталог для проверки Let's Encrypt (**не** трогается деплоем, в отличие от
+  `mgimo-landing`).
 
-Проверка: `curl -s -o /dev/null -w '%{http_code}\n' http://localhost:80` даёт 200.
-Порт 80 на VPS был свободен. Контейнер поднимается сам после перезагрузки
+Проверка: `curl -s -o /dev/null -w '%{http_code}\n' https://nts.mgimo.ru/` даёт 200.
+Порты 80/443 на VPS свободны. Контейнер поднимается сам после перезагрузки
 (`--restart unless-stopped`).
+
+> Если сертификата ещё нет, конфиг с блоком `listen 443 ssl` не даст nginx
+> стартовать. Порядок первого запуска — в разделе «HTTPS» ниже (сначала временный
+> конфиг только с `:80` + acme, затем выпуск сертификата, затем финальный конфиг).
+
+## HTTPS (TLS, Let's Encrypt)
+
+Сайт и Superset отдаются по `https://nts.mgimo.ru/`. Сертификат — **Let's Encrypt
+только на `nts.mgimo.ru`** (не wildcard), выпускается и продлевается нами, от ИТ
+МГИМО ничего не требуется (DNS уже указывает на VPS, CAA не ограничивает, порт 80
+открыт). Прямой доступ к Superset по `:8088` (http) сохраняется.
+
+Как это устроено:
+
+- nginx на `:80` отдаёт только `/.well-known/acme-challenge/` (проверка
+  Let's Encrypt) и редиректит всё остальное на `:443`.
+- на `:443` — TLS + лендинг + прокси Superset. Сертификат смонтирован из
+  `/home/marcel/letsencrypt` (`:ro`).
+- проверочные файлы Let's Encrypt пишутся в **отдельный** каталог
+  `/home/marcel/acme-webroot` (nginx отдаёт его как `/.well-known/acme-challenge/`).
+  Он не совпадает с каталогом сайта, поэтому деплой лендинга его не стирает.
+
+### Первый выпуск сертификата (уже сделан)
+
+Порядок, если поднимать с нуля (пока сертификата нет, финальный конфиг с
+`listen 443 ssl` не даст nginx стартовать):
+
+1. Временный `landing-nginx.conf` **только с `:80`** (`location / { try_files ... }`)
+   плюс `location ^~ /.well-known/acme-challenge/ { root /var/www/acme; }`.
+2. Запустить контейнер `landing` с проброшенным `443` и монтированиями
+   `letsencrypt` + `acme-webroot` (команда в разделе настройки выше).
+3. Выпустить сертификат (certbot в контейнере, webroot):
+
+   ```bash
+   docker run --rm \
+     -v /home/marcel/letsencrypt:/etc/letsencrypt \
+     -v /home/marcel/acme-webroot:/var/www/acme \
+     certbot/certbot certonly --webroot -w /var/www/acme \
+     -d nts.mgimo.ru \
+     --register-unsafely-without-email --agree-tos --no-eff-email --non-interactive
+   ```
+4. Положить финальный [`deploy/landing-nginx.conf`](../deploy/landing-nginx.conf)
+   (с блоком `:443`) и перезагрузить: `docker exec landing nginx -t &&
+   docker exec landing nginx -s reload`.
+
+### Автопродление
+
+Скрипт `/home/marcel/renew-cert.sh` (certbot `renew` в контейнере + reload nginx)
+запускается по cron еженедельно:
+
+```
+30 3 * * 1 /home/marcel/renew-cert.sh >> /home/marcel/renew-cert.log 2>&1
+```
+
+`certbot renew` обновляет сертификат только когда до истечения меньше 30 дней, так
+что еженедельный запуск безопасен. Проверить, что продление рабочее:
+
+```bash
+docker run --rm -v /home/marcel/letsencrypt:/etc/letsencrypt \
+  -v /home/marcel/acme-webroot:/var/www/acme certbot/certbot renew --dry-run
+```
+
+### Superset и https
+
+nginx шлёт `X-Forwarded-Proto`, `ENABLE_PROXY_FIX=True` — Superset сам строит
+https-ссылки. Единственная ручная правка: `APP_ICON` в `superset_config.py` задан
+через `https://nts.mgimo.ru/...` (если оставить `http://`, логотип заблокируется
+как mixed-content на https-странице).
 
 ## Обновление (деплой с локального ПК)
 
@@ -65,7 +139,7 @@ bash scripts/deploy_landing_vps.sh
 1. Открой папку репозитория в Проводнике.
 2. Дважды кликни по файлу **`deploy_landing.cmd`** в корне репозитория.
 3. Откроется окно консоли, пойдёт сборка и заливка (несколько минут). В конце
-   появится строка `Deployed. Open: http://217.26.28.186/`.
+   появится строка `Deployed. Open: https://nts.mgimo.ru/`.
 4. Нажми любую клавишу, чтобы закрыть окно.
 
 Если Git установлен не на диске `H:`, открой `deploy_landing.cmd` блокнотом и
@@ -83,7 +157,7 @@ bash scripts/deploy_landing_vps.sh
    ```bash
    bash scripts/deploy_landing_vps.sh
    ```
-4. Дождись строки `Deployed. Open: http://217.26.28.186/`.
+4. Дождись строки `Deployed. Open: https://nts.mgimo.ru/`.
 
 Почему не WSL: скрипт использует виндовые quarto/R/python и ssh-хост `mgimo` из
 виндового `~/.ssh/config`; в WSL всё это пришлось бы ставить и настраивать заново.
@@ -98,7 +172,7 @@ VPS, а не в gh-pages):
 4. пакует `_site` в tar, заливает по scp, распаковывает в
    `/home/marcel/mgimo-landing` на VPS.
 
-После этого сайт доступен на `http://217.26.28.186/`.
+После этого сайт доступен на `https://nts.mgimo.ru/`.
 
 ### Что нужно на ПК
 
@@ -136,7 +210,7 @@ VPS, а не в gh-pages):
 
 ## Superset под /superset
 
-Superset (`:8088`, отдельный Docker-стек) доступен по `http://217.26.28.186/superset/`
+Superset (`:8088`, отдельный Docker-стек) доступен по `https://nts.mgimo.ru/superset/`
 через тот же контейнер `landing`. Прямой доступ по `:8088` при этом сохраняется.
 
 Что настроено:
@@ -195,11 +269,11 @@ ssh mgimo "docker exec landing nginx -t && docker exec landing nginx -s reload"
 
 Проверка подпути:
 - ассеты идут с `/superset/static/...` (не с голого `/static/`):
-  `curl -sL http://217.26.28.186/superset/ | grep -oE '/static/[^"]+' | head`
+  `curl -sL https://nts.mgimo.ru/superset/ | grep -oE '/static/[^"]+' | head`
   (если видишь голый `/static/` — не применился `STATIC_ASSETS_PREFIX` или не было
   рестарта Superset);
 - API фронтенда доходит до Superset (401, а не 404):
-  `curl -o /dev/null -w '%{http_code}\n' http://217.26.28.186/superset/api/v1/me/`.
+  `curl -o /dev/null -w '%{http_code}\n' https://nts.mgimo.ru/superset/api/v1/me/`.
 
 ## Диагностика
 
