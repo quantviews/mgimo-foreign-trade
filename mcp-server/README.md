@@ -123,13 +123,43 @@ claude mcp add --transport http mgimo-trade https://nts.mgimo.ru/mcp \
   --header "Authorization: Bearer mgt_ВАШ_ТОКЕН"
 ```
 
-**Cursor / VS Code** (и похожие) - `.cursor/mcp.json` (или глобальный конфиг),
-удалённый MCP через `url` + `headers`:
+**Cursor** - удалённый MCP через `url` + `headers`. Два способа, любой на выбор.
+
+1. *Через файл конфигурации.* Создайте `.cursor/mcp.json` в корне проекта (сервер
+   будет только в этом проекте) или `~/.cursor/mcp.json` (глобально, во всех
+   проектах):
+
+   ```json
+   {
+     "mcpServers": {
+       "mgimo-trade": {
+         "url": "https://nts.mgimo.ru/mcp",
+         "headers": { "Authorization": "Bearer mgt_ВАШ_ТОКЕН" }
+       }
+     }
+   }
+   ```
+
+2. *Через интерфейс.* Cursor Settings (`Ctrl/Cmd+Shift+J`) → раздел **MCP**
+   (в новых версиях **Tools & Integrations**) → **New MCP Server** / **Add** →
+   вставьте тот же JSON и сохраните.
+
+После этого в **Settings → MCP** сервер `mgimo-trade` должен загореться зелёным и
+показать инструменты `meta`, `reference`, `trade`, `fizob` (если серый - нажмите
+кнопку обновления или проверьте ключ и интернет). Пользоваться в чате в режиме
+**Agent**: ассистент сам вызывает инструменты; при первом вызове Cursor может
+попросить подтвердить запуск - разрешите (можно включить «always allow» для этого
+сервера). Токен хранится в файле конфигурации в открытом виде, поэтому
+`.cursor/mcp.json` в проекте лучше не коммитить в общий репозиторий.
+
+**VS Code** (Copilot, режим Agent) - формат отличается: файл `.vscode/mcp.json`,
+ключ `servers` и `type: http`:
 
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "mgimo-trade": {
+      "type": "http",
       "url": "https://nts.mgimo.ru/mcp",
       "headers": { "Authorization": "Bearer mgt_ВАШ_ТОКЕН" }
     }
