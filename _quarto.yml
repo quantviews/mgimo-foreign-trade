@@ -13,12 +13,10 @@ project:
     - lessons/lesson_02_old_new_stats.qmd
     - lessons/lesson_03_duckdb.qmd
     - lessons/lesson_04_superset.qmd
-    # Страновые бюллетени: единый источник, два формата. Здесь строится html
-    # (для сайта). PDF собирается отдельно (нужны xelatex + Arial), см. deploy.
-    # В CI (GitHub Pages, без LaTeX) исключаются профилем ci (_quarto-ci.yml).
-    - site/country_bulletins/china/bulletin_china_pdf.qmd
-    - site/country_bulletins/india/bulletin_india_pdf.qmd
-    - site/country_bulletins/turkey/bulletin_turkey_pdf.qmd
+    # Страновые бюллетени НЕ здесь: у них есть pdf-формат (нужны xelatex + Arial),
+    # а GitHub Pages CI их не имеет. Их добавляет профиль vps (_quarto-vps.yml),
+    # которым локальный деплой на VPS собирает html + pdf. Профили Quarto
+    # ДОБАВЛЯЮТ элементы render, а не заменяют список, поэтому база остаётся чистой.
 
 website:
   title: "Национальная торговая статистика"

@@ -24,8 +24,10 @@ R_BIN="${R_BIN:-/g/R/R-4.5.1/bin}"                         # R bin dir (msys pat
 export QUARTO_PYTHON="${QUARTO_PYTHON:-H:/conda/envs/py312/python.exe}"
 export PATH="$R_BIN:$PATH"                                 # so quarto finds R
 
-echo "== [1/6] Render the website (site, bulletin, lessons) =="
-quarto render .
+echo "== [1/6] Render the website (site, bulletin, lessons, country bulletins) =="
+# --profile vps adds the country bulletins (html + pdf) to the render list.
+# Needs xelatex + Arial for their PDFs (present locally; CI stays without them).
+quarto render . --profile vps
 
 echo "== [2/6] Render presentations (shared assets, inline charts) =="
 quarto render presentations -P inline_charts:true

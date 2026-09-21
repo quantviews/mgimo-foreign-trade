@@ -7,9 +7,6 @@ project:
     - index.qmd
     - technical.qmd
     - bulletin_comparison.qmd
-    - country_bulletins/china/bulletin_china_pdf.qmd
-    - country_bulletins/india/bulletin_india_pdf.qmd
-    - country_bulletins/turkey/bulletin_turkey_pdf.qmd
 
 website:
   title: "Национальная торговая статистика"

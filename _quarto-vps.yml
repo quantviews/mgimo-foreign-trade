@@ -1,0 +1,11 @@
+# Профиль сборки для VPS (локальный деплой). ДОБАВЛЯЕТ страновые бюллетени к
+# базовому render-списку (профили Quarto объединяют списки, а не заменяют). У
+# бюллетеней есть pdf-формат, поэтому нужны xelatex + шрифт Arial - на локальной
+# машине они есть. GitHub Pages CI собирает без профиля -> без бюллетеней -> без LaTeX.
+#
+# Используется: quarto render . --profile vps   (см. scripts/deploy_landing_vps.sh)
+project:
+  render:
+    - site/country_bulletins/china/bulletin_china_pdf.qmd
+    - site/country_bulletins/india/bulletin_india_pdf.qmd
+    - site/country_bulletins/turkey/bulletin_turkey_pdf.qmd

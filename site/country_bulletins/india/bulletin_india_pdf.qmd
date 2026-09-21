@@ -48,7 +48,9 @@ execute:
 
 ```{r}
 #| include: false
-knitr::opts_knit$set(root.dir = normalizePath("."))
+# Рабочий каталог = папка этого файла (Quarto ставит его сам), поэтому пути
+# data/... и pdf_figures/... относительные. root.dir не трогаем: при проектной
+# сборке он вычислялся бы до смены каталога и ломал пути (см. CI).
 
 library(tidyverse)
 library(arrow)
