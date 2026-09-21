@@ -86,25 +86,71 @@ HTTP transport, TLS). Nothing to install — each request must carry the client'
 own API key in `Authorization: Bearer <key>`, which the server forwards to the
 API, so quotas and audit stay per-user. The server stores no token.
 
-Clients that support a remote MCP URL with a custom header can use it directly.
-For stdio-only clients (e.g. Claude Desktop today), bridge with
-[`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
+### Connecting AI clients (remote)
+
+Every client needs the same three things: transport **streamable-http**, URL
+**`https://nts.mgimo.ru/mcp`**, and your own key in an **`Authorization: Bearer`**
+header. Get a key from the Superset cabinet at
+<https://nts.mgimo.ru/superset/apikey/> first. After connecting, the client
+sees the tools `meta`, `reference`, `trade`, `fizob`.
+
+**Claude Desktop** — it expects OAuth for remote servers, so bridge a Bearer key
+with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) (needs Node.js).
+Edit `claude_desktop_config.json` (Windows `%APPDATA%\Claude\`, macOS
+`~/Library/Application Support/Claude/`) and restart:
 
 ```json
 {
   "mcpServers": {
     "mgimo-trade": {
       "command": "npx",
-      "args": [
-        "-y", "mcp-remote", "https://nts.mgimo.ru/mcp",
-        "--header", "Authorization: Bearer mgt_YOUR_TOKEN"
-      ]
+      "args": ["-y", "mcp-remote", "https://nts.mgimo.ru/mcp",
+               "--header", "Authorization: Bearer mgt_YOUR_TOKEN"]
     }
   }
 }
 ```
 
-(Needs Node.js for `npx`. This is the only setup a user needs — no Python.)
+**Claude Code (CLI)** — supports remote HTTP MCP with a header directly:
+
+```bash
+claude mcp add --transport http mgimo-trade https://nts.mgimo.ru/mcp \
+  --header "Authorization: Bearer mgt_YOUR_TOKEN"
+```
+
+**Cursor / VS Code** (and similar) — `.cursor/mcp.json` (or the global config),
+remote MCP via `url` + `headers`:
+
+```json
+{
+  "mcpServers": {
+    "mgimo-trade": {
+      "url": "https://nts.mgimo.ru/mcp",
+      "headers": { "Authorization": "Bearer mgt_YOUR_TOKEN" }
+    }
+  }
+}
+```
+
+**Your own agent (Python)** — or any MCP-compatible framework (LangChain /
+LlamaIndex adapters, a custom loop):
+
+```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async with streamablehttp_client(
+        "https://nts.mgimo.ru/mcp",
+        headers={"Authorization": "Bearer mgt_YOUR_TOKEN"}) as (r, w, _):
+    async with ClientSession(r, w) as s:
+        await s.initialize()
+        print([t.name for t in (await s.list_tools()).tools])
+        print((await s.call_tool("meta", {})).content[0].text)
+```
+
+Prefer to run it yourself instead of using the hosted URL? Use the local stdio
+mode above (["Configure your MCP client"](#configure-your-mcp-client)) with
+`MGIMO_API_TOKEN` in the environment.
 
 ### Deploy / update the hosted server (VPS)
 
