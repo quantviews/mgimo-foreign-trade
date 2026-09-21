@@ -1,11 +1,13 @@
 # Деплой API на VPS (рядом со Superset)
 
-> **Статус: развёрнуто и проверено 2026-08-28.** API работает на VPS
-> (`http://217.26.28.186`, порт `8090`, HTTP), контейнер `trade-api` в сети
-> `superset_default`, токены/аудит — в отдельной БД `tradeapi` того же Postgres,
-> DuckDB — `/srv/duckdb/unified_trade_data.duckdb` (read-only). Проверено:
-> `/health`, `/v1/trade`, `/v1/meta` + запись аудита. Порт наружу не открыт (пилот,
-> без TLS). Обновление ниже — по этому же runbook.
+> **Статус: развёрнуто; TLS + домен с 2026-09-21.** API доступен по
+> **`https://nts.mgimo.ru/api`** (HTTPS, Let's Encrypt) через реверс-прокси в
+> контейнере `landing` (`location /api/` в [`deploy/landing-nginx.conf`](../deploy/landing-nginx.conf),
+> префикс `/api` пробрасывается заголовком `X-Forwarded-Prefix`). Swagger:
+> `https://nts.mgimo.ru/api/docs`. Прямой `http://217.26.28.186:8090` (без TLS)
+> сохранён для внутренних задач. Контейнер `trade-api` в сети `superset_default`,
+> токены/аудит — в БД `tradeapi` того же Postgres, DuckDB —
+> `/srv/duckdb/unified_trade_data.duckdb` (read-only). Обновление ниже — по этому же runbook.
 
 Развёртывание read-only API-сервиса на том же VPS, где крутится Superset
 (`http://217.26.28.186:8088`, Superset в Docker). API берёт токены/аудит из Postgres
@@ -13,9 +15,11 @@ Superset и читает тот же файл `unified_trade_data.duckdb`. Ар�
 [`../api/`](../api/): `Dockerfile`, `docker-compose.yml`, `.env.example`,
 `deploy/nginx-api.conf`.
 
-> ⚠️ **TLS пока нет** (домен не готов). На пилоте API работает по **HTTP** на порту `8090`.
-> Токены по HTTP идут в открытом виде — **ограничьте доступ фаерволом** до доверенных IP,
-> пока не появится домен + TLS. Конфиг nginx уже TLS-ready — включите, когда домен будет.
+> ✅ **TLS есть.** Клиенты ходят по `https://nts.mgimo.ru/api` (токен по HTTPS).
+> Прямой `:8090` — по-прежнему HTTP (внутренняя сеть/доверенные IP): токен там идёт
+> открыто, наружу без нужды не публикуйте. Проксирование настроено в контейнере
+> `landing` (`/api/` → `trade-api:8000`), см. [docs/vps-landing.md](vps-landing.md);
+> отдельный `api/deploy/nginx-api.conf` (вариант с поддоменом) больше не используется.
 
 ## 0. Что собрать заранее
 
@@ -66,14 +70,18 @@ curl -s -H "Authorization: Bearer mgt_..." \
   "localhost:8090/v1/trade?strana=CN&group_by=period&limit=3"
 ```
 
-## 5. Безопасность на пилоте (без TLS)
+## 5. TLS и доступ
 
-- Открыть порт `8090` только доверенным IP (фаервол/security group) — либо не публиковать
-  наружу, а ходить через SSH-туннель, пока нет домена.
-- Как появится домен: включить TLS-блок в [`api/deploy/nginx-api.conf`](../api/deploy/nginx-api.conf)
-  (Let's Encrypt), проксировать на `127.0.0.1:8090`, порт `8090` наружу закрыть.
-- После nginx — учесть `X-Forwarded-For` для реального IP в аудите (сейчас пишется прямой
-  `request.client.host`; отмечено TODO в `api/app/audit.py`).
+- Клиентский доступ — по `https://nts.mgimo.ru/api` (TLS терминируется в контейнере
+  `landing`, `location /api/` → `trade-api:8000`). Настройка и сертификат — в
+  [`docs/vps-landing.md`](vps-landing.md).
+- Префикс `/api` пробрасывается заголовком `X-Forwarded-Prefix`; приложение ставит из
+  него `root_path` (`ForwardedPrefixMiddleware` в `api/app/main.py`), поэтому абсолютные
+  OData-URL (`@odata.context`/`nextLink`) и ссылка на `openapi.json` в Swagger несут `/api`.
+- uvicorn запускается с `--proxy-headers`: схема берётся из `X-Forwarded-Proto` (https),
+  а в аудит пишется реальный IP клиента из `X-Forwarded-For` (не адрес прокси).
+- Прямой `:8090` (HTTP, без TLS) оставлен для внутренних задач — наружу без нужды не
+  публикуйте (токен там идёт открыто).
 
 ## 6. Обновление данных
 

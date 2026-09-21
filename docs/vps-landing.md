@@ -204,6 +204,8 @@ VPS, а не в gh-pages):
 
 - `/` → мгновенный редирект на `/site/index.html` (главная);
 - `/superset/` — Superset (реверс-прокси на `:8088`, см. ниже);
+- `/api/` — Trade API (реверс-прокси на `trade-api:8000`, Swagger на `/api/docs`;
+  подробнее в [docs/api-deploy.md](api-deploy.md));
 - `/site/` — страницы сайта (главная, техдок, месячный бюллетень);
 - `/presentations/` — деки (`project-overview`, `dataviz-story`);
 - `/lessons/` — уроки.

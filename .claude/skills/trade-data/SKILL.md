@@ -13,8 +13,8 @@ the numbers. Do not invent figures; if a call fails, report the error.
 
 - Token is read from `MGIMO_API_TOKEN` (env var, else a line in the repo-root `.env`).
   Never put the token in this file, in commits, or in printed output. Get a key from
-  the Superset cabinet at `http://217.26.28.186:8088/apikey/`.
-- Base URL defaults to the pilot VPS `http://217.26.28.186:8090`. Override with
+  the Superset cabinet at `https://nts.mgimo.ru/superset/apikey/`.
+- Base URL defaults to the pilot VPS `https://nts.mgimo.ru/api`. Override with
   `MGIMO_API_BASE` (e.g. `http://localhost:8000` for a local dev server; its dev
   token is `dev-token`).
 - If `query.py meta` returns your plan and data version, auth works.

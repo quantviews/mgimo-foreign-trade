@@ -11,8 +11,8 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
 
 ## База и версии
 
-- **Пилот:** `http://217.26.28.186:8090` (HTTP, без TLS — токен идёт открыто; ограничить
-  доступ фаерволом/туннелем до появления домена). Локально (dev): `http://localhost:8000`.
+- **База:** `https://nts.mgimo.ru/api` (HTTPS, Let's Encrypt). Прямой доступ по
+  `http://217.26.28.186:8090` (без TLS) остаётся для внутренних задач. Локально (dev): `http://localhost:8000`.
 - Содержательные эндпоинты — под префиксом `/v1`; OData-фид — под `/odata`.
 - **Интерактивная документация (OpenAPI/Swagger):** `GET /docs`, схема — `GET /openapi.json`.
 - **Для аналитиков (Excel, без кода):** отдельная инструкция —
@@ -27,7 +27,7 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
 - **HTTP Basic** (для Excel Power Query): имя пользователя — любое, **пароль = токен**.
 
 Токен пользователь получает **сам** в кабинете Superset: страница
-`http://217.26.28.186:8088/apikey/` (нужна роль `API`, назначает админ) → «Выпустить токен».
+`https://nts.mgimo.ru/superset/apikey/` (нужна роль `API`, назначает админ) → «Выпустить токен».
 Токен показывается один раз; храните его. (Бутстрап через админа — `api/scripts/create_token.py`.)
 
 ## Эндпоинты
@@ -228,13 +228,13 @@ GET /odata/fizob?$filter=STRANA eq 'CN' and tn_level eq 4&$select=PERIOD,tn_code
 
 Для скриптов используйте `/v1/trade` (JSON) с заголовком `Authorization: Bearer <токен>`.
 Ниже — выгрузка с автоматической постраничной докачкой в таблицу. Токен — из кабинета;
-базовый URL пилота — `http://217.26.28.186:8090`.
+базовый URL пилота — `https://nts.mgimo.ru/api`.
 
 ### Python (`requests` + `pandas`)
 ```python
 import requests, pandas as pd
 
-BASE, TOKEN = "http://217.26.28.186:8090", "mgt_ВАШ_ТОКЕН"
+BASE, TOKEN = "https://nts.mgimo.ru/api", "mgt_ВАШ_ТОКЕН"
 HEADERS = {"Authorization": f"Bearer {TOKEN}"}
 
 def fetch_trade(**params) -> pd.DataFrame:
@@ -260,7 +260,7 @@ print(df.head())
 ```r
 library(httr2); library(dplyr)
 
-base <- "http://217.26.28.186:8090"; token <- "mgt_ВАШ_ТОКЕН"
+base <- "https://nts.mgimo.ru/api"; token <- "mgt_ВАШ_ТОКЕН"
 
 fetch_trade <- function(...) {
   out <- list(); offset <- 0
@@ -296,5 +296,5 @@ head(df)
 Готово и в проде: `/v1/trade`, `/v1/reference/*`, OData-фид, кабинет в Superset (роль-допуск),
 аудит + админ-дашборд использования, enforcement квот/rate-limit.
 
-Осталось (см. [api-plan.md](api-plan.md)): таймаут запроса; TLS + домен (сейчас HTTP);
-коммерческие тарифы и биллинг.
+Сделано: TLS + домен (`https://nts.mgimo.ru/api`, реверс-прокси nginx).
+Осталось (см. [api-plan.md](api-plan.md)): таймаут запроса; коммерческие тарифы и биллинг.

@@ -25,7 +25,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-DEFAULT_BASE = "http://217.26.28.186:8090"
+DEFAULT_BASE = "https://nts.mgimo.ru/api"
 
 # Cyrillic in responses must survive a Windows console (cp1252 by default).
 try:
