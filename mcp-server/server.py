@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
-"""MGIMO foreign-trade MCP server (stdio transport).
+"""MGIMO foreign-trade MCP server.
 
-Exposes the read-only trade API (https://nts.mgimo.ru/api) as MCP tools so any
-MCP client (Claude Desktop, IDEs, agents) can query Russian foreign-trade data
-in natural language. It is a thin wrapper over the HTTP API, so all
-authentication, quotas and audit stay in one place (the API).
+Exposes the read-only trade API as MCP tools so any MCP client (Claude Desktop,
+IDEs, agents) can query Russian foreign-trade data. Thin wrapper over the HTTP
+API, so authentication, quotas and audit stay in the API.
 
-Configuration via environment variables:
-  MGIMO_API_TOKEN  personal API key (required). Get one from the Superset
+Two ways to run (env `MCP_TRANSPORT`):
+  stdio (default)  local server launched by the client; the API key comes from
+                   MGIMO_API_TOKEN (env var or a .env line).
+  streamable-http  remote server behind a reverse proxy; each request carries the
+                   client's own API key in `Authorization: Bearer <key>`, which
+                   is forwarded to the API per-request (quotas/audit stay per-user).
+
+Environment variables:
+  MGIMO_API_TOKEN  personal API key (stdio mode). Get one from the Superset
                    cabinet at https://nts.mgimo.ru/superset/apikey/ .
   MGIMO_API_BASE   API base URL (default https://nts.mgimo.ru/api).
+  MCP_TRANSPORT    stdio | streamable-http | sse (default stdio).
+  MCP_HOST         bind host for http transports (default 127.0.0.1).
+  MCP_PORT         bind port for http transports (default 8000).
 
-The token is only ever sent in the Authorization header, never returned to the
-model or logged.
+The token is only ever sent in the Authorization header to the API, never
+returned to the model or logged.
 """
 from __future__ import annotations
 
@@ -20,17 +29,20 @@ import os
 from pathlib import Path
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 DEFAULT_BASE = "https://nts.mgimo.ru/api"
 
-mcp = FastMCP("mgimo-trade")
+mcp = FastMCP(
+    "mgimo-trade",
+    host=os.environ.get("MCP_HOST", "127.0.0.1"),
+    port=int(os.environ.get("MCP_PORT", "8000")),
+)
 
 
-def _token() -> str:
+def _env_token() -> str | None:
     tok = os.environ.get("MGIMO_API_TOKEN")
     if not tok:
-        # Fallback: a MGIMO_API_TOKEN= line in a .env next to this file or in cwd.
         for d in (Path.cwd(), Path(__file__).resolve().parent):
             env = d / ".env"
             if env.exists():
@@ -40,30 +52,45 @@ def _token() -> str:
                         break
             if tok:
                 break
+    return tok
+
+
+def _resolve_token(ctx: Context | None) -> str:
+    """Per-request API key: the client's Bearer header (remote) or env (local)."""
+    if ctx is not None:
+        try:
+            req = ctx.request_context.request
+            auth = req.headers.get("authorization") if req is not None else None
+            if auth and auth.lower().startswith("bearer "):
+                tok = auth.split(" ", 1)[1].strip()
+                if tok:
+                    return tok
+        except Exception:  # noqa: BLE001 - no HTTP request context (e.g. stdio)
+            pass
+    tok = _env_token()
     if not tok:
         raise RuntimeError(
-            "No API token. Set MGIMO_API_TOKEN (env var or a line in a .env). "
+            "No API token. Remote: send Authorization: Bearer <key>. "
+            "Local (stdio): set MGIMO_API_TOKEN. "
             "Get a key from the Superset cabinet at https://nts.mgimo.ru/superset/apikey/ ."
         )
     return tok
 
 
-def _base() -> str:
-    return os.environ.get("MGIMO_API_BASE", DEFAULT_BASE).rstrip("/")
-
-
-def _get(path: str, params: list[tuple[str, str]]) -> str:
-    """GET a JSON endpoint and return the raw response text (JSON or an error)."""
+def _get(path: str, params: list[tuple[str, str]], ctx: Context | None) -> str:
+    """GET a JSON endpoint with the resolved token; return the response text."""
+    try:
+        token = _resolve_token(ctx)
+    except RuntimeError as e:
+        return str(e)
     pairs = [(k, str(v)) for k, v in params if v is not None and str(v) != ""]
     try:
         resp = httpx.get(
-            f"{_base()}{path}",
+            f"{os.environ.get('MGIMO_API_BASE', DEFAULT_BASE).rstrip('/')}{path}",
             params=pairs,
-            headers={"Authorization": f"Bearer {_token()}", "Accept": "application/json"},
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
             timeout=90,
         )
-    except RuntimeError as e:  # missing token, surfaced as a clear message
-        return str(e)
     except Exception as e:  # noqa: BLE001 - surface any transport error to the model
         return f"Request failed for {path}: {e}"
     if resp.status_code >= 400:
@@ -76,17 +103,18 @@ def _multi(name: str, values: list[str] | None) -> list[tuple[str, str]]:
 
 
 @mcp.tool()
-def meta() -> str:
+def meta(ctx: Context | None = None) -> str:
     """Data version and coverage, plus your API plan and remaining monthly quota.
 
     Call this first to learn the latest available period (period_max) and how
     much of your quota is left. No parameters. Returns JSON.
     """
-    return _get("/v1/meta", [])
+    return _get("/v1/meta", [], ctx)
 
 
 @mcp.tool()
-def reference(name: str = "countries", level: int | None = None, limit: int | None = None) -> str:
+def reference(name: str = "countries", level: int | None = None, limit: int | None = None,
+              ctx: Context | None = None) -> str:
     """Lookup dictionaries for resolving codes and names.
 
     name="countries": ISO-2 country codes and their Russian names.
@@ -99,7 +127,7 @@ def reference(name: str = "countries", level: int | None = None, limit: int | No
         params.append(("level", str(level)))
     if limit is not None:
         params.append(("limit", str(limit)))
-    return _get(f"/v1/reference/{name}", params)
+    return _get(f"/v1/reference/{name}", params, ctx)
 
 
 @mcp.tool()
@@ -120,6 +148,7 @@ def trade(
     include: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
+    ctx: Context | None = None,
 ) -> str:
     """Query Russian foreign-trade rows or server-side aggregates.
 
@@ -154,7 +183,7 @@ def trade(
     ):
         if val is not None:
             params.append((key, str(val)))
-    return _get("/v1/trade", params)
+    return _get("/v1/trade", params, ctx)
 
 
 @mcp.tool()
@@ -167,6 +196,7 @@ def fizob(
     period_to: str | None = None,
     order_by: str | None = None,
     limit: int | None = None,
+    ctx: Context | None = None,
 ) -> str:
     """Physical-volume indices: real trade volumes with the price effect removed.
 
@@ -186,11 +216,11 @@ def fizob(
     for key, val in (("period_from", period_from), ("period_to", period_to), ("order_by", order_by), ("limit", limit)):
         if val is not None:
             params.append((key, str(val)))
-    return _get("/v1/fizob", params)
+    return _get("/v1/fizob", params, ctx)
 
 
 def main() -> None:
-    mcp.run()  # stdio transport by default
+    mcp.run(transport=os.environ.get("MCP_TRANSPORT", "stdio"))
 
 
 if __name__ == "__main__":

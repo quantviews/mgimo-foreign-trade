@@ -1,0 +1,27 @@
+# Remote MCP server on the VPS, next to trade-api and Superset.
+# Joins Superset's Docker network so it can reach the API by service name
+# (trade-api:8000). Not published on a host port - the landing nginx proxies
+# it at /mcp over TLS. Per-user auth: clients send their API key as a Bearer
+# header, which the server forwards to the API (no token stored here).
+#
+# Deploy:  docker compose up -d --build
+
+services:
+  trade-mcp:
+    build: .
+    image: mgimo-trade-mcp
+    container_name: trade-mcp
+    restart: unless-stopped
+    environment:
+      MCP_TRANSPORT: streamable-http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8000"
+      # Internal API (no /api prefix, no TLS needed inside the network).
+      MGIMO_API_BASE: ${MGIMO_API_BASE:-http://trade-api:8000}
+    networks:
+      - superset_net
+
+networks:
+  superset_net:
+    external: true
+    name: ${SUPERSET_NETWORK:-superset_default}

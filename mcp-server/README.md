@@ -79,6 +79,53 @@ slashes) in the paths, e.g. `C:\\...\\.venv\\Scripts\\python.exe`.
 Other MCP clients (Cursor, Continue, etc.) use the same idea: a stdio server
 started with that command + `MGIMO_API_TOKEN` in the environment.
 
+## Remote (hosted) server
+
+A hosted instance runs on the VPS at **`https://nts.mgimo.ru/mcp`** (Streamable
+HTTP transport, TLS). Nothing to install — each request must carry the client's
+own API key in `Authorization: Bearer <key>`, which the server forwards to the
+API, so quotas and audit stay per-user. The server stores no token.
+
+Clients that support a remote MCP URL with a custom header can use it directly.
+For stdio-only clients (e.g. Claude Desktop today), bridge with
+[`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
+
+```json
+{
+  "mcpServers": {
+    "mgimo-trade": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote", "https://nts.mgimo.ru/mcp",
+        "--header", "Authorization: Bearer mgt_YOUR_TOKEN"
+      ]
+    }
+  }
+}
+```
+
+(Needs Node.js for `npx`. This is the only setup a user needs — no Python.)
+
+### Deploy / update the hosted server (VPS)
+
+The server runs as the `trade-mcp` container next to `trade-api`, on Superset's
+Docker network, proxied by the landing nginx at `/mcp` (see
+`deploy/landing-nginx.conf`). It calls the API internally (`trade-api:8000`) and
+holds no token.
+
+```bash
+ssh mgimo
+cd ~/mgimo-foreign-trade && git pull
+cd mcp-server && docker compose up -d --build     # build + (re)start trade-mcp
+```
+
+nginx already has the `/mcp` location; after editing it:
+`scp deploy/landing-nginx.conf mgimo:/home/marcel/landing-nginx.conf && \
+ ssh mgimo "docker exec landing nginx -t && docker exec landing nginx -s reload"`.
+
+Check: `curl -sN -H "Authorization: Bearer mgt_..." https://nts.mgimo.ru/mcp`
+should speak MCP (405/JSON on a bare GET is fine; use a real client to call tools).
+
 ## Configuration (env)
 
 | Variable | Default | Notes |
