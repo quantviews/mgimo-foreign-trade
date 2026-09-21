@@ -30,8 +30,36 @@ async def lifespan(app: FastAPI):
     db.close_connection()
 
 
+class ForwardedPrefixMiddleware:
+    """Honour ``X-Forwarded-Prefix`` from the reverse proxy.
+
+    Behind nginx the API is served under a path prefix (``/api``) that nginx
+    strips before proxying. We set ``root_path`` from the header so every
+    generated URL carries the external prefix: OData ``@odata.context`` /
+    ``@odata.nextLink`` and the Swagger ``openapi.json`` link. Direct access on
+    :8000 sends no such header, so ``root_path`` stays empty and those URLs are
+    correct there too.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            for key, value in scope.get("headers", []):
+                if key == b"x-forwarded-prefix":
+                    prefix = value.decode("latin-1").rstrip("/")
+                    if prefix:
+                        scope = dict(scope)
+                        scope["root_path"] = prefix
+                    break
+        await self.app(scope, receive, send)
+
+
 app = FastAPI(title=settings.api_title, version=settings.api_version, lifespan=lifespan)
 app.add_middleware(AuditMiddleware)
+# Outermost: set root_path before routing/URL generation (see class docstring).
+app.add_middleware(ForwardedPrefixMiddleware)
 
 app.include_router(health.router)
 app.include_router(meta.router)

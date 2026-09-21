@@ -16,4 +16,6 @@ ENV MGIMO_API_DUCKDB_PATH=/data/unified_trade_data.duckdb
 EXPOSE 8000
 
 # 2 workers: each opens its own read-only DuckDB connection + asyncpg pool.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# --proxy-headers: trust X-Forwarded-Proto/For from our nginx so request URLs are
+# https and the audit log records the real client IP (not the proxy).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--proxy-headers", "--forwarded-allow-ips", "*"]
