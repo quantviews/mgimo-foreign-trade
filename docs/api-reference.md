@@ -17,6 +17,9 @@ read-only сервис поверх DuckDB. Планы и решения — [ap
 - **Интерактивная документация (OpenAPI/Swagger):** `GET /docs`, схема — `GET /openapi.json`.
 - **Для аналитиков (Excel, без кода):** отдельная инструкция —
   [api-excel-guide.md](api-excel-guide.md).
+- **Для ИИ-агентов (MCP):** удалённый MCP-сервер `https://nts.mgimo.ru/mcp`
+  (streamable-http, ключ в заголовке `Authorization: Bearer`) и локальный
+  stdio-вариант — [mcp-server/README.md](../mcp-server/README.md).
 
 ## Авторизация
 

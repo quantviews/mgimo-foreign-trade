@@ -8,6 +8,8 @@
 > сохранён для внутренних задач. Контейнер `trade-api` в сети `superset_default`,
 > токены/аудит — в БД `tradeapi` того же Postgres, DuckDB —
 > `/srv/duckdb/unified_trade_data.duckdb` (read-only). Обновление ниже — по этому же runbook.
+> Поверх API работает **MCP-сервер** `https://nts.mgimo.ru/mcp` (контейнер
+> `trade-mcp`, для ИИ-агентов) — свой runbook в [mcp-server/README.md](../mcp-server/README.md).
 
 Развёртывание read-only API-сервиса на том же VPS, где крутится Superset
 (`http://217.26.28.186:8088`, Superset в Docker). API берёт токены/аудит из Postgres
