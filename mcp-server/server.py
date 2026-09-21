@@ -49,9 +49,14 @@ oauth_provider = None
 if _OAUTH:
     from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 
-    from oauth import ApiKeyOAuthProvider
+    from oauth import ApiKeyOAuthProvider, PostgresClientStore
 
-    oauth_provider = ApiKeyOAuthProvider(API_BASE)
+    # Client registrations (not secret) persist in Postgres so token refresh
+    # survives a restart; without a DSN they live in memory. Tokens are stateless
+    # (the token is the API key), so tool calls survive a restart regardless.
+    _dsn = os.environ.get("MGIMO_API_POSTGRES_DSN") or os.environ.get("MCP_OAUTH_DB_DSN")
+    _client_store = PostgresClientStore(_dsn) if _dsn else None
+    oauth_provider = ApiKeyOAuthProvider(API_BASE, _client_store)
     _fastmcp_kwargs.update(
         auth_server_provider=oauth_provider,
         auth=AuthSettings(

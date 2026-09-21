@@ -217,7 +217,9 @@ API он зовёт внутренне (`trade-api:8000`) и токен не х�
 ```bash
 ssh mgimo
 cd ~/mgimo-foreign-trade && git pull
-cd mcp-server && docker compose up -d --build     # собрать + (пере)запустить trade-mcp
+cd mcp-server
+set -a; . ../api/.env; set +a     # берём MGIMO_API_POSTGRES_DSN (OAuth-клиенты в Postgres)
+docker compose up -d --build      # собрать + (пере)запустить trade-mcp
 ```
 
 Локация `/mcp` в nginx уже есть; после её правки:
@@ -231,9 +233,13 @@ cd mcp-server && docker compose up -d --build     # собрать + (пере)�
 **OAuth.** Для http-транспортов включён OAuth (`MCP_OAUTH=1`): FastMCP монтирует
 `/.well-known/oauth-*`, `/register`, `/authorize`, `/token`, `/revoke` в корне
 домена (nginx проксирует эти пути на `trade-mcp` отдельной regex-локацией), а
-страница ввода ключа - `/oauth/login`. Токены и коды хранятся **в памяти**,
-поэтому после пересборки/перезапуска контейнера пользователи проходят вход заново;
-для персистентности стоит перенести хранилище в SQLite/Redis.
+страница ввода ключа - `/oauth/login`. Токены **stateless**: access/refresh - это
+сам API-ключ, на сервере он не хранится (как и у клиентов с заголовком; API держит
+только `sha256`). Поэтому вызовы переживают перезапуск контейнера **без повторного
+входа**. Регистрации OAuth-клиентов (не секрет) персистятся в Postgres
+(`api.mcp_oauth_clients` в БД `tradeapi`, DSN из `MGIMO_API_POSTGRES_DSN`), чтобы и
+refresh переживал рестарт; коды авторизации короткоживущие и лежат в памяти. Без
+DSN клиенты хранятся в памяти (тогда refresh после рестарта попросит вход заново).
 
 ## Переменные окружения
 

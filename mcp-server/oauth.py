@@ -1,17 +1,26 @@
-"""Minimal OAuth 2.1 authorization server for the MCP server.
+"""OAuth 2.1 authorization server for the MCP server (stateless tokens).
 
 The "login" is pasting your MGIMO API key (from the Superset cabinet). The key
-is validated against the API, then an opaque access token is issued that maps
-back to that key. This lets OAuth-only clients (Claude web/mobile, ChatGPT)
-connect, while clients that send the raw API key as a Bearer token keep working
-- load_access_token also accepts a raw key (validated against the API).
+is validated against the API, and the issued access/refresh token IS that key.
 
-Stores are in-memory (pilot): clients/codes/tokens are lost when the container
-restarts, so users re-authorize after a redeploy. Fine for the pilot; move to
-a shared store (SQLite/Redis) if it needs to survive restarts or scale out.
+Why stateless: the API stores only sha256(token), never the raw key. So we must
+not persist raw keys anywhere either. Making the token equal to the key means:
+  - nothing secret is stored on the server (same as header-based clients, which
+    already hold the raw key);
+  - sessions survive a container restart automatically (the token is validated
+    against the API on every call);
+  - revocation stays where it belongs: the user revokes the key in the cabinet.
+
+Only two things need persistence, and neither is secret:
+  - dynamic client registrations (client_id, redirect_uris, ...) -> Postgres
+    (`api.mcp_oauth_clients` in the same `tradeapi` DB), so token refresh also
+    survives a restart. Falls back to in-memory if no DSN is configured.
+  - short-lived authorization codes -> in-memory (transient; a restart mid-login
+    just means the user logs in again).
 """
 from __future__ import annotations
 
+import json
 import secrets
 import time
 
@@ -26,7 +35,7 @@ from mcp.server.auth.provider import (
 )
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
-TOKEN_TTL = 30 * 24 * 3600          # access token lifetime, seconds
+TOKEN_TTL = 90 * 24 * 3600          # advertised token lifetime, seconds
 CODE_TTL = 600                      # authorization code lifetime, seconds
 _VALIDATE_CACHE_TTL = 300           # cache "key is valid" for 5 min
 
@@ -37,28 +46,83 @@ class KeyAccessToken(AccessToken):
     api_key: str = ""
 
 
-class ApiKeyOAuthProvider:
-    """OAuth AS where the credential is the user's MGIMO API key."""
-
-    def __init__(self, api_base: str) -> None:
-        self.api_base = api_base.rstrip("/")
+# --- client registration stores -------------------------------------------
+class InMemoryClientStore:
+    def __init__(self) -> None:
         self._clients: dict[str, OAuthClientInformationFull] = {}
-        self._codes: dict[str, tuple[AuthorizationCode, str]] = {}      # code -> (obj, api_key)
-        self._tokens: dict[str, KeyAccessToken] = {}                    # access token -> obj
-        self._refresh: dict[str, tuple[RefreshToken, str]] = {}         # refresh -> (obj, api_key)
+
+    async def get(self, client_id: str) -> OAuthClientInformationFull | None:
+        return self._clients.get(client_id)
+
+    async def put(self, client: OAuthClientInformationFull) -> None:
+        self._clients[client.client_id] = client
+
+
+class PostgresClientStore:
+    """Persists client registrations in Postgres (api.mcp_oauth_clients).
+
+    Client metadata is not secret. Table is created on first use.
+    """
+
+    def __init__(self, dsn: str) -> None:
+        self._dsn = dsn
+        self._pool = None
+
+    async def _ensure(self):
+        if self._pool is None:
+            import asyncpg
+
+            self._pool = await asyncpg.create_pool(self._dsn, min_size=1, max_size=3)
+            async with self._pool.acquire() as con:
+                await con.execute("CREATE SCHEMA IF NOT EXISTS api")
+                await con.execute(
+                    "CREATE TABLE IF NOT EXISTS api.mcp_oauth_clients ("
+                    "  client_id text PRIMARY KEY,"
+                    "  client_info text NOT NULL,"
+                    "  created_at timestamptz NOT NULL DEFAULT now())"
+                )
+        return self._pool
+
+    async def get(self, client_id: str) -> OAuthClientInformationFull | None:
+        pool = await self._ensure()
+        async with pool.acquire() as con:
+            row = await con.fetchrow(
+                "SELECT client_info FROM api.mcp_oauth_clients WHERE client_id = $1", client_id
+            )
+        if row is None:
+            return None
+        return OAuthClientInformationFull.model_validate(json.loads(row["client_info"]))
+
+    async def put(self, client: OAuthClientInformationFull) -> None:
+        pool = await self._ensure()
+        info = json.dumps(client.model_dump(mode="json"))
+        async with pool.acquire() as con:
+            await con.execute(
+                "INSERT INTO api.mcp_oauth_clients (client_id, client_info) VALUES ($1, $2) "
+                "ON CONFLICT (client_id) DO UPDATE SET client_info = EXCLUDED.client_info",
+                client.client_id, info,
+            )
+
+
+class ApiKeyOAuthProvider:
+    """OAuth AS where the credential is the user's MGIMO API key (stateless tokens)."""
+
+    def __init__(self, api_base: str, client_store=None) -> None:
+        self.api_base = api_base.rstrip("/")
+        self.clients = client_store or InMemoryClientStore()
+        self._codes: dict[str, tuple[AuthorizationCode, str]] = {}   # code -> (obj, api_key)
         self._pending: dict[str, tuple[OAuthClientInformationFull, AuthorizationParams]] = {}
-        self._valid_cache: dict[str, float] = {}                        # api_key -> expiry
+        self._valid_cache: dict[str, float] = {}                     # api_key -> expiry
 
     # --- dynamic client registration ---------------------------------------
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
-        return self._clients.get(client_id)
+        return await self.clients.get(client_id)
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
-        self._clients[client_info.client_id] = client_info
+        await self.clients.put(client_info)
 
     # --- authorization -----------------------------------------------------
     async def authorize(self, client: OAuthClientInformationFull, params: AuthorizationParams) -> str:
-        """Stash the request and send the user to our key-entry page."""
         login_id = secrets.token_urlsafe(24)
         self._pending[login_id] = (client, params)
         return f"/oauth/login?login_id={login_id}"
@@ -103,58 +167,40 @@ class ApiKeyOAuthProvider:
         if entry is None:
             raise TokenError("invalid_grant", "Unknown or used authorization code")
         _, api_key = entry
-        return self._issue(client.client_id, api_key, authorization_code.scopes, authorization_code.resource)
+        return self._issue(api_key, authorization_code.scopes)
 
-    # --- refresh -----------------------------------------------------------
+    # --- refresh (stateless: the refresh token is the key) -----------------
     async def load_refresh_token(
         self, client: OAuthClientInformationFull, refresh_token: str
     ) -> RefreshToken | None:
-        entry = self._refresh.get(refresh_token)
-        return entry[0] if entry else None
+        if await self.validate_key(refresh_token):
+            return RefreshToken(token=refresh_token, client_id=client.client_id, scopes=[])
+        return None
 
     async def exchange_refresh_token(
         self, client: OAuthClientInformationFull, refresh_token: RefreshToken, scopes: list[str]
     ) -> OAuthToken:
-        entry = self._refresh.pop(refresh_token.token, None)
-        if entry is None:
-            raise TokenError("invalid_grant", "Unknown refresh token")
-        _, api_key = entry
-        return self._issue(client.client_id, api_key, scopes or refresh_token.scopes, refresh_token.resource)
+        return self._issue(refresh_token.token, scopes or refresh_token.scopes)
 
-    # --- access tokens -----------------------------------------------------
+    # --- access tokens (stateless: the access token is the key) ------------
     async def load_access_token(self, token: str) -> KeyAccessToken | None:
-        obj = self._tokens.get(token)
-        if obj is not None:
-            if obj.expires_at is None or obj.expires_at > time.time():
-                return obj
-            self._tokens.pop(token, None)
-            return None
-        # Backwards compatibility: a raw API key sent directly as the Bearer.
         if await self.validate_key(token):
-            return KeyAccessToken(token=token, client_id="raw", scopes=[], expires_at=None, api_key=token)
+            return KeyAccessToken(token=token, client_id="mcp", scopes=[], expires_at=None, api_key=token)
         return None
 
     async def revoke_token(self, token) -> None:  # AccessToken | RefreshToken
-        tok = getattr(token, "token", None)
-        if tok:
-            self._tokens.pop(tok, None)
-            self._refresh.pop(tok, None)
+        # The token is the API key; it is revoked by the user in the Superset cabinet.
+        return None
 
     # --- helpers -----------------------------------------------------------
-    def _issue(self, client_id: str, api_key: str, scopes: list[str], resource) -> OAuthToken:
-        access = secrets.token_urlsafe(32)
-        refresh = secrets.token_urlsafe(32)
-        self._tokens[access] = KeyAccessToken(
-            token=access, client_id=client_id, scopes=scopes,
-            expires_at=int(time.time() + TOKEN_TTL), resource=resource, api_key=api_key,
-        )
-        self._refresh[refresh] = (
-            RefreshToken(token=refresh, client_id=client_id, scopes=scopes, resource=resource),
-            api_key,
-        )
+    def _issue(self, api_key: str, scopes: list[str]) -> OAuthToken:
+        # Stateless: both tokens are the key itself, so sessions survive restarts.
         return OAuthToken(
-            access_token=access, token_type="Bearer", expires_in=TOKEN_TTL,
-            scope=" ".join(scopes) or None, refresh_token=refresh,
+            access_token=api_key,
+            token_type="Bearer",
+            expires_in=TOKEN_TTL,
+            scope=" ".join(scopes) or None,
+            refresh_token=api_key,
         )
 
     async def validate_key(self, api_key: str) -> bool:

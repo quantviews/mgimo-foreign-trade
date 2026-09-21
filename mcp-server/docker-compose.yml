@@ -18,6 +18,9 @@ services:
       MCP_PORT: "8000"
       # Internal API (no /api prefix, no TLS needed inside the network).
       MGIMO_API_BASE: ${MGIMO_API_BASE:-http://trade-api:8000}
+      # OAuth client registrations persist here (same Postgres as the API). Empty
+      # -> in-memory. Source ../api/.env before `docker compose up` (see README).
+      MGIMO_API_POSTGRES_DSN: ${MGIMO_API_POSTGRES_DSN:-}
     networks:
       - superset_net
 
