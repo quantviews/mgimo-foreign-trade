@@ -1,0 +1,17 @@
+# Профиль CI (GitHub Pages). Там нет LaTeX и шрифта Arial, поэтому страновые
+# бюллетени (у них объявлен pdf-формат) из сборки исключаются - оставляем только
+# основные страницы сайта. Полную сборку с бюллетенями (html + pdf) делает
+# локальный деплой на VPS: `quarto render .` (см. scripts/deploy_landing_vps.sh).
+#
+# Активируется: quarto render . --profile ci
+project:
+  render:
+    - site/index.qmd
+    - site/technical.qmd
+    - site/bulletin_comparison.qmd
+    - other/intro-presentation.qmd
+    - other/foreign-trade-slide-2026.qmd
+    - lessons/lesson_01_intro.qmd
+    - lessons/lesson_02_old_new_stats.qmd
+    - lessons/lesson_03_duckdb.qmd
+    - lessons/lesson_04_superset.qmd

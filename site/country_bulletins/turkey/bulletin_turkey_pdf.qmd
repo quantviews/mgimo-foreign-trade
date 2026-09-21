@@ -1,9 +1,24 @@
 ---
 title: "Внешняя торговля с Турцией"
 subtitle: "Ежемесячный аналитический выпуск"
-date: "`r tryCatch(stringi::stri_datetime_format(max(arrow::read_parquet('data/trade_balance_turkey.parquet')[['PERIOD']]), format='LLLL yyyy', locale='ru'), error=function(e) '')`"
 lang: ru
 format:
+  html:
+    toc: true
+    toc-title: "На этой странице"
+    toc-depth: 2
+    toc-location: left
+    fig-align: center
+    include-in-header:
+      - text: |
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+          <style>
+            body, .quarto-title-banner, main#quarto-document-content {
+              font-family: "Source Sans Pro", sans-serif;
+            }
+          </style>
   pdf:
     template: ../../templates/bulletin-pdf.tex
     documentclass: scrartcl
@@ -110,6 +125,14 @@ fmt_pct_tex <- function(x) {
   col <- if (x >= 0) "mgimogreen" else "mgimored"
   sprintf("\\textcolor{%s}{\\textbf{%s}}", col, s)
 }
+# HTML-версии тех же форматтеров (для веб-вывода)
+fmt_bn_html <- function(x) paste0("<strong>", fmt_num(x), " млрд $</strong>")
+fmt_pct_html <- function(x) {
+  if (length(x) == 0 || is.na(x)) return("н/д")
+  col <- if (x >= 0) mgimo_colors[["accent1"]] else mgimo_colors[["secondary"]]
+  sign <- if (x >= 0) "+" else "−"
+  sprintf('<span style="color:%s;font-weight:600">%s%s%%</span>', col, sign, fmt_num(abs(100 * x)))
+}
 fo_val <- function(napr) {
   v <- headline %>% filter(NAPR == napr, PERIOD == max(PERIOD)) %>% pull(fo_yoy)
   if (length(v) == 0) NA_real_ else v[1]
@@ -201,6 +224,8 @@ fig_oil <- save_chart(pl_oil_export, "02-oil", 5.35, 3.0)
 fig_export <- save_chart(plot_export, "03-export", 5.35, 5.35)
 fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 ```
+
+::: {.content-visible when-format="pdf"}
 
 \bulletinbanner{Выпуск за `r report_month`}
 \thispagestyle{plain}
@@ -296,3 +321,67 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 \vspace{10pt}
 {\footnotesize\sffamily\color{mgimomuted}Источник: расчёты на приведённых к единой классификации данных национальной и международной статистики. Национальная торговая статистика · МГИМО.}
+
+:::
+
+::: {.content-visible when-format="html"}
+
+## Главное за `r report_month`
+
+Экспорт из России в Турцию - `r fmt_bn_html(hl_exp$stoim_bn)` (`r fmt_pct_html(hl_exp$stoim_mom)` м/м), индекс физобъёма `r fmt_pct_html(hl_exp$fo_yoy)` г/г.
+Импорт из Турции - `r fmt_bn_html(hl_imp$stoim_bn)` (`r fmt_pct_html(hl_imp$stoim_mom)` м/м), физобъём `r fmt_pct_html(hl_imp$fo_yoy)` г/г.
+Сальдо - **`r fmt_num(hl_balance)` млрд $** в пользу России.
+
+**Вывод месяца.** Турция - крупный покупатель российских энергоносителей (нефтепродукты, уголь) и продовольствия; импорт из Турции в разы меньше, поэтому сальдо складывается с большим профицитом России. Физобъём импорта из Турции снижается уже больше года.
+
+## Экспорт, импорт и торговый баланс
+
+![Экспорт, импорт и торговое сальдо, млрд $](pdf_figures/01-balance.png)
+
+**Главное · стоимость и сальдо**
+
+- Экспорт из России - `r fmt_bn_html(hl_exp$stoim_bn)` (`r fmt_pct_html(hl_exp$stoim_mom)` м/м): нефтепродукты, уголь, продовольствие, металлы.
+- Импорт из Турции - `r fmt_bn_html(hl_imp$stoim_bn)` (`r fmt_pct_html(hl_imp$stoim_mom)` м/м): в разы меньше экспорта.
+- Сальдо - **`r fmt_num(hl_balance)` млрд $** в пользу России.
+
+## Экспорт нефтепродуктов
+
+![Экспорт нефтепродуктов в Турцию в натуральном выражении, млн т](pdf_figures/02-oil.png)
+
+**Главное · физобъём и динамика**
+
+- Индекс физобъёма экспорта - `r fmt_pct_html(fo_val('ЭК'))` г/г, импорта - `r fmt_pct_html(fo_val('ИМ'))` г/г.
+- Экспорт нефтепродуктов - около **`r fmt_num(oil_last)` млн т** за месяц.
+- Данные Турции поступают оперативно - оценка за `r report_month` почти целиком на фактической статистике.
+
+## Экспорт и импорт по категориям
+
+Товарные группы (кроме нефтепродуктов), изменение стоимости за последние 12 месяцев; <span style="color:#27ae60;font-weight:600">зелёный</span> - рост, <span style="color:#e74c3c;font-weight:600">красный</span> - снижение.
+
+::: {layout-ncol=2}
+![Экспорт - топ-14 категорий, млн $](pdf_figures/03-export.png)
+
+![Импорт - топ-14 категорий, млн $](pdf_figures/04-import.png)
+:::
+
+## Как читать этот бюллетень
+
+**О чём этот выпуск.** Бюллетень описывает внешнюю торговлю России с Турцией: экспорт (нефтепродукты, уголь, продовольствие, металлы), импорт из Турции и торговое сальдо - по месяцам и по товарным категориям.
+
+**Откуда данные.** Официальная российская статистика сейчас не публикуется оперативно. Мы восстанавливаем картину по статистике Турции и международной базе ООН (UN Comtrade), приводя всё к единому виду.
+
+**Оперативная оценка (nowcast).** Когда данные партнёра ещё не вышли, свежие месяцы мы оцениваем статистической моделью и помечаем отдельно. У Турции статистика выходит достаточно быстро, поэтому доля таких оценок обычно мала.
+
+**Деньги и физические объёмы.** Стоимость в долларах смешивает изменение цен и изменение поставок. Поэтому мы считаем и реальный объём - тонны. «Индекс физобъёма» показывает, как изменился именно физический поток, без влияния цен.
+
+**«Год к году» и «месяц к месяцу».** «г/г» - сравнение с тем же месяцем год назад: убирает сезонность. «м/м» - с предыдущим месяцем: ловит свежий разворот, но сильнее колеблется.
+
+**Нужны данные под вашу задачу?** Полная база, выгрузки и интерактивные дашборды - по запросу. [Напишите нам](mailto:m_salihov@fief.ru): подберём разрез по странам, товарам и периодам и настроим регулярное обновление.
+
+::: {.callout-note appearance="simple"}
+Источник: расчёты на приведённых к единой классификации данных национальной и международной статистики. Национальная торговая статистика · МГИМО.
+:::
+
+Печатная версия: [бюллетень по Турции в PDF](bulletin_turkey_pdf.pdf).
+
+:::

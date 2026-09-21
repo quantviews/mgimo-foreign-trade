@@ -602,6 +602,6 @@ knitr::include_graphics(fig_import)
 
 Этот выпуск сводный: он охватывает всех партнёров вместе. По каждой стране выходит отдельный бюллетень, где та же картина разобрана подробнее: ключевые цифры месяца и торговое сальдо, изменение экспорта и импорта по товарным категориям и страница с объяснением показателей.
 
-- [Китай](country_bulletins/china/bulletin_china_pdf.pdf), PDF
-- [Индия](country_bulletins/india/bulletin_india_pdf.pdf), PDF
-- [Турция](country_bulletins/turkey/bulletin_turkey_pdf.pdf), PDF
+- [Китай](country_bulletins/china/bulletin_china_pdf.html)
+- [Индия](country_bulletins/india/bulletin_india_pdf.html)
+- [Турция](country_bulletins/turkey/bulletin_turkey_pdf.html)

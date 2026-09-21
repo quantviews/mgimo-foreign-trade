@@ -451,9 +451,9 @@ JSON и CSV для скриптов на Python и R, OData-фид для Excel 
 Кроме сводного обзора выходит отдельный бюллетень по каждой стране. Внутри: ключевые цифры месяца и торговое сальдо, изменение экспорта и импорта по товарным категориям за последние 12 месяцев и страница с объяснением показателей обычными словами, без специальной подготовки.
 
 <div class="feature-highlights">
-<div class="highlight-item"><strong>Китай</strong><span>Крупнейший партнёр: экспорт энергоносителей и металлов, импорт машин, электроники и транспорта.</span><a href="country_bulletins/china/bulletin_china_pdf.pdf">Свежий выпуск, PDF</a></div>
-<div class="highlight-item"><strong>Индия</strong><span>Экспорт почти целиком нефть и нефтепродукты, сальдо с большим перевесом в пользу России.</span><a href="country_bulletins/india/bulletin_india_pdf.pdf">Свежий выпуск, PDF</a></div>
-<div class="highlight-item"><strong>Турция</strong><span>Данные собираются напрямую из BI-портала ТУИК на уровне 12-значных товарных кодов.</span><a href="country_bulletins/turkey/bulletin_turkey_pdf.pdf">Свежий выпуск, PDF</a></div>
+<div class="highlight-item"><strong>Китай</strong><span>Крупнейший партнёр: экспорт энергоносителей и металлов, импорт машин, электроники и транспорта.</span><a href="country_bulletins/china/bulletin_china_pdf.html">Свежий выпуск</a></div>
+<div class="highlight-item"><strong>Индия</strong><span>Экспорт почти целиком нефть и нефтепродукты, сальдо с большим перевесом в пользу России.</span><a href="country_bulletins/india/bulletin_india_pdf.html">Свежий выпуск</a></div>
+<div class="highlight-item"><strong>Турция</strong><span>Данные собираются напрямую из BI-портала ТУИК на уровне 12-значных товарных кодов.</span><a href="country_bulletins/turkey/bulletin_turkey_pdf.html">Свежий выпуск</a></div>
 </div>
 
 Выпуски обновляются вместе с базой. Нужен бюллетень по другой стране или в своём разрезе, [напишите нам](mailto:m_salihov@fief.ru).

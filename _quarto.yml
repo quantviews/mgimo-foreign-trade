@@ -13,6 +13,12 @@ project:
     - lessons/lesson_02_old_new_stats.qmd
     - lessons/lesson_03_duckdb.qmd
     - lessons/lesson_04_superset.qmd
+    # Страновые бюллетени: единый источник, два формата. Здесь строится html
+    # (для сайта). PDF собирается отдельно (нужны xelatex + Arial), см. deploy.
+    # В CI (GitHub Pages, без LaTeX) исключаются профилем ci (_quarto-ci.yml).
+    - site/country_bulletins/china/bulletin_china_pdf.qmd
+    - site/country_bulletins/india/bulletin_india_pdf.qmd
+    - site/country_bulletins/turkey/bulletin_turkey_pdf.qmd
 
 website:
   title: "Национальная торговая статистика"
@@ -27,12 +33,12 @@ website:
         menu:
           - text: "Сводный обзор"
             href: site/bulletin_comparison.qmd
-          - text: "Китай (PDF)"
-            href: site/country_bulletins/china/bulletin_china_pdf.pdf
-          - text: "Индия (PDF)"
-            href: site/country_bulletins/india/bulletin_india_pdf.pdf
-          - text: "Турция (PDF)"
-            href: site/country_bulletins/turkey/bulletin_turkey_pdf.pdf
+          - text: "Китай"
+            href: site/country_bulletins/china/bulletin_china_pdf.qmd
+          - text: "Индия"
+            href: site/country_bulletins/india/bulletin_india_pdf.qmd
+          - text: "Турция"
+            href: site/country_bulletins/turkey/bulletin_turkey_pdf.qmd
       - text: "Презентации"
         menu:
           - text: "Обзор проекта"

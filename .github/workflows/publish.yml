@@ -102,7 +102,9 @@ jobs:
         run: quarto --version
 
       - name: Render site
-        run: quarto render .
+        # Профиль ci исключает страновые бюллетени: у них есть pdf-формат, а на
+        # раннере нет LaTeX/Arial. Полную сборку (html + pdf) делает деплой на VPS.
+        run: quarto render . --profile ci
 
       # presentations/ - отдельный Quarto website-проект (свой _quarto.yml),
       # корневой рендер туда не заходит. Рендерим его как проект: деки делят

@@ -7,6 +7,9 @@ project:
     - index.qmd
     - technical.qmd
     - bulletin_comparison.qmd
+    - country_bulletins/china/bulletin_china_pdf.qmd
+    - country_bulletins/india/bulletin_india_pdf.qmd
+    - country_bulletins/turkey/bulletin_turkey_pdf.qmd
 
 website:
   title: "Национальная торговая статистика"
@@ -21,12 +24,12 @@ website:
         menu:
           - text: "Сводный обзор"
             href: bulletin_comparison.qmd
-          - text: "Китай (PDF)"
-            href: country_bulletins/china/bulletin_china_pdf.pdf
-          - text: "Индия (PDF)"
-            href: country_bulletins/india/bulletin_india_pdf.pdf
-          - text: "Турция (PDF)"
-            href: country_bulletins/turkey/bulletin_turkey_pdf.pdf
+          - text: "Китай"
+            href: country_bulletins/china/bulletin_china_pdf.qmd
+          - text: "Индия"
+            href: country_bulletins/india/bulletin_india_pdf.qmd
+          - text: "Турция"
+            href: country_bulletins/turkey/bulletin_turkey_pdf.qmd
       # Занятия рендерятся отдельным (корневым) проектом; в локальном превью
       # ссылаемся на опубликованные слайды, чтобы не требовать их сборки здесь.
       - text: "Презентации"
