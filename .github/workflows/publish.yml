@@ -125,6 +125,19 @@ jobs:
           cp -r presentations/_site/. _site/presentations/
           ls -lh _site/presentations/
 
+      # На GitHub Pages HTML-версий страновых бюллетеней нет (у них pdf-формат,
+      # LaTeX/Arial на раннере отсутствуют, поэтому в render-список они не входят).
+      # PDF при этом опубликованы (resources). Поэтому в готовом сайте переводим
+      # ссылки на бюллетени с .html на .pdf - меню и карточки ведут на PDF.
+      # На VPS этого шага нет: там HTML-бюллетени собираются профилем vps.
+      - name: Point country-bulletin links at the PDF (Pages has no HTML build)
+        run: |
+          # Меню ведёт на .qmd (Quarto не резолвит его в .html, т.к. бюллетени не
+          # в render-списке), карточки/ссылки - на .html. Оба -> .pdf.
+          find _site -name '*.html' -print0 \
+            | xargs -0 sed -i -E 's#bulletin_(china|india|turkey)_pdf\.(html|qmd)#bulletin_\1_pdf.pdf#g'
+          echo "rewrote bulletin_*_pdf.{html,qmd} -> .pdf in _site"
+
       - name: Publish _site to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
