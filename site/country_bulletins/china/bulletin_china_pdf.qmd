@@ -2,6 +2,10 @@
 title: "Внешняя торговля с Китаем"
 subtitle: "Ежемесячный аналитический выпуск"
 lang: ru
+# HTML-ветка использует интерактивные plotly-графики; при сборке PDF они
+# создаются при knit, но скрыты (content-visible when-format=html) и в PDF идут
+# PNG. prefer-html разрешает виджеты в не-HTML форматах без ошибки.
+prefer-html: true
 format:
   html:
     toc: true
@@ -326,6 +330,12 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 ::: {.content-visible when-format="html"}
 
+```{r}
+#| include: false
+#| eval: !expr knitr::is_html_output()
+source("../_bulletin_html_charts.R")
+```
+
 ## Главное за `r report_month`
 
 Экспорт из России в Китай - `r fmt_bn_html(hl_exp$stoim_bn)` (`r fmt_pct_html(hl_exp$stoim_mom)` м/м), индекс физобъёма `r fmt_pct_html(hl_exp$fo_yoy)` г/г.
@@ -336,7 +346,11 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 ## Экспорт, импорт и торговый баланс
 
-![Экспорт, импорт и торговое сальдо, млрд $](pdf_figures/01-balance.png)
+```{r}
+#| eval: !expr knitr::is_html_output()
+#| fig-cap: "Экспорт, импорт и торговое сальдо России с Китаем, млрд $."
+render_ts(web_balance(trade_balance, mgimo_colors))
+```
 
 **Главное · стоимость и сальдо**
 
@@ -346,7 +360,11 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 ## Экспорт нефти
 
-![Экспорт нефти в Китай в натуральном выражении, млн т](pdf_figures/02-oil.png)
+```{r}
+#| eval: !expr knitr::is_html_output()
+#| fig-cap: "Экспорт нефти в Китай в натуральном выражении, млн т."
+render_ts(web_oil(data_oil, mgimo_colors))
+```
 
 **Главное · физобъём и динамика**
 
@@ -358,11 +376,16 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 Товарные группы (кроме нефти), изменение стоимости за последние 12 месяцев; <span style="color:#27ae60;font-weight:600">зелёный</span> - рост, <span style="color:#e74c3c;font-weight:600">красный</span> - снижение.
 
-::: {layout-ncol=2}
-![Экспорт - топ-14 категорий, млн $](pdf_figures/03-export.png)
-
-![Импорт - топ-14 категорий, млн $](pdf_figures/04-import.png)
-:::
+```{r}
+#| eval: !expr knitr::is_html_output()
+#| fig-cap: "Топ-14 товарных позиций экспорта и импорта по изменению стоимости за 12 месяцев, млн $."
+#| fig-width: 10
+#| fig-height: 11
+knitr::include_graphics(render_groups_svg(
+  df_groups, c("2709"), mgimo_colors, mgimo_colors[["light_bg"]],
+  file.path(knitr::opts_chunk$get("fig.path"), "groups-web.svg")
+))
+```
 
 ## Как читать этот бюллетень
 
