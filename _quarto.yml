@@ -16,6 +16,7 @@ project:
 
 website:
   title: "Национальная торговая статистика"
+  favicon: site/assets/mgimo-logo.svg
   navbar:
     left:
       - text: "Главная"
@@ -23,7 +24,15 @@ website:
       - text: "Техническая документация"
         href: site/technical.qmd
       - text: "Месячный бюллетень"
-        href: site/bulletin_comparison.qmd
+        menu:
+          - text: "Сводный обзор"
+            href: site/bulletin_comparison.qmd
+          - text: "Китай (PDF)"
+            href: site/country_bulletins/china/bulletin_china_pdf.pdf
+          - text: "Индия (PDF)"
+            href: site/country_bulletins/india/bulletin_india_pdf.pdf
+          - text: "Турция (PDF)"
+            href: site/country_bulletins/turkey/bulletin_turkey_pdf.pdf
       - text: "Презентации"
         menu:
           - text: "Обзор проекта"

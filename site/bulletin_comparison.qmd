@@ -100,7 +100,7 @@ fix_stacked_area_hover <- function(p, data,
                                    date_format = "%Y-%m") {
   `%||%` <- function(a, b) if (is.null(a)) b else a
 
-  # ggplotly(Date): trace$x в днях с 1970-01-01; POSIXt — иногда в сек/мс
+  # ggplotly(Date): trace$x в днях с 1970-01-01; POSIXt - иногда в сек/мс
   as_trace_time <- function(d, xs) {
     xs <- xs[is.finite(xs)]
     if (inherits(d, "POSIXt")) {
@@ -381,14 +381,14 @@ hl_imp <- bulletin_headline %>% filter(PERIOD == hl_latest, NAPR == "ИМ")
 fmt_num <- function(x, d = 1) sub("\\.", ",", formatC(x, format = "f", digits = d))
 fmt_pct <- function(x) paste0(if (x >= 0) "+" else "−", fmt_num(abs(100 * x)), "%")
 
-# Динамика в цвете нашей палитры: плюс — зелёный, минус — красный.
+# Динамика в цвете нашей палитры: плюс - зелёный, минус - красный.
 fmt_pct_col <- function(x) {
   if (is.na(x)) return("н/д")
   col <- if (x >= 0) mgimo_colors[["accent1"]] else mgimo_colors[["secondary"]]
   sprintf('<span style="color:%s;font-weight:600">%s</span>', col, fmt_pct(x))
 }
 
-# Изменение физобъёма (г/г) по стране и направлению за последний месяц — из bulletin_fo.
+# Изменение физобъёма (г/г) по стране и направлению за последний месяц - из bulletin_fo.
 fo_val <- function(strana, napr) {
   v <- bulletin_fo %>%
     filter(STRANA == strana, NAPR == napr) %>%
@@ -400,10 +400,10 @@ fo_val <- function(strana, napr) {
 
 ## Главное за `r hl_month`
 
-- **Наблюдаемый экспорт**[^hl] — **`r fmt_num(hl_exp$stoim_bn)` млрд \$** (`r fmt_pct_col(hl_exp$stoim_mom)` м/м); индекс физического объёма `r fmt_pct_col(hl_exp$fo_yoy)` г/г.
-- **Импорт** — **`r fmt_num(hl_imp$stoim_bn)` млрд \$** (`r fmt_pct_col(hl_imp$stoim_mom)` м/м); индекс физического объёма `r fmt_pct_col(hl_imp$fo_yoy)` г/г.
+- **Наблюдаемый экспорт**[^hl] - **`r fmt_num(hl_exp$stoim_bn)` млрд \$** (`r fmt_pct_col(hl_exp$stoim_mom)` м/м); индекс физического объёма `r fmt_pct_col(hl_exp$fo_yoy)` г/г.
+- **Импорт** - **`r fmt_num(hl_imp$stoim_bn)` млрд \$** (`r fmt_pct_col(hl_imp$stoim_mom)` м/м); индекс физического объёма `r fmt_pct_col(hl_imp$fo_yoy)` г/г.
 
-[^hl]: Стоимость — по всем странам, охваченным базой (национальные источники и Comtrade), с учётом nowcast-оценок: в `r hl_month` прогноз даёт около `r round(100 * hl_exp$nowcast_share)`% стоимости экспорта и `r round(100 * hl_imp$nowcast_share)`% импорта. Индекс физического объёма — изменение год к году по основным партнёрам (Китай, Индия, Турция), взвешенное по их товарообороту и только по фактическим данным (см. график ниже). Это наблюдаемая торговля, а не официальные итоги.
+[^hl]: Стоимость - по всем странам, охваченным базой (национальные источники и Comtrade), с учётом nowcast-оценок: в `r hl_month` прогноз даёт около `r round(100 * hl_exp$nowcast_share)`% стоимости экспорта и `r round(100 * hl_imp$nowcast_share)`% импорта. Индекс физического объёма - изменение год к году по основным партнёрам (Китай, Индия, Турция), взвешенное по их товарообороту и только по фактическим данным (см. график ниже). Это наблюдаемая торговля, а не официальные итоги.
 
 ## 1. Физические объёмы внешней торговли
 
@@ -422,9 +422,9 @@ ggplotly(pl_fizob, dynamicTicks = FALSE) %>%
 
 **Главное:**
 
-- Физобъём импорта из Турции продолжает снижаться — `r fmt_pct_col(fo_val('TR','ИМ'))` г/г.
-- Физобъём экспорта в Индию — `r fmt_pct_col(fo_val('IN','ЭК'))` г/г; основная причина — снижение поставок нефти и нефтепродуктов.
-- Физобъём импорта из Китая за год `r fmt_pct_col(fo_val('CN','ИМ'))`, а экспорта — лишь `r fmt_pct_col(fo_val('CN','ЭК'))`.
+- Физобъём импорта из Турции продолжает снижаться - `r fmt_pct_col(fo_val('TR','ИМ'))` г/г.
+- Физобъём экспорта в Индию - `r fmt_pct_col(fo_val('IN','ЭК'))` г/г; основная причина - снижение поставок нефти и нефтепродуктов.
+- Физобъём импорта из Китая за год `r fmt_pct_col(fo_val('CN','ИМ'))`, а экспорта - лишь `r fmt_pct_col(fo_val('CN','ЭК'))`.
 
 ## 2. Экспорт: нефть и газ vs прочие товары
 
@@ -483,7 +483,7 @@ ggplotly(pl_oilgas, dynamicTicks = F) %>%
 
 
 ```{r}
-#| fig-cap: "Топ-20 товарных позиций экспорта по изменению стоимости за 12 месяцев. Зелёный сегмент — рост, красный — снижение."
+#| fig-cap: "Топ-20 товарных позиций экспорта по изменению стоимости за 12 месяцев. Зелёный сегмент - рост, красный - снижение."
 #| fig-width: 10
 #| fig-height: 8
 
@@ -559,7 +559,7 @@ knitr::include_graphics(fig_export)
 :::
 
 ```{r}
-#| fig-cap: "Топ-20 товарных позиций импорта по изменению стоимости за 12 месяцев. Зелёный сегмент — рост, красный — снижение."
+#| fig-cap: "Топ-20 товарных позиций импорта по изменению стоимости за 12 месяцев. Зелёный сегмент - рост, красный - снижение."
 #| fig-width: 10
 #| fig-height: 8
 
