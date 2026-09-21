@@ -233,6 +233,18 @@ Superset (`:8088`, отдельный Docker-стек) доступен по `ht
      так что дублирования префикса нет.
    После правки конфига Superset перезапускается:
    `docker restart superset-superset-1 superset-worker-1 superset-beat-1`.
+
+   **Логотип бренда.** Авторизованный фронт Superset 6 грузит бренд-логотип по
+   его дефолтному `APP_ICON` = `/static/assets/images/superset-logo-horiz.png`
+   (голый `/static/`, без префикса `/superset`), поэтому:
+   - в `deploy/landing-nginx.conf` добавлен `location /static/` -> проксирует на
+     Superset (иначе логотип даёт 404 под `/superset`);
+   - сам файл логотипа заменён нашим: на VPS он смонтирован из
+     `/home/marcel/superset/branding/superset-logo-horiz.png` (замена этого файла
+     персистентна, переживает пересоздание контейнера). Сейчас там квадратный
+     герб МГИМО (`site/assets/mgimo-logo.png`). Чтобы поставить другой логотип -
+     заменить этот файл (PNG) и `docker restart superset-superset-1`.
+   `APP_ICON` в `superset_config.py` оставлен дефолтным (файл уже наш).
 3. **nginx-редирект одинарного префикса на двойной** (там же в conf):
    у Superset есть собственные маршруты под `/superset/*` (`welcome`, `explore`,
    `sqllab`, `profile`), поэтому под нашим внешним `/superset` их корректный
