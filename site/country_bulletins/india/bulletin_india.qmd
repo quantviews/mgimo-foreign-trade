@@ -1,7 +1,7 @@
 ---
 title: "Бюллетень: торговля с Индией"
 subtitle: "Ежемесячный выпуск"
-date: last-modified
+date: "`r tryCatch(stringi::stri_datetime_format(max(arrow::read_parquet('data/trade_balance_india.parquet')[['PERIOD']]), format='LLLL yyyy', locale='ru'), error=function(e) '')`"
 format:
   html:
     toc: true
@@ -225,7 +225,7 @@ ggplotly(pl_oil_export, dynamicTicks = FALSE) %>%
 ## 3. Торговля помимо сырой нефти
 
 ```{r}
-#| fig-cap: "Топ-12 товарных позиций экспорта и импорта по изменению стоимости за 12 месяцев. Зелёный сегмент — рост, красный — снижение."
+#| fig-cap: "Топ-12 товарных позиций экспорта и импорта по изменению стоимости за 12 месяцев. Зелёный сегмент - рост, красный - снижение."
 #| fig-width: 10
 #| fig-height: 8
 

@@ -1,8 +1,7 @@
 ---
 title: "Внешняя торговля с Китаем"
 subtitle: "Ежемесячный аналитический выпуск"
-date: last-modified
-date-format: long
+date: "`r tryCatch(stringi::stri_datetime_format(max(arrow::read_parquet('data/trade_balance_china.parquet')[['PERIOD']]), format='LLLL yyyy', locale='ru'), error=function(e) '')`"
 lang: ru
 format:
   pdf:
@@ -206,10 +205,10 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 \begin{bulletinintro}
 \textbf{Главное за `r report_month`.}\quad
-Экспорт из России в Китай — `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), индекс физобъёма `r fmt_pct_tex(hl_exp$fo_yoy)` г/г.\quad
-Импорт из Китая — `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м), физобъём `r fmt_pct_tex(hl_imp$fo_yoy)` г/г.\quad
-Сальдо — \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России.\\[3pt]
-\textbf{\color{mgimoblue}Вывод месяца.} Китай — крупнейший партнёр России и по экспорту, и по импорту: обе стороны исчисляются десятками млрд \$, а сальдо близко к балансу. Импорт (машины, электроника, транспорт) растёт быстрее экспорта энергоносителей.
+Экспорт из России в Китай - `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), индекс физобъёма `r fmt_pct_tex(hl_exp$fo_yoy)` г/г.\quad
+Импорт из Китая - `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м), физобъём `r fmt_pct_tex(hl_imp$fo_yoy)` г/г.\quad
+Сальдо - \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России.\\[3pt]
+\textbf{\color{mgimoblue}Вывод месяца.} Китай - крупнейший партнёр России и по экспорту, и по импорту: обе стороны исчисляются десятками млрд \$, а сальдо близко к балансу. Импорт (машины, электроника, транспорт) растёт быстрее экспорта энергоносителей.
 \end{bulletinintro}
 
 \begin{bulletinpageone}
@@ -229,17 +228,17 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 \bulletincols{%
 \begin{insightbox}{Главное · стоимость и сальдо}
 \begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
-\item Экспорт из России — `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м): в основном энергоносители.
-\item Импорт из Китая — `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м): машины, электроника, транспорт.
-\item Сальдо — \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России; экспорт и импорт сопоставимы.
+\item Экспорт из России - `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м): в основном энергоносители.
+\item Импорт из Китая - `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м): машины, электроника, транспорт.
+\item Сальдо - \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России; экспорт и импорт сопоставимы.
 \end{itemize}
 \end{insightbox}
 }{%
 \begin{insightbox}{Главное · физобъём и динамика}
 \begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
-\item Индекс физобъёма импорта — `r fmt_pct_tex(fo_val('ИМ'))` г/г, экспорта — `r fmt_pct_tex(fo_val('ЭК'))` г/г: импорт растёт быстрее.
-\item Экспорт нефти — около \textbf{`r fmt_num(oil_last)` млн т} за месяц.
-\item Данные Китая поступают оперативно — оценка за `r report_month` почти целиком на фактической статистике.
+\item Индекс физобъёма импорта - `r fmt_pct_tex(fo_val('ИМ'))` г/г, экспорта - `r fmt_pct_tex(fo_val('ЭК'))` г/г: импорт растёт быстрее.
+\item Экспорт нефти - около \textbf{`r fmt_num(oil_last)` млн т} за месяц.
+\item Данные Китая поступают оперативно - оценка за `r report_month` почти целиком на фактической статистике.
 \end{itemize}
 \end{insightbox}
 }
@@ -251,16 +250,16 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 \begin{sectionbar}
 {\bfseries Экспорт и импорт по категориям}\\
-\small Товарные группы (кроме нефти), изменение стоимости за последние 12 месяцев; \textcolor{mgimogreen}{\textbf{зелёный}} — рост, \textcolor{mgimored}{\textbf{красный}} — снижение.
+\small Товарные группы (кроме нефти), изменение стоимости за последние 12 месяцев; \textcolor{mgimogreen}{\textbf{зелёный}} - рост, \textcolor{mgimored}{\textbf{красный}} - снижение.
 \end{sectionbar}
 
 \vspace{3pt}
 \bulletincols{%
-\begin{chartpanel}{03}{Экспорт — топ-14 категорий, млн \$}
+\begin{chartpanel}{03}{Экспорт - топ-14 категорий, млн \$}
 \includegraphics[width=\linewidth]{`r fig_export`}
 \end{chartpanel}
 }{%
-\begin{chartpanel}{04}{Импорт — топ-14 категорий, млн \$}
+\begin{chartpanel}{04}{Импорт - топ-14 категорий, млн \$}
 \includegraphics[width=\linewidth]{`r fig_import`}
 \end{chartpanel}
 }
@@ -271,12 +270,12 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 \begin{sectionbar}
 {\bfseries Как читать этот бюллетень}\\
-\small Короткий комментарий простым языком — без специальной подготовки.
+\small Короткий комментарий простым языком - без специальной подготовки.
 \end{sectionbar}
 
 \vspace{6pt}
 \bulletincols{%
-{\bfseries\color{mgimoblue}О чём этот выпуск.} Бюллетень описывает внешнюю торговлю России с Китаем: экспорт (в основном энергоносители), импорт из Китая (машины, электроника, транспорт) и торговое сальдо — по месяцам и по товарным категориям.
+{\bfseries\color{mgimoblue}О чём этот выпуск.} Бюллетень описывает внешнюю торговлю России с Китаем: экспорт (в основном энергоносители), импорт из Китая (машины, электроника, транспорт) и торговое сальдо - по месяцам и по товарным категориям.
 
 \vspace{6pt}
 {\bfseries\color{mgimoblue}Откуда данные.} Официальная российская статистика сейчас не публикуется оперативно. Мы восстанавливаем картину по статистике Китая и международной базе ООН (UN~Comtrade), приводя всё к единому виду.
@@ -284,13 +283,13 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 \vspace{6pt}
 {\bfseries\color{mgimoblue}Оперативная оценка (nowcast).} Когда данные партнёра ещё не вышли, свежие месяцы мы оцениваем статистической моделью и помечаем отдельно. У Китая статистика выходит быстро, поэтому доля таких оценок обычно мала.
 }{%
-{\bfseries\color{mgimoblue}Деньги и физические объёмы.} Стоимость в долларах смешивает изменение цен и изменение поставок. Поэтому мы считаем и реальный объём — тонны. «Индекс физобъёма» показывает, как изменился именно физический поток, без влияния цен.
+{\bfseries\color{mgimoblue}Деньги и физические объёмы.} Стоимость в долларах смешивает изменение цен и изменение поставок. Поэтому мы считаем и реальный объём - тонны. «Индекс физобъёма» показывает, как изменился именно физический поток, без влияния цен.
 
 \vspace{6pt}
-{\bfseries\color{mgimoblue}«Год к году» и «месяц к месяцу».} «г/г» — сравнение с тем же месяцем год назад: убирает сезонность. «м/м» — с предыдущим месяцем: ловит свежий разворот, но сильнее колеблется.
+{\bfseries\color{mgimoblue}«Год к году» и «месяц к месяцу».} «г/г» - сравнение с тем же месяцем год назад: убирает сезонность. «м/м» - с предыдущим месяцем: ловит свежий разворот, но сильнее колеблется.
 
 \vspace{6pt}
-{\bfseries\color{mgimoblue}Нужны данные под вашу задачу?} Полная база, выгрузки и интерактивные дашборды — по запросу. Подберём разрез по странам, товарам и периодам и настроим регулярное обновление.
+{\bfseries\color{mgimoblue}Нужны данные под вашу задачу?} Полная база, выгрузки и интерактивные дашборды - по запросу. Подберём разрез по странам, товарам и периодам и настроим регулярное обновление.
 }
 
 \vspace{10pt}

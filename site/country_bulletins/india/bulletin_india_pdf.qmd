@@ -1,8 +1,7 @@
 ---
 title: "Внешняя торговля с Индией"
 subtitle: "Ежемесячный аналитический выпуск"
-date: last-modified
-date-format: long
+date: "`r tryCatch(stringi::stri_datetime_format(max(arrow::read_parquet('data/trade_balance_india.parquet')[['PERIOD']]), format='LLLL yyyy', locale='ru'), error=function(e) '')`"
 lang: ru
 format:
   pdf:
@@ -218,10 +217,10 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 \begin{bulletinintro}
 \textbf{Главное за `r report_month`.}\quad
-Экспорт из России в Индию — `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), индекс физобъёма `r fmt_pct_tex(hl_exp$fo_yoy)` г/г.\quad
-Импорт из Индии — `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м).\quad
-Сальдо — \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России.\\[3pt]
-\textbf{\color{mgimoblue}Вывод месяца.} Торговля с Индией почти полностью держится на экспорте российской нефти; импорт из Индии в разы меньше, поэтому сальдо стабильно складывается в пользу России. Главное, за чем стоит следить, — динамика нефтяных поставок.
+Экспорт из России в Индию - `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), индекс физобъёма `r fmt_pct_tex(hl_exp$fo_yoy)` г/г.\quad
+Импорт из Индии - `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м).\quad
+Сальдо - \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России.\\[3pt]
+\textbf{\color{mgimoblue}Вывод месяца.} Торговля с Индией почти полностью держится на экспорте российской нефти; импорт из Индии в разы меньше, поэтому сальдо стабильно складывается в пользу России. Главное, за чем стоит следить, - динамика нефтяных поставок.
 \end{bulletinintro}
 
 \begin{bulletinpageone}
@@ -241,16 +240,16 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 \bulletincols{%
 \begin{insightbox}{Главное · стоимость и сальдо}
 \begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
-\item Экспорт из России — `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), почти целиком нефть и нефтепродукты.
-\item Импорт из Индии — `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м): в разы меньше экспорта.
-\item Сальдо — \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России.
+\item Экспорт из России - `r fmt_bn_tex(hl_exp$stoim_bn)` (`r fmt_pct_tex(hl_exp$stoim_mom)` м/м), почти целиком нефть и нефтепродукты.
+\item Импорт из Индии - `r fmt_bn_tex(hl_imp$stoim_bn)` (`r fmt_pct_tex(hl_imp$stoim_mom)` м/м): в разы меньше экспорта.
+\item Сальдо - \textbf{`r fmt_num(hl_balance)` млрд \$} в пользу России.
 \end{itemize}
 \end{insightbox}
 }{%
 \begin{insightbox}{Главное · объёмы и оперативность}
 \begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
-\item Индекс физобъёма экспорта — `r fmt_pct_tex(fo_val('ЭК'))` г/г.
-\item Экспорт нефти — около \textbf{`r fmt_num(oil_last)` млн т} за месяц.
+\item Индекс физобъёма экспорта - `r fmt_pct_tex(fo_val('ЭК'))` г/г.
+\item Экспорт нефти - около \textbf{`r fmt_num(oil_last)` млн т} за месяц.
 \item Официальная статистика Индии за `r report_month` ещё не поступила: приведена оперативная оценка (nowcast), покрывающая около `r round(100 * nc_exp)`\,\% стоимости.
 \end{itemize}
 \end{insightbox}
@@ -263,16 +262,16 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 \begin{sectionbar}
 {\bfseries Экспорт и импорт по категориям}\\
-\small Товарные группы (кроме нефти), изменение стоимости за последние 12 месяцев; \textcolor{mgimogreen}{\textbf{зелёный}} — рост, \textcolor{mgimored}{\textbf{красный}} — снижение.
+\small Товарные группы (кроме нефти), изменение стоимости за последние 12 месяцев; \textcolor{mgimogreen}{\textbf{зелёный}} - рост, \textcolor{mgimored}{\textbf{красный}} - снижение.
 \end{sectionbar}
 
 \vspace{3pt}
 \bulletincols{%
-\begin{chartpanel}{03}{Экспорт — топ-14 категорий, млн \$}
+\begin{chartpanel}{03}{Экспорт - топ-14 категорий, млн \$}
 \includegraphics[width=\linewidth]{`r fig_export`}
 \end{chartpanel}
 }{%
-\begin{chartpanel}{04}{Импорт — топ-14 категорий, млн \$}
+\begin{chartpanel}{04}{Импорт - топ-14 категорий, млн \$}
 \includegraphics[width=\linewidth]{`r fig_import`}
 \end{chartpanel}
 }
@@ -283,26 +282,26 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 
 \begin{sectionbar}
 {\bfseries Как читать этот бюллетень}\\
-\small Короткий комментарий простым языком — без специальной подготовки.
+\small Короткий комментарий простым языком - без специальной подготовки.
 \end{sectionbar}
 
 \vspace{6pt}
 \bulletincols{%
-{\bfseries\color{mgimoblue}О чём этот выпуск.} Бюллетень описывает внешнюю торговлю России с Индией: экспорт (в основном нефть и нефтепродукты), импорт из Индии и торговое сальдо — по месяцам и по товарным категориям.
+{\bfseries\color{mgimoblue}О чём этот выпуск.} Бюллетень описывает внешнюю торговлю России с Индией: экспорт (в основном нефть и нефтепродукты), импорт из Индии и торговое сальдо - по месяцам и по товарным категориям.
 
 \vspace{6pt}
 {\bfseries\color{mgimoblue}Откуда данные.} Официальная российская статистика сейчас не публикуется оперативно. Мы восстанавливаем картину по статистике Индии и международной базе ООН (UN~Comtrade), приводя всё к единому виду.
 
 \vspace{6pt}
-{\bfseries\color{mgimoblue}Оперативная оценка (nowcast).} Индийская статистика выходит с задержкой в 1–2 месяца. Чтобы не ждать, самые свежие месяцы мы оцениваем статистической моделью и помечаем отдельно. Поэтому цифры за последний месяц — предварительные.
+{\bfseries\color{mgimoblue}Оперативная оценка (nowcast).} Индийская статистика выходит с задержкой в 1–2 месяца. Чтобы не ждать, самые свежие месяцы мы оцениваем статистической моделью и помечаем отдельно. Поэтому цифры за последний месяц - предварительные.
 }{%
-{\bfseries\color{mgimoblue}Деньги и физические объёмы.} Стоимость в долларах смешивает изменение цен и изменение поставок. Поэтому мы считаем и реальный объём — тонны. «Индекс физобъёма» показывает, как изменился именно физический поток, без влияния цен.
+{\bfseries\color{mgimoblue}Деньги и физические объёмы.} Стоимость в долларах смешивает изменение цен и изменение поставок. Поэтому мы считаем и реальный объём - тонны. «Индекс физобъёма» показывает, как изменился именно физический поток, без влияния цен.
 
 \vspace{6pt}
-{\bfseries\color{mgimoblue}«Год к году» и «месяц к месяцу».} «г/г» — сравнение с тем же месяцем год назад: убирает сезонность. «м/м» — с предыдущим месяцем: ловит свежий разворот, но сильнее колеблется.
+{\bfseries\color{mgimoblue}«Год к году» и «месяц к месяцу».} «г/г» - сравнение с тем же месяцем год назад: убирает сезонность. «м/м» - с предыдущим месяцем: ловит свежий разворот, но сильнее колеблется.
 
 \vspace{6pt}
-{\bfseries\color{mgimoblue}Нужны данные под вашу задачу?} Полная база, выгрузки и интерактивные дашборды — по запросу. Подберём разрез по странам, товарам и периодам и настроим регулярное обновление.
+{\bfseries\color{mgimoblue}Нужны данные под вашу задачу?} Полная база, выгрузки и интерактивные дашборды - по запросу. Подберём разрез по странам, товарам и периодам и настроим регулярное обновление.
 }
 
 \vspace{10pt}
