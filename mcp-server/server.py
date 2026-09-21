@@ -33,11 +33,89 @@ from mcp.server.fastmcp import Context, FastMCP
 
 DEFAULT_BASE = "https://nts.mgimo.ru/api"
 
-mcp = FastMCP(
-    "mgimo-trade",
+API_BASE = os.environ.get("MGIMO_API_BASE", DEFAULT_BASE).rstrip("/")
+
+# OAuth is enabled for HTTP transports (unless MCP_OAUTH=0). It lets OAuth-only
+# clients (Claude web/mobile, ChatGPT) connect; clients that send the raw API key
+# as a Bearer token keep working (load_access_token also accepts a raw key).
+_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
+_OAUTH = _TRANSPORT != "stdio" and os.environ.get("MCP_OAUTH", "1") != "0"
+
+_fastmcp_kwargs: dict = dict(
     host=os.environ.get("MCP_HOST", "127.0.0.1"),
     port=int(os.environ.get("MCP_PORT", "8000")),
 )
+oauth_provider = None
+if _OAUTH:
+    from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
+
+    from oauth import ApiKeyOAuthProvider
+
+    oauth_provider = ApiKeyOAuthProvider(API_BASE)
+    _fastmcp_kwargs.update(
+        auth_server_provider=oauth_provider,
+        auth=AuthSettings(
+            issuer_url=os.environ.get("MCP_ISSUER_URL", "https://nts.mgimo.ru"),
+            resource_server_url=os.environ.get("MCP_RESOURCE_URL", "https://nts.mgimo.ru/mcp"),
+            required_scopes=[],
+            client_registration_options=ClientRegistrationOptions(enabled=True),
+            revocation_options=RevocationOptions(enabled=True),
+        ),
+    )
+
+mcp = FastMCP("mgimo-trade", **_fastmcp_kwargs)
+
+
+if _OAUTH:
+    from starlette.requests import Request
+    from starlette.responses import HTMLResponse, RedirectResponse
+
+    def _login_html(login_id: str, error: str | None) -> str:
+        err = f'<p class="err">{error}</p>' if error else ""
+        return f"""<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Подключение MCP - Национальная торговая статистика</title>
+<style>
+  body {{ font-family: system-ui, Segoe UI, Arial, sans-serif; background:#f4f6f9;
+         margin:0; display:flex; min-height:100vh; align-items:center; justify-content:center; }}
+  .card {{ background:#fff; padding:32px 28px; border-radius:12px; max-width:420px; width:90%;
+          box-shadow:0 6px 24px rgba(0,0,0,.08); }}
+  h1 {{ font-size:1.15rem; color:#003d7a; margin:0 0 6px; }}
+  p {{ color:#4a5568; font-size:.92rem; line-height:1.45; }}
+  input {{ width:100%; box-sizing:border-box; padding:11px 12px; margin:10px 0 4px;
+           border:1px solid #cbd5e0; border-radius:8px; font-size:1rem; }}
+  button {{ width:100%; padding:11px; background:#003d7a; color:#fff; border:0;
+            border-radius:8px; font-size:1rem; cursor:pointer; margin-top:10px; }}
+  .err {{ color:#c0392b; font-size:.9rem; margin:6px 0 0; }}
+  a {{ color:#003d7a; }}
+</style></head><body>
+<div class="card">
+  <h1>Подключение к данным (MCP)</h1>
+  <p>Вставьте персональный API-ключ, чтобы разрешить агенту доступ к данным.
+     Ключ выдаётся в <a href="https://nts.mgimo.ru/superset/apikey/" target="_blank">кабинете</a>
+     и начинается с <code>mgt_</code>. Он идёт только на наш сервер и не показывается агенту.</p>
+  {err}
+  <form method="post" action="/oauth/login">
+    <input type="hidden" name="login_id" value="{login_id}">
+    <input name="api_key" type="password" placeholder="mgt_..." autocomplete="off" autofocus required>
+    <button type="submit">Продолжить</button>
+  </form>
+</div></body></html>"""
+
+    @mcp.custom_route("/oauth/login", methods=["GET", "POST"])
+    async def oauth_login(request: Request):
+        if request.method == "GET":
+            return HTMLResponse(_login_html(request.query_params.get("login_id", ""), None))
+        form = await request.form()
+        login_id = str(form.get("login_id", ""))
+        api_key = str(form.get("api_key", "")).strip()
+        result = await oauth_provider.complete_login(login_id, api_key)
+        if result is None:
+            return HTMLResponse(_login_html("", "Сессия входа истекла. Начните подключение заново."), status_code=400)
+        if result == "INVALID":
+            return HTMLResponse(_login_html(login_id, "Неверный ключ. Проверьте токен в кабинете."), status_code=401)
+        return RedirectResponse(result, status_code=302)
 
 
 def _env_token() -> str | None:
@@ -56,7 +134,18 @@ def _env_token() -> str | None:
 
 
 def _resolve_token(ctx: Context | None) -> str:
-    """Per-request API key: the client's Bearer header (remote) or env (local)."""
+    """Per-request API key: OAuth access token (mapped to the key), else the
+    client's raw Bearer header (remote), else env / .env (local stdio)."""
+    # HTTP + OAuth: the validated access token carries our API key.
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+
+        at = get_access_token()
+        if at is not None and getattr(at, "api_key", None):
+            return at.api_key
+    except Exception:  # noqa: BLE001 - no auth context (e.g. stdio, or OAuth off)
+        pass
+    # HTTP without OAuth: the client's Bearer header is the API key directly.
     if ctx is not None:
         try:
             req = ctx.request_context.request
