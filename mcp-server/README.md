@@ -281,3 +281,8 @@ MGIMO_API_TOKEN=mgt_... uv run mgimo-trade-mcp
 - Только чтение: инструменты делают лишь GET-запросы к `/v1/*`.
 - Тот же ключ работает для OData-фида (Excel/Power BI) и для skill trade-data.
 - Справочник: [`docs/api-reference.md`](../docs/api-reference.md).
+- **Держать в паре со скиллом.** Описания инструментов и правила здесь
+  (`server.py`: докстроки `trade/fizob/...` и `INSTRUCTIONS`) - это отдельная копия
+  того же, что в [`.claude/skills/trade-data/SKILL.md`](../.claude/skills/trade-data/SKILL.md).
+  При изменении API (новый параметр, эндпоинт, правило) правьте оба места, иначе
+  MCP и скилл разойдутся.
