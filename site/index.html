@@ -288,7 +288,7 @@ ul.task-list li input[type="checkbox"] {
 </div>
 </div>
 <div class="slide-takeaway">
-<p>Для каждой записи сохраняется источник: видно, из национальной статистики какой страны или из какой международной базы получено значение. Как устроены сбор и приведение к единому виду - на странице <a href="../site/technical.html">«Методология»</a>.</p>
+<p>Для каждой записи сохраняется источник: видно, из национальной статистики какой страны или из какой международной базы получено значение. Полный перечень полей - на странице <a href="../site/data-model.html">«Модель данных»</a>, а как устроены сбор и приведение к единому виду - на странице <a href="../site/technical.html">«Методология»</a>.</p>
 </div>
 </section>
 <section id="чего-нет-у-других-сервисов" class="level2">
@@ -310,16 +310,16 @@ ul.task-list li input[type="checkbox"] {
 <p><strong>Выгрузка базы</strong> Полный срез данных за нужные периоды: готовые таблицы с одинаковыми полями по всем странам, товарные коды разной детализации, стоимость и физические объёмы.</p>
 </div>
 <div class="feature-card">
-<p><strong>Интерактивные дашборды</strong> Графики и отчёты без ручных расчётов, с фильтрами по товарам, странам и периодам. Готовые представления можно настроить под конкретную задачу.</p>
+<p><strong>Интерактивные дашборды</strong> Графики и отчёты без ручных расчётов, с фильтрами по товарам, странам и периодам. Готовые представления можно настроить под конкретную задачу. <a href="https://nts.mgimo.ru/superset/">Открыть дашборды →</a></p>
 </div>
 <div class="feature-card">
 <p><strong>Отчёты под задачу</strong> Excel-файлы в вашей структуре с автоматическим обновлением, включая специальные показатели и индексы физических объёмов.</p>
 </div>
 <div class="feature-card accent">
-<p><strong>Доступ по API</strong> Данные напрямую в Excel, Power BI или ваши скрипты - без ручных выгрузок. Подробнее в разделе ниже.</p>
+<p><strong>Доступ по API</strong> Данные напрямую в Excel, Power BI или ваши скрипты - без ручных выгрузок. Подробнее в разделе ниже и на странице <a href="../site/api.html">«Доступ по API»</a>.</p>
 </div>
 <div class="feature-card">
-<p><strong>Работа через ИИ-агентов</strong> Вопросы к данным обычным языком: ИИ-ассистент сам обращается к API, собирает нужный срез и отвечает готовыми числами и таблицами. Для подключения агентов и Claude Desktop есть MCP-сервер: удалённый по адресу <a href="https://nts.mgimo.ru/mcp">nts.mgimo.ru/mcp</a> (по персональному ключу) и локальный.</p>
+<p><strong>Работа через ИИ-агентов</strong> Вопросы к данным обычным языком: ИИ-ассистент сам обращается к API, собирает нужный срез и отвечает готовыми числами и таблицами. Для подключения агентов и Claude Desktop есть MCP-сервер: удалённый по адресу <a href="https://nts.mgimo.ru/mcp">nts.mgimo.ru/mcp</a> (по персональному ключу) и локальный. <a href="../site/mcp.html">Как подключить →</a></p>
 </div>
 </div>
 </section>
@@ -688,17 +688,30 @@ TradeMap
 </p>
 </div>
 </div>
-<div class="callout callout-style-default callout-tip callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
+</section>
+<section id="разделы-сайта" class="level2">
+<h2 class="anchored" data-anchor-id="разделы-сайта">Разделы сайта</h2>
+<div class="feature-grid">
+<div class="feature-card">
+<p><strong><a href="../site/technical.html">Методология</a></strong> Как мы собираем источники, приводим их к единому виду, считаем индексы физобъёмов и строим оперативный прогноз.</p>
 </div>
-<div class="callout-title-container flex-fill">
-Методология и техническая документация
+<div class="feature-card">
+<p><strong><a href="../site/data-model.html">Модель данных</a></strong> Полный перечень полей базы, единицы измерения, флаги источника и типа записи.</p>
 </div>
+<div class="feature-card">
+<p><strong><a href="../site/api.html">Доступ по API</a></strong> Базовый адрес, авторизация, эндпоинты, фильтры, лимиты и OData для Excel и Power BI.</p>
 </div>
-<div class="callout-body-container callout-body">
-<p>Подробнее о том, как мы сводим источники, считаем индексы физических объёмов и строим оперативный прогноз - в <a href="../site/technical.html">технической документации</a>.</p>
+<div class="feature-card">
+<p><strong><a href="../site/mcp.html">ИИ-агент (MCP)</a></strong> Подключение данных к Claude, ChatGPT, Cursor и своим агентам через MCP-сервер.</p>
+</div>
+<div class="feature-card">
+<p><strong><a href="../site/bulletin_comparison.html">Месячный бюллетень</a></strong> Сводный обзор и отдельные выпуски по Китаю, Индии и Турции.</p>
+</div>
+<div class="feature-card">
+<p><strong><a href="https://nts.mgimo.ru/superset/">Дашборды</a></strong> Интерактивные графики и отчёты с фильтрами по товарам, странам и периодам.</p>
+</div>
+<div class="feature-card">
+<p><strong><a href="https://nts.mgimo.ru/presentations/project-overview.html">Презентации и занятия</a></strong> Обзор проекта и учебные материалы по таможенной статистике, DuckDB и Superset.</p>
 </div>
 </div>
 
