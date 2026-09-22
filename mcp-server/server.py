@@ -35,6 +35,26 @@ DEFAULT_BASE = "https://nts.mgimo.ru/api"
 
 API_BASE = os.environ.get("MGIMO_API_BASE", DEFAULT_BASE).rstrip("/")
 
+INSTRUCTIONS = """\
+Russian foreign-trade data (exports/imports by partner country, HS / ТН ВЭД code
+and month), served read-only.
+
+Work from the general to the specific ("от общего к частному") - do not start by
+pulling raw rows:
+
+1. Get the overall shape first with a server-side aggregate: trade(group_by=...)
+   at a high level (a tnved2 chapter, strana, or year) with order_by="-stoim".
+   Let the server sum; never fetch raw rows just to total them yourself.
+2. Then drill down into what matters: take the significant chapter / country /
+   month from step 1 and re-query at a finer level (tnved4/6, period, a specific
+   strana), narrowing the filters as you go.
+3. Resolve a product/country name to a code with reference() only when you do not
+   already know it.
+
+Every trade() response includes the latest available month (meta.period_max), so
+you rarely need meta() first - reserve it for quota or discovering valid fields.
+Prefer one well-chosen call over several narrow ones."""
+
 # OAuth is enabled for HTTP transports (unless MCP_OAUTH=0). It lets OAuth-only
 # clients (Claude web/mobile, ChatGPT) connect; clients that send the raw API key
 # as a Bearer token keep working (load_access_token also accepts a raw key).
@@ -68,7 +88,7 @@ if _OAUTH:
         ),
     )
 
-mcp = FastMCP("mgimo-trade", **_fastmcp_kwargs)
+mcp = FastMCP("mgimo-trade", instructions=INSTRUCTIONS, **_fastmcp_kwargs)
 
 
 if _OAUTH:
@@ -249,7 +269,9 @@ def trade(
 ) -> str:
     """Query Russian foreign-trade rows or server-side aggregates. This one tool
     answers most questions in a SINGLE call - prefer one well-chosen call over
-    several narrow ones.
+    several narrow ones. Work from the general to the specific: aggregate at a
+    high level first (a tnved2 chapter / strana / year), then drill into the
+    significant part at a finer level - do not pull raw rows to total them.
 
     Repeatable filters (pass a list of strings):
       strana  ISO-2 partner country, e.g. ["CN"], ["IN","TR"] (China/India/Turkey
