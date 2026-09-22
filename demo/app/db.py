@@ -74,9 +74,19 @@ async def consume_verification(token: str) -> dict | None:
 
 # --- Provisioning + access --------------------------------------------------
 
+async def user_exists(email: str) -> bool:
+    """True if the address is already a known (active) user - used to let existing
+    API/MCP users past the corporate-domain gate."""
+    pool = await _require_pool()
+    val = await pool.fetchval(
+        "SELECT 1 FROM users WHERE email = $1 AND active", email.lower()
+    )
+    return val is not None
+
+
 async def provision_user(email: str, org: str | None) -> int:
     """Upsert the user (kept on their existing plan; new ones go on 'demo') and
-    ensure a demo_access row. Returns user_id."""
+    ensure a demo_access row. Existing users get the higher turn limit. Returns id."""
     pool = await _require_pool()
     async with pool.acquire() as con:
         async with con.transaction():
@@ -85,6 +95,13 @@ async def provision_user(email: str, org: str | None) -> int:
             )
             if demo_plan is None:
                 raise RuntimeError("demo plan missing (run migration 004_demo.sql)")
+            # Was this a known user before we upsert? Existing users (pilot etc.)
+            # get the higher limit; brand-new demo signups get the small one.
+            existed = await con.fetchval(
+                "SELECT 1 FROM users WHERE email = $1", email.lower()
+            )
+            limit = (settings.existing_user_turn_limit if existed
+                     else settings.turn_limit)
             user_id = await con.fetchval(
                 """
                 INSERT INTO users(email, org, plan_id)
@@ -98,7 +115,7 @@ async def provision_user(email: str, org: str | None) -> int:
             await con.execute(
                 "INSERT INTO demo_access(user_id, turn_limit) VALUES ($1, $2) "
                 "ON CONFLICT (user_id) DO NOTHING",
-                user_id, settings.turn_limit,
+                user_id, limit,
             )
     return user_id
 

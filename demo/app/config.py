@@ -29,7 +29,8 @@ class Settings(BaseSettings):
     session_ttl_hours: int = 12
 
     # Limits and cost guards.
-    turn_limit: int = 10             # default per-user free turns (stored per row)
+    turn_limit: int = 10             # new users: free turns (stored per row)
+    existing_user_turn_limit: int = 100   # users already in api.users (pilot etc.)
     daily_budget: int = 500          # global turns/day backstop
     max_tool_rounds: int = 6         # tool calls per turn before forcing an answer
     max_output_tokens: int = 1200
