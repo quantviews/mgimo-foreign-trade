@@ -198,10 +198,13 @@ def _multi(name: str, values: list[str] | None) -> list[tuple[str, str]]:
 
 @mcp.tool()
 def meta(ctx: Context | None = None) -> str:
-    """Data version and coverage, plus your API plan and remaining monthly quota.
+    """Your API plan and remaining monthly quota, plus data coverage and the list
+    of valid dimensions / metrics / filters.
 
-    Call this first to learn the latest available period (period_max) and how
-    much of your quota is left. No parameters. Returns JSON.
+    You usually do NOT need this before querying: every trade() response already
+    carries the latest available month as meta.period_max. Call meta() only to
+    check your remaining quota, the earliest period, or the exact names you may
+    pass to group_by / metrics / include. No parameters. Returns JSON.
     """
     return _get("/v1/meta", [], ctx)
 
@@ -244,7 +247,9 @@ def trade(
     limit: int | None = None,
     ctx: Context | None = None,
 ) -> str:
-    """Query Russian foreign-trade rows or server-side aggregates.
+    """Query Russian foreign-trade rows or server-side aggregates. This one tool
+    answers most questions in a SINGLE call - prefer one well-chosen call over
+    several narrow ones.
 
     Repeatable filters (pass a list of strings):
       strana  ISO-2 partner country, e.g. ["CN"], ["IN","TR"] (China/India/Turkey
@@ -255,14 +260,27 @@ def trade(
       source  "national", "comtrade" or "nowcast".
       edizm   unit of measure.
     Period (month start, YYYY-MM-DD): period_from, period_to.
-    group_by  comma-separated dimensions, e.g. "strana,tnved2,period". Omit for
+    group_by  comma-separated dimensions from: strana, napr, type, source,
+              tnved2/4/6/tnved, edizm, period (monthly), year (yearly). Omit for
               raw rows; set it for aggregates (sums over the group).
     metrics   comma list from: stoim (value, USD), netto (net weight, kg),
-              kol (quantity in the extra unit). Default "stoim,netto".
+              kol (quantity in the extra unit). Default "stoim,netto". Request all
+              you need at once, e.g. "stoim,netto". Note: kol is only additive
+              within one unit, so "...,kol" requires "edizm" in group_by.
     include   extra name columns, e.g. "tnved2_name".
     order_by  a grouped dimension or a selected metric; prefix "-" for descending
               (e.g. "-stoim"). limit: max rows returned.
-    Returns JSON. Tip: call meta() for the latest period and reference() for codes.
+
+    Every response's meta block includes period_max (latest available month) and
+    has_more - so you do NOT need a separate meta() call to bound "this year" or
+    "latest". Answer common questions in one call:
+      - year-to-date total: period_from="<year>-01-01", no period in group_by.
+      - monthly dynamics: add "period" to group_by.
+      - compare years: add "year" to group_by over the whole range (ONE call,
+        not one call per year).
+      - product/country breakdown: group_by a tnved level or strana, order_by
+        "-stoim", set limit for a top-N.
+    Only call reference() when you do not know a code. Returns JSON.
     """
     params: list[tuple[str, str]] = []
     for key, vals in (
