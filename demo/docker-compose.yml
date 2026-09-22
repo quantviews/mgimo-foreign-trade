@@ -1,0 +1,34 @@
+# Deploy:  docker compose up -d --build
+# Joins Superset's network to reach the data API (trade-api) and Postgres by name.
+# Secrets come from demo/.env (see .env.example).
+
+services:
+  trade-demo:
+    build: .
+    image: mgimo-trade-demo
+    container_name: trade-demo
+    restart: unless-stopped
+    environment:
+      MGIMO_DEMO_DEEPSEEK_API_KEY: ${MGIMO_DEMO_DEEPSEEK_API_KEY}
+      MGIMO_DEMO_SERVICE_API_KEY: ${MGIMO_DEMO_SERVICE_API_KEY}
+      MGIMO_DEMO_POSTGRES_DSN: ${MGIMO_DEMO_POSTGRES_DSN}
+      MGIMO_DEMO_API_BASE: ${MGIMO_DEMO_API_BASE:-http://trade-api:8000}
+      MGIMO_DEMO_SITE_BASE_URL: ${MGIMO_DEMO_SITE_BASE_URL:-https://nts.mgimo.ru}
+      MGIMO_DEMO_SESSION_SECRET: ${MGIMO_DEMO_SESSION_SECRET}
+      MGIMO_DEMO_MAIL_FROM: ${MGIMO_DEMO_MAIL_FROM:-research@fief.ru}
+      MGIMO_DEMO_SMTP_HOST: ${MGIMO_DEMO_SMTP_HOST:-}
+      MGIMO_DEMO_SMTP_PORT: ${MGIMO_DEMO_SMTP_PORT:-587}
+      MGIMO_DEMO_SMTP_USER: ${MGIMO_DEMO_SMTP_USER:-}
+      MGIMO_DEMO_SMTP_PASSWORD: ${MGIMO_DEMO_SMTP_PASSWORD:-}
+      MGIMO_DEMO_TURN_LIMIT: ${MGIMO_DEMO_TURN_LIMIT:-10}
+      MGIMO_DEMO_DAILY_BUDGET: ${MGIMO_DEMO_DAILY_BUDGET:-500}
+    ports:
+      # Pilot: exposed on :8091 for testing. Once behind nginx (/demo/), drop this.
+      - "8091:8000"
+    networks:
+      - superset_net
+
+networks:
+  superset_net:
+    external: true
+    name: ${SUPERSET_NETWORK}
