@@ -98,17 +98,20 @@ async def register(body: RegisterIn):
     e = body.email.strip().lower()
     if not is_valid_email(e):
         return JSONResponse({"error": "Некорректный адрес почты."}, status_code=400)
+    existing = await db.user_exists(e)
     # Existing users (already approved for API/MCP) skip the corporate-domain gate;
     # email verification still applies as the way to log in.
-    if not is_corporate(e) and not await db.user_exists(e):
+    if not is_corporate(e) and not existing:
         return JSONResponse(
             {"error": "Пожалуйста, используйте корпоративную (рабочую) почту. "
                       "Бесплатные почтовые сервисы не подходят для демо-доступа."},
             status_code=400,
         )
-    token = await db.create_verification(e, (body.org or None))
+    org = body.org or None
+    token = await db.create_verification(e, org)
     link = f"{settings.site_base_url}/demo/verify?token={token}"
     await email.send_verification(e, link)
+    await email.send_admin_notice(e, org, existing)
     return {"ok": True, "message": "Проверьте почту: мы отправили ссылку для подтверждения."}
 
 

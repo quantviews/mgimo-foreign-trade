@@ -41,8 +41,9 @@ class Settings(BaseSettings):
     allow_domains: str = ""          # comma allowlist override (optional)
     extra_free_domains: str = ""     # extend the built-in free/disposable blocklist
 
-    # Verification email.
+    # Verification email + lead notification (empty notify_email disables it).
     mail_from: str = "research@fief.ru"
+    notify_email: str = "m_salihov@fief.ru"
     smtp_host: str = ""              # empty -> log link to stdout (dev)
     smtp_port: int = 587
     smtp_user: str = ""

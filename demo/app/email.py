@@ -52,3 +52,28 @@ async def send_verification(to: str, link: str) -> None:
         await asyncio.to_thread(_send_sync, _build(to, link))
     except Exception as e:  # noqa: BLE001
         logger.warning("SMTP send failed (%s); verification link for %s: %s", e, to, link)
+
+
+async def send_admin_notice(applicant: str, org: str | None, existing: bool) -> None:
+    """Notify the team of each demo registration. Best-effort; never raises."""
+    if not settings.notify_email:
+        return
+    if not settings.smtp_host or not settings.smtp_password:
+        logger.warning("admin notice (no SMTP) for demo registration: %s", applicant)
+        return
+    msg = EmailMessage()
+    msg["Subject"] = f"Демо-регистрация: {applicant}"
+    msg["From"] = settings.mail_from
+    msg["To"] = settings.notify_email
+    domain = applicant.rsplit("@", 1)[-1] if "@" in applicant else ""
+    msg.set_content(
+        "Новая демо-регистрация ИИ-ассистента.\n\n"
+        f"Адрес: {applicant}\n"
+        f"Организация: {org or '-'}\n"
+        f"Домен: {domain}\n"
+        f"Статус: {'существующий пользователь' if existing else 'новый'}\n"
+    )
+    try:
+        await asyncio.to_thread(_send_sync, msg)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("admin notice send failed (%s) for %s", e, applicant)
