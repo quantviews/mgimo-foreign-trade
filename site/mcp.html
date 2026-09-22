@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Как это работает – Национальная торговая статистика</title>
+<title>Подключение ИИ-агентов (MCP) – Национальная торговая статистика</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -19,6 +19,41 @@ ul.task-list li input[type="checkbox"] {
   width: 0.8em;
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
 </style>
 
@@ -94,11 +129,11 @@ ul.task-list li input[type="checkbox"] {
 <span class="menu-text">Главная</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link active" href="../site/technical.html" aria-current="page"> 
+    <a class="nav-link" href="../site/technical.html"> 
 <span class="menu-text">Техническая документация</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../site/mcp.html"> 
+    <a class="nav-link active" href="../site/mcp.html" aria-current="page"> 
 <span class="menu-text">MCP</span></a>
   </li>  
   <li class="nav-item dropdown ">
@@ -176,7 +211,8 @@ ul.task-list li input[type="checkbox"] {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Как это работает</h1>
+<h1 class="title">Подключение ИИ-агентов (MCP)</h1>
+<p class="subtitle lead">Данные о внешней торговле - прямо в вашем ИИ-ассистенте</p>
 </div>
 
 
@@ -193,174 +229,144 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>Система собирает торговые данные из статистики стран-партнёров и международной базы ООН (UN Comtrade), приводит их к единой структуре и хранит в одной базе данных.</p>
-<p>Ниже — как устроен этот путь от разрозненных выгрузок до готовых показателей.</p>
-<section id="общая-схема" class="level2">
-<h2 class="anchored" data-anchor-id="общая-схема">Общая схема</h2>
-<p>Сбор → приведение к единому виду → единая база (DuckDB) → расчёт индексов физобъёмов и оперативного прогноза → выгрузки, дашборды и отчёты.</p>
-<p>Порядок шагов и проверки качества описаны в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md">orchestration.md</a>, а целевая модель данных — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a>.</p>
-</section>
-<section id="этап-1.-сбор-и-приведение-к-единому-виду" class="level2">
-<h2 class="anchored" data-anchor-id="этап-1.-сбор-и-приведение-к-единому-виду">Этап 1. Сбор и приведение к единому виду</h2>
-<p>Разные источники используют разные форматы, классификации и обозначения. Мы сводим их к общему стандарту:</p>
+<p>MCP (Model Context Protocol) - стандарт, по которому ИИ-ассистенты подключаются к внешним источникам данных. У проекта есть готовый MCP-сервер: агент подключается к нему и сам вызывает нужные инструменты (свежие цифры, справочники, срезы торговли, индексы физобъёмов), а вы задаёте вопросы обычным языком.</p>
 <ul>
-<li><strong>Единая структура.</strong> Все потоки приводятся к одному набору полей — страна, товар, период, направление, стоимость и объём — независимо от источника. Используем обозначения, принятые в данных ФТС России.</li>
-<li><strong>Коды ТН ВЭД.</strong> Коды хранятся как строки. Значимые ведущие нули сохраняются, а короткие коды дополняются нулями справа до 10 знаков; из них формируются уровни агрегации 2, 4, 6 и 8 знаков.</li>
-<li><strong>Единицы измерения.</strong> Исходные обозначения из поля <code>EDIZM</code> сопоставляются со стандартным справочником и приводятся к принятым в российской практике единицам.</li>
-<li><strong>Страны.</strong> Используются единые двухбуквенные ISO-коды стран.</li>
-<li><strong>Международное дополнение.</strong> Данные UN Comtrade добавляются там, где нет национальной статистики, чтобы закрыть пробелы по остальным странам.</li>
+<li><strong>Адрес удалённого сервера:</strong> <code>https://nts.mgimo.ru/mcp</code></li>
+<li><strong>Доступ:</strong> по персональному ключу (тот же, что для API); квоты и аудит считаются по каждому ключу отдельно.</li>
+<li><strong>Инструменты:</strong> <code>meta</code>, <code>reference</code>, <code>trade</code>, <code>fizob</code> (описаны ниже).</li>
 </ul>
-<p>Результат — единая база данных (DuckDB), где все торговые потоки имеют одинаковую структуру. Подробности пайплайна: <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge_processed_data-docs.md">merge_processed_data-docs.md</a>, а трансформация Comtrade — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge-comtrade-to-duckdb-docs.md">merge-comtrade-to-duckdb-docs.md</a>. О том, как устроен сбор по странам, — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/country-collector-guide.md">country-collector-guide.md</a>.</p>
+<section id="шаг-1.-получить-ключ" class="level2">
+<h2 class="anchored" data-anchor-id="шаг-1.-получить-ключ">Шаг 1. Получить ключ</h2>
+<p>Ключ выдаётся в личном кабинете: <strong><a href="https://nts.mgimo.ru/superset/apikey/">nts.mgimo.ru/superset/apikey/</a></strong> (нужна роль <code>API</code>, назначает администратор). Ключ начинается с <code>mgt_</code>, показывается один раз - сохраните его. При утере перевыпускается там же.</p>
 </section>
-<section id="этап-2.-индексы-физических-объёмов" class="level2">
-<h2 class="anchored" data-anchor-id="этап-2.-индексы-физических-объёмов">Этап 2. Индексы физических объёмов</h2>
-<p>Физические объёмы (тонны, штуки, кубометры) — редкий и ценный показатель, который к тому же неполон. Мы восстанавливаем и индексируем его:</p>
+<section id="шаг-2.-подключить-клиента" class="level2">
+<h2 class="anchored" data-anchor-id="шаг-2.-подключить-клиента">Шаг 2. Подключить клиента</h2>
+<p>Ниже - готовые настройки. Везде адрес один и тот же (<code>https://nts.mgimo.ru/mcp</code>), меняется только способ передачи ключа. Подставьте свой ключ вместо <code>mgt_ВАШ_ТОКЕН</code>.</p>
+<div class="tabset-margin-container"></div><div class="panel-tabset">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true">Claude веб / мобайл и ChatGPT</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false">Claude Desktop</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-3-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-3" role="tab" aria-controls="tabset-1-3" aria-selected="false">Claude Code (CLI)</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-4-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-4" role="tab" aria-controls="tabset-1-4" aria-selected="false">Cursor</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-5-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-5" role="tab" aria-controls="tabset-1-5" aria-selected="false">VS Code (Copilot)</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-6-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-6" role="tab" aria-controls="tabset-1-6" aria-selected="false">Свой агент (Python)</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-7-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-7" role="tab" aria-controls="tabset-1-7" aria-selected="false">GigaChat / YandexGPT</a></li></ul>
+<div class="tab-content">
+<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
+<p>Эти клиенты подключаются как «удалённый коннектор по URL» - <strong>без установки и без файлов конфигурации</strong>, авторизация через OAuth:</p>
 <ol type="1">
-<li><strong>Выбор меры.</strong> Для каждого ряда выбирается натуральная мера — количество в дополнительной единице (<code>KOL</code>) или вес нетто (<code>NETTO</code>), — в зависимости от того, какая единица измерения для конкретной товарной группы устойчива во времени.</li>
-<li><strong>Полная месячная панель.</strong> Пропуски в помесячных рядах заполняются, чтобы объёмы можно было сравнивать по времени.</li>
-<li><strong>12-месячные показатели.</strong> Значения сглаживаются скользящим окном, чтобы снять сезонность.</li>
-<li><strong>Базовый период и индекс.</strong> Показатель нормируется относительно базового периода — 12 месяцев с начала первого года, где появились ненулевые объёмы.</li>
-<li><strong>Агрегация.</strong> Индексы считаются по группам ТН ВЭД на уровнях 2, 4 и 6 знаков, по странам и по всей торговле.</li>
+<li>В настройках клиента добавьте коннектор по URL <code>https://nts.mgimo.ru/mcp</code> (в Claude: <strong>Settings → Connectors → Add custom connector</strong>; в ChatGPT: <strong>Settings → Connectors</strong>, на платном тарифе / Developer Mode).</li>
+<li>Клиент откроет страницу входа - <strong>вставьте персональный ключ</strong> (<code>mgt_...</code>) и подтвердите. Всё.</li>
 </ol>
-<p>Физобъёмы считаются только по фактическим данным, чтобы не смешивать их с прогнозом. Полная методика — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md">documentation_fizob.md</a>.</p>
+<p>Коннектор синхронизируется на все устройства, включая <strong>телефон</strong> (Claude на мобиле). Ключ вводится один раз; на сервере в открытом виде не хранится.</p>
+</div>
+<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
+<p>Claude Desktop для удалённых серверов ждёт OAuth, поэтому ключ удобнее подключить через мост <a href="https://www.npmjs.com/package/mcp-remote"><code>mcp-remote</code></a> (нужен Node.js). Откройте <code>claude_desktop_config.json</code> (Windows <code>%APPDATA%\Claude\</code>, macOS <code>~/Library/Application Support/Claude/</code>), добавьте и перезапустите:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"mcpServers"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"mgimo-trade"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"command"</span><span class="fu">:</span> <span class="st">"npx"</span><span class="fu">,</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"args"</span><span class="fu">:</span> <span class="ot">[</span><span class="st">"-y"</span><span class="ot">,</span> <span class="st">"mcp-remote"</span><span class="ot">,</span> <span class="st">"https://nts.mgimo.ru/mcp"</span><span class="ot">,</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>               <span class="st">"--header"</span><span class="ot">,</span> <span class="st">"Authorization: Bearer mgt_ВАШ_ТОКЕН"</span><span class="ot">]</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="tabset-1-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-3-tab">
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude</span> mcp add <span class="at">--transport</span> http mgimo-trade https://nts.mgimo.ru/mcp <span class="dt">\</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--header</span> <span class="st">"Authorization: Bearer mgt_ВАШ_ТОКЕН"</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="tabset-1-4" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-4-tab">
+<p>Создайте <code>.cursor/mcp.json</code> в корне проекта (или <code>~/.cursor/mcp.json</code> глобально), либо добавьте через <strong>Settings → MCP → New MCP Server</strong>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"mcpServers"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"mgimo-trade"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"url"</span><span class="fu">:</span> <span class="st">"https://nts.mgimo.ru/mcp"</span><span class="fu">,</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"headers"</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">"Authorization"</span><span class="fu">:</span> <span class="st">"Bearer mgt_ВАШ_ТОКЕН"</span> <span class="fu">}</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>После этого в <strong>Settings → MCP</strong> сервер загорится зелёным и покажет инструменты. Пользоваться в чате в режиме <strong>Agent</strong>.</p>
+</div>
+<div id="tabset-1-5" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-5-tab">
+<p>Файл <code>.vscode/mcp.json</code> (формат отличается от Cursor: ключ <code>servers</code>, <code>type: http</code>):</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"servers"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"mgimo-trade"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"type"</span><span class="fu">:</span> <span class="st">"http"</span><span class="fu">,</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"url"</span><span class="fu">:</span> <span class="st">"https://nts.mgimo.ru/mcp"</span><span class="fu">,</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"headers"</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">"Authorization"</span><span class="fu">:</span> <span class="st">"Bearer mgt_ВАШ_ТОКЕН"</span> <span class="fu">}</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="tabset-1-6" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-6-tab">
+<p>Любой MCP-совместимый агент (в т.ч. адаптеры LangChain / LlamaIndex):</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> mcp <span class="im">import</span> ClientSession</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> mcp.client.streamable_http <span class="im">import</span> streamablehttp_client</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> streamablehttp_client(</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"https://nts.mgimo.ru/mcp"</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        headers<span class="op">=</span>{<span class="st">"Authorization"</span>: <span class="st">"Bearer mgt_ВАШ_ТОКЕН"</span>}) <span class="im">as</span> (r, w, _):</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">with</span> ClientSession(r, w) <span class="im">as</span> s:</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> s.initialize()</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>([t.name <span class="cf">for</span> t <span class="kw">in</span> (<span class="cf">await</span> s.list_tools()).tools])</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>((<span class="cf">await</span> s.call_tool(<span class="st">"meta"</span>, {})).content[<span class="dv">0</span>].text)</span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="tabset-1-7" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-7-tab">
+<p>У этих моделей нет коннектора «по URL», но подключаются кодом через <strong>function calling</strong>: модель как LLM, а инструменты берутся из нашего MCP (через MCP-клиент, как в примере на Python) или напрямую из <a href="../site/technical.html">REST API</a>. Ключ остаётся вашим (учёт per-user).</p>
+</div>
+</div>
+</div>
 </section>
-<section id="этап-3.-оперативный-прогноз-nowcast" class="level2">
-<h2 class="anchored" data-anchor-id="этап-3.-оперативный-прогноз-nowcast">Этап 3. Оперативный прогноз (nowcast)</h2>
-<p>Национальная статистика выходит с задержкой в несколько месяцев. Чтобы дать оценку раньше, мы используем статистическую модель (динамическую факторную модель):</p>
-<ul>
-<li>модель обучается на исторических рядах по группам товаров и направлениям;</li>
-<li>по уже известным месяцам оценивается недостающая часть периода;</li>
-<li>прогноз добавляется в базу только там, где ещё нет фактических данных, и всегда помечается: <code>SOURCE = nowcast</code>, <code>TYPE = pred</code>.</li>
-</ul>
-<p>Так прогноз никогда не подменяет факт и легко отделяется от него. Порядок пересчёта и проверки описаны в разделе о nowcast в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md">orchestration.md</a>.</p>
-</section>
-<section id="контроль-качества" class="level2">
-<h2 class="anchored" data-anchor-id="контроль-качества">Контроль качества</h2>
-<p>Перед публикацией база проходит проверки: поиск аномальных значений (см. <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/outlier_detection-docs.md">outlier_detection-docs.md</a>) и набор SQL-проверок — обязательные таблицы и колонки, допустимые значения <code>NAPR</code>, <code>SOURCE</code>, <code>TYPE</code>, отсутствие пустых периодов и пересечения прогноза с фактом. Тесты и покрытые проверки описаны в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md">testing-docs.md</a>.</p>
-</section>
-<section id="структура-данных" class="level2">
-<h2 class="anchored" data-anchor-id="структура-данных">Структура данных</h2>
-<p>Основные поля базы:</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Поле</th>
-<th>Описание</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>STRANA</code></td>
-<td>Страна-партнёр — двухбуквенный ISO-код</td>
-</tr>
-<tr class="even">
-<td><code>NAPR</code></td>
-<td>Направление: <code>ИМ</code> (импорт) или <code>ЭК</code> (экспорт)</td>
-</tr>
-<tr class="odd">
-<td><code>PERIOD</code></td>
-<td>Отчётный период — первый день месяца</td>
-</tr>
-<tr class="even">
-<td><code>TNVED</code></td>
-<td>Код товара по ТН ВЭД (плюс уровни <code>TNVED2/4/6/8</code>)</td>
-</tr>
-<tr class="odd">
-<td><code>STOIM</code></td>
-<td>Стоимость, USD (в единицах, не в тысячах)</td>
-</tr>
-<tr class="even">
-<td><code>NETTO</code></td>
-<td>Вес нетто, кг</td>
-</tr>
-<tr class="odd">
-<td><code>KOL</code></td>
-<td>Количество в дополнительной единице измерения</td>
-</tr>
-<tr class="even">
-<td><code>EDIZM</code></td>
-<td>Дополнительная единица измерения</td>
-</tr>
-<tr class="odd">
-<td><code>SOURCE</code></td>
-<td>Источник ряда: <code>national</code>, <code>comtrade</code> или <code>nowcast</code></td>
-</tr>
-<tr class="even">
-<td><code>TYPE</code></td>
-<td>Тип ряда: <code>fact</code> (факт) или <code>pred</code> (прогноз)</td>
-</tr>
-</tbody>
-</table>
-<p>Индексы физобъёмов хранятся отдельно (<code>fizob_index</code>), названия стран и товаров — в справочниках. При выгрузке можно выбрать нужные таблицы и уровень агрегации. Полное описание схемы — в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a>.</p>
-</section>
-<section id="программный-доступ-api" class="level2">
-<h2 class="anchored" data-anchor-id="программный-доступ-api">Программный доступ (API)</h2>
-<p>Поверх базы работает read-only сервис: тонкая прослойка над DuckDB, без собственного хранилища. Статус пилотный, доступ выдаётся по согласованию.</p>
-<p><strong>Авторизация.</strong> Каждый запрос, кроме <code>/health</code>, требует персонального токена. Для скриптов это заголовок <code>Authorization: Bearer &lt;токен&gt;</code>, для Excel и Power BI — HTTP Basic, где имя пользователя любое, а пароль и есть токен. Токен пользователь выпускает сам в личном кабинете, он показывается один раз и перевыпускается там же.</p>
+<section id="инструменты" class="level2">
+<h2 class="anchored" data-anchor-id="инструменты">Инструменты</h2>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 45%">
-<col style="width: 54%">
+<col style="width: 50%">
+<col style="width: 50%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Эндпоинт</th>
-<th>Что отдаёт</th>
+<th>Инструмент</th>
+<th>Что делает</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>GET /health</code></td>
-<td>живость сервиса и версия данных, без авторизации</td>
+<td><code>meta</code></td>
+<td>последний доступный период данных + ваш тариф и остаток квоты</td>
 </tr>
 <tr class="even">
-<td><code>GET /v1/meta</code></td>
-<td>доступные измерения, меры и поля, ваш план и остаток квоты</td>
+<td><code>reference</code></td>
+<td>справочники: <code>countries</code> (страны) или <code>tnved</code> (коды ТН ВЭД по уровню)</td>
 </tr>
 <tr class="odd">
-<td><code>GET /v1/reference/countries</code></td>
-<td>справочник стран с русскими названиями</td>
+<td><code>trade</code></td>
+<td>строки торговли или агрегаты на сервере (страна, направление, код ТН ВЭД, период, <code>group_by</code>, метрики)</td>
 </tr>
 <tr class="even">
-<td><code>GET /v1/reference/tnved</code></td>
-<td>коды ТН ВЭД и наименования, уровень задаётся параметром <code>level</code></td>
-</tr>
-<tr class="odd">
-<td><code>GET /v1/trade</code></td>
-<td>основной эндпоинт: фильтрация и агрегация торговых данных</td>
-</tr>
-<tr class="even">
-<td><code>GET /v1/fizob</code></td>
-<td>индексы физических объёмов по уровням <code>0/2/4/6</code></td>
-</tr>
-<tr class="odd">
-<td><code>GET /odata/trade</code>, <code>GET /odata/fizob</code></td>
-<td>те же данные OData-фидом для Excel и Power BI</td>
+<td><code>fizob</code></td>
+<td>индексы физобъёмов - реальные объёмы без влияния цен (особенность проекта)</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Два режима <code>/v1/trade</code>.</strong> Если задан <code>group_by</code>, возвращаются измерения и суммы мер; если не задан — строки как есть. Фильтры: <code>strana</code>, <code>napr</code>, <code>type</code>, <code>source</code>, <code>tnved2/4/6</code>, <code>edizm_iso</code>, <code>period_from</code>, <code>period_to</code>. Меры задаются в <code>metrics</code> (по умолчанию <code>stoim,netto</code>), названия стран и товаров подтягиваются через <code>include</code>. Формат ответа — JSON или CSV.</p>
-<p><strong>Важное ограничение.</strong> Мера <code>kol</code> аддитивна только внутри одной единицы измерения, поэтому при <code>metrics=...,kol</code> параметр <code>edizm</code> обязан быть в <code>group_by</code>, иначе сервис вернёт <code>400</code>. <code>stoim</code> в долларах и <code>netto</code> в килограммах складываются без оговорок. Это то же самое ограничение, что и в самой базе: количество в разных единицах суммировать нельзя.</p>
-<p><strong>Лимиты.</strong> У каждого доступа есть план с тремя ограничениями: размер одной страницы, число запросов в минуту и месячная квота. При превышении сервис отвечает <code>429</code> с заголовком <code>Retry-After</code>; текущий остаток квоты виден в <code>/v1/meta</code>. Ошибки отдаются в формате RFC 7807.</p>
-<p><strong>OData.</strong> Поддерживается подмножество OData v4: <code>$filter</code> со сравнениями и логическими операторами, <code>$select</code>, <code>$orderby</code>, <code>$top</code>, <code>$skip</code>, <code>$count</code> и серверная пагинация. Функции вроде <code>contains</code> пока не поддержаны. Фильтры, поставленные мышкой в редакторе запросов Excel, сворачиваются в <code>$filter</code> и выполняются на сервере, так что в файл приезжает только нужный срез.</p>
-<p>Интерактивная схема со всеми параметрами открывается в браузере по <code>/docs</code>. Справочник — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md">api-reference.md</a>, инструкция для аналитиков без кода — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-excel-guide.md">api-excel-guide.md</a>.</p>
+<p>Агент вызывает их сам; вам достаточно спросить обычным языком, например: «сравни экспорт нефти в Индию и Китай за последние 12 месяцев» или «покажи топ товарных групп импорта из Турции в этом году».</p>
 </section>
-<section id="документация-и-код" class="level2">
-<h2 class="anchored" data-anchor-id="документация-и-код">Документация и код</h2>
-<p>Проект открыт. Полная документация — в папке <a href="https://github.com/quantviews/mgimo-foreign-trade/tree/main/docs"><code>docs/</code></a> репозитория. Ключевые материалы:</p>
+<section id="приватность-и-лимиты" class="level2">
+<h2 class="anchored" data-anchor-id="приватность-и-лимиты">Приватность и лимиты</h2>
 <ul>
-<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a> — модель данных и справочники</li>
-<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge_processed_data-docs.md">merge_processed_data-docs.md</a> — пайплайн гармонизации и сборки базы</li>
-<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md">orchestration.md</a> — порядок запуска, nowcast/fizob и проверки качества</li>
-<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md">documentation_fizob.md</a> — методика индексов физических объёмов</li>
-<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md">testing-docs.md</a> — тесты и проверки</li>
-<li><a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md">api-reference.md</a> — справочник API: эндпоинты, параметры, лимиты</li>
+<li>Ключ идёт только на наш сервер (в заголовок авторизации) и агенту не показывается. Токены <strong>stateless</strong>: на сервере ключ в открытом виде не хранится.</li>
+<li>Доступ - только на чтение.</li>
+<li>Текущий план и остаток месячного объёма видны через инструмент <code>meta</code>; при исчерпании сервис отвечает понятной ошибкой с указанием, когда можно повторить.</li>
 </ul>
-<p>Исходный код: расчёт физобъёмов — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/fizob_queries.R"><code>src/fizob_queries.R</code></a>, оперативный прогноз — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/nowcast.R"><code>src/nowcast.R</code></a>, сборка базы — <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/pipelines/merge_pipeline.py"><code>src/pipelines/merge_pipeline.py</code></a>.</p>
-</section>
-<section id="вопросы" class="level2">
-<h2 class="anchored" data-anchor-id="вопросы">Вопросы</h2>
-<p>Если нужна методологическая деталь или особые требования к структуре данных — <a href="../site/index.html#как-начать">свяжитесь с командой</a>.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Локальный запуск (без хостинга)
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Тот же сервер можно запустить у себя по stdio (ключ в переменной окружения), если не хотите указывать его в облачных конфигурациях. Исходники и инструкция - в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/mcp-server/README.md">репозитории проекта</a>.</p>
+</div>
+</div>
+<p>Технический справочник по данным и REST API - в <a href="../site/technical.html">технической документации</a>.</p>
 
 
 </section>
