@@ -9,6 +9,7 @@ project:
     - site/data-model.qmd
     - site/api.qmd
     - site/mcp.qmd
+    - site/demo.qmd
     - site/bulletin_comparison.qmd
     - other/intro-presentation.qmd
     - other/foreign-trade-slide-2026.qmd

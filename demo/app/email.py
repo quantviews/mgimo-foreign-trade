@@ -44,7 +44,11 @@ def _send_sync(msg: EmailMessage) -> None:
 
 
 async def send_verification(to: str, link: str) -> None:
-    if not settings.smtp_host:
-        logger.warning("SMTP not configured; verification link for %s: %s", to, link)
+    """Best-effort: a mail failure must not break registration; log the link."""
+    if not settings.smtp_host or not settings.smtp_password:
+        logger.warning("SMTP not fully configured; verification link for %s: %s", to, link)
         return
-    await asyncio.to_thread(_send_sync, _build(to, link))
+    try:
+        await asyncio.to_thread(_send_sync, _build(to, link))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("SMTP send failed (%s); verification link for %s: %s", e, to, link)
