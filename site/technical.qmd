@@ -1,135 +1,71 @@
 ---
-title: "Как это работает"
+title: "Методология"
 ---
 
-Система собирает торговые данные из статистики стран-партнёров и международной базы ООН (UN Comtrade), приводит их к единой структуре и хранит в одной базе данных. 
+Система собирает торговые данные из статистики стран-партнёров и международной базы ООН (UN Comtrade), приводит их к единой структуре и хранит в одной базе данных.
 
-Ниже — как устроен этот путь от разрозненных выгрузок до готовых показателей.
+Ниже - как устроен этот путь от разрозненных выгрузок до готовых показателей.
+Что именно хранится в базе - на странице [«Модель данных»](data-model.qmd); как
+забирать данные программно - [«Доступ по API»](api.qmd).
 
 ## Общая схема
 
-Сбор → приведение к единому виду → единая база (DuckDB) → расчёт индексов физобъёмов и оперативного прогноза → выгрузки, дашборды и отчёты. 
+Сбор → приведение к единому виду → единая база (DuckDB) → расчёт индексов физобъёмов и оперативного прогноза → выгрузки, дашборды и отчёты.
 
-Порядок шагов и проверки качества описаны в [orchestration.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md), а целевая модель данных — в [data_model.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md).
+Порядок шагов и проверки качества описаны в [orchestration.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md), а целевая модель данных - в [data_model.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md).
 
 ## Этап 1. Сбор и приведение к единому виду
 
 Разные источники используют разные форматы, классификации и обозначения. Мы сводим их к общему стандарту:
 
-- **Единая структура.** Все потоки приводятся к одному набору полей — страна, товар, период, направление, стоимость и объём — независимо от источника. Используем обозначения, принятые в данных ФТС России. 
+- **Единая структура.** Все потоки приводятся к одному набору полей - страна, товар, период, направление, стоимость и объём - независимо от источника. Используем обозначения, принятые в данных ФТС России.
 - **Коды ТН ВЭД.** Коды хранятся как строки. Значимые ведущие нули сохраняются, а короткие коды дополняются нулями справа до 10 знаков; из них формируются уровни агрегации 2, 4, 6 и 8 знаков.
 - **Единицы измерения.** Исходные обозначения из поля `EDIZM` сопоставляются со стандартным справочником и приводятся к принятым в российской практике единицам.
 - **Страны.** Используются единые двухбуквенные ISO-коды стран.
 - **Международное дополнение.** Данные UN Comtrade добавляются там, где нет национальной статистики, чтобы закрыть пробелы по остальным странам.
 
-Результат — единая база данных (DuckDB), где все торговые потоки имеют одинаковую структуру. Подробности пайплайна: [merge_processed_data-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge_processed_data-docs.md), а трансформация Comtrade — [merge-comtrade-to-duckdb-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge-comtrade-to-duckdb-docs.md). О том, как устроен сбор по странам, — в [country-collector-guide.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/country-collector-guide.md).
+Результат - единая база данных (DuckDB), где все торговые потоки имеют одинаковую структуру. Подробности пайплайна: [merge_processed_data-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge_processed_data-docs.md), а трансформация Comtrade - [merge-comtrade-to-duckdb-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge-comtrade-to-duckdb-docs.md). О том, как устроен сбор по странам, - в [country-collector-guide.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/country-collector-guide.md).
 
 ## Этап 2. Индексы физических объёмов
 
-Физические объёмы (тонны, штуки, кубометры) — редкий и ценный показатель, который к тому же неполон. Мы восстанавливаем и индексируем его:
+Физические объёмы (тонны, штуки, кубометры) - редкий и ценный показатель, который к тому же неполон. Мы восстанавливаем и индексируем его:
 
-1. **Выбор меры.** Для каждого ряда выбирается натуральная мера — количество в дополнительной единице (`KOL`) или вес нетто (`NETTO`), — в зависимости от того, какая единица измерения для конкретной товарной группы устойчива во времени.
+1. **Выбор меры.** Для каждого ряда выбирается натуральная мера - количество в дополнительной единице (`KOL`) или вес нетто (`NETTO`), - в зависимости от того, какая единица измерения для конкретной товарной группы устойчива во времени.
 2. **Полная месячная панель.** Пропуски в помесячных рядах заполняются, чтобы объёмы можно было сравнивать по времени.
 3. **12-месячные показатели.** Значения сглаживаются скользящим окном, чтобы снять сезонность.
-4. **Базовый период и индекс.** Показатель нормируется относительно базового периода — 12 месяцев с начала первого года, где появились ненулевые объёмы.
+4. **Базовый период и индекс.** Показатель нормируется относительно базового периода - 12 месяцев с начала первого года, где появились ненулевые объёмы.
 5. **Агрегация.** Индексы считаются по группам ТН ВЭД на уровнях 2, 4 и 6 знаков, по странам и по всей торговле.
 
-Физобъёмы считаются только по фактическим данным, чтобы не смешивать их с прогнозом. Полная методика — в [documentation_fizob.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md).
+Физобъёмы считаются только по фактическим данным, чтобы не смешивать их с прогнозом. Полная методика - в [documentation_fizob.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md).
 
 ## Этап 3. Оперативный прогноз (nowcast)
 
-Национальная статистика выходит с задержкой в несколько месяцев. Чтобы дать оценку раньше, мы используем статистическую модель (динамическую факторную модель):
+Национальная статистика выходит с задержкой в несколько месяцев. Чтобы дать оценку раньше, мы используем ансамбль из двух дополняющих друг друга статистических моделей:
 
-- модель обучается на исторических рядах по группам товаров и направлениям;
-- по уже известным месяцам оценивается недостающая часть периода;
+- **факторная модель** улавливает совместное движение сотен товарных потоков (связи между группами, странами и направлениями), **SARIMA** - сезонность и инерцию каждого ряда; их прогнозы усредняются, что делает оценку устойчивее любой одной модели;
+- обучение идёт на исторических рядах по группам товаров и направлениям, по уже известным месяцам оценивается недостающая часть периода;
+- результат раскладывается до полной детализации (10-значные коды, страны, физобъёмы);
 - прогноз добавляется в базу только там, где ещё нет фактических данных, и всегда помечается: `SOURCE = nowcast`, `TYPE = pred`.
 
 Так прогноз никогда не подменяет факт и легко отделяется от него. Порядок пересчёта и проверки описаны в разделе о nowcast в [orchestration.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md).
 
 ## Контроль качества
 
-Перед публикацией база проходит проверки: поиск аномальных значений (см. [outlier_detection-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/outlier_detection-docs.md)) и набор SQL-проверок — обязательные таблицы и колонки, допустимые значения `NAPR`, `SOURCE`, `TYPE`, отсутствие пустых периодов и пересечения прогноза с фактом. Тесты и покрытые проверки описаны в [testing-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md).
-
-## Структура данных
-
-Основные поля базы:
-
-| Поле | Описание |
-|------|----------|
-| `STRANA` | Страна-партнёр — двухбуквенный ISO-код |
-| `NAPR` | Направление: `ИМ` (импорт) или `ЭК` (экспорт) |
-| `PERIOD` | Отчётный период — первый день месяца |
-| `TNVED` | Код товара по ТН ВЭД (плюс уровни `TNVED2/4/6/8`) |
-| `STOIM` | Стоимость, USD (в единицах, не в тысячах) |
-| `NETTO` | Вес нетто, кг |
-| `KOL` | Количество в дополнительной единице измерения |
-| `EDIZM` | Дополнительная единица измерения |
-| `SOURCE` | Источник ряда: `national`, `comtrade` или `nowcast` |
-| `TYPE` | Тип ряда: `fact` (факт) или `pred` (прогноз) |
-
-Индексы физобъёмов хранятся отдельно (`fizob_index`), названия стран и товаров — в справочниках. При выгрузке можно выбрать нужные таблицы и уровень агрегации. Полное описание схемы — в [data_model.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md).
-
-## Программный доступ (API)
-
-Поверх базы работает read-only сервис: тонкая прослойка над DuckDB, без собственного
-хранилища. Статус пилотный, доступ выдаётся по согласованию.
-
-**Авторизация.** Каждый запрос, кроме `/health`, требует персонального токена.
-Для скриптов это заголовок `Authorization: Bearer <токен>`, для Excel и Power BI —
-HTTP Basic, где имя пользователя любое, а пароль и есть токен. Токен пользователь
-выпускает сам в личном кабинете, он показывается один раз и перевыпускается там же.
-
-| Эндпоинт | Что отдаёт |
-|----------|------------|
-| `GET /health` | живость сервиса и версия данных, без авторизации |
-| `GET /v1/meta` | доступные измерения, меры и поля, ваш план и остаток квоты |
-| `GET /v1/reference/countries` | справочник стран с русскими названиями |
-| `GET /v1/reference/tnved` | коды ТН ВЭД и наименования, уровень задаётся параметром `level` |
-| `GET /v1/trade` | основной эндпоинт: фильтрация и агрегация торговых данных |
-| `GET /v1/fizob` | индексы физических объёмов по уровням `0/2/4/6` |
-| `GET /odata/trade`, `GET /odata/fizob` | те же данные OData-фидом для Excel и Power BI |
-
-**Два режима `/v1/trade`.** Если задан `group_by`, возвращаются измерения и суммы мер;
-если не задан — строки как есть. Фильтры: `strana`, `napr`, `type`, `source`,
-`tnved2/4/6`, `edizm_iso`, `period_from`, `period_to`. Меры задаются в `metrics`
-(по умолчанию `stoim,netto`), названия стран и товаров подтягиваются через `include`.
-Формат ответа — JSON или CSV.
-
-**Важное ограничение.** Мера `kol` аддитивна только внутри одной единицы измерения,
-поэтому при `metrics=...,kol` параметр `edizm` обязан быть в `group_by`, иначе сервис
-вернёт `400`. `stoim` в долларах и `netto` в килограммах складываются без оговорок.
-Это то же самое ограничение, что и в самой базе: количество в разных единицах
-суммировать нельзя.
-
-**Лимиты.** У каждого доступа есть план с тремя ограничениями: размер одной страницы,
-число запросов в минуту и месячная квота. При превышении сервис отвечает `429`
-с заголовком `Retry-After`; текущий остаток квоты виден в `/v1/meta`. Ошибки
-отдаются в формате RFC 7807.
-
-**OData.** Поддерживается подмножество OData v4: `$filter` со сравнениями и логическими
-операторами, `$select`, `$orderby`, `$top`, `$skip`, `$count` и серверная пагинация.
-Функции вроде `contains` пока не поддержаны. Фильтры, поставленные мышкой в редакторе
-запросов Excel, сворачиваются в `$filter` и выполняются на сервере, так что в файл
-приезжает только нужный срез.
-
-Интерактивная схема со всеми параметрами открывается в браузере по `/docs`. Справочник —
-[api-reference.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md),
-инструкция для аналитиков без кода —
-[api-excel-guide.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-excel-guide.md).
+Перед публикацией база проходит проверки: поиск аномальных значений (см. [outlier_detection-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/outlier_detection-docs.md)) и набор SQL-проверок - обязательные таблицы и колонки, допустимые значения `NAPR`, `SOURCE`, `TYPE`, отсутствие пустых периодов и пересечения прогноза с фактом. Тесты и покрытые проверки описаны в [testing-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md).
 
 ## Документация и код
 
-Проект открыт. Полная документация — в папке [`docs/`](https://github.com/quantviews/mgimo-foreign-trade/tree/main/docs) репозитория. Ключевые материалы:
+Проект открыт. Полная документация - в папке [`docs/`](https://github.com/quantviews/mgimo-foreign-trade/tree/main/docs) репозитория. Ключевые материалы:
 
-- [data_model.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md) — модель данных и справочники
-- [merge_processed_data-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge_processed_data-docs.md) — пайплайн гармонизации и сборки базы
-- [orchestration.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md) — порядок запуска, nowcast/fizob и проверки качества
-- [documentation_fizob.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md) — методика индексов физических объёмов
-- [testing-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md) — тесты и проверки
-- [api-reference.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md) — справочник API: эндпоинты, параметры, лимиты
+- [data_model.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md) - модель данных и справочники
+- [merge_processed_data-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/merge_processed_data-docs.md) - пайплайн гармонизации и сборки базы
+- [orchestration.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md) - порядок запуска, nowcast/fizob и проверки качества
+- [documentation_fizob.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/documentation_fizob.md) - методика индексов физических объёмов
+- [testing-docs.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/testing-docs.md) - тесты и проверки
+- [api-reference.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md) - справочник API: эндпоинты, параметры, лимиты
 
-Исходный код: расчёт физобъёмов — [`src/fizob_queries.R`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/fizob_queries.R), оперативный прогноз — [`src/nowcast.R`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/nowcast.R), сборка базы — [`src/pipelines/merge_pipeline.py`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/pipelines/merge_pipeline.py).
+Исходный код: расчёт физобъёмов - [`src/fizob_queries.R`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/fizob_queries.R), оперативный прогноз - [`src/nowcast.R`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/nowcast.R), сборка базы - [`src/pipelines/merge_pipeline.py`](https://github.com/quantviews/mgimo-foreign-trade/blob/main/src/pipelines/merge_pipeline.py).
 
 ## Вопросы
 
-Если нужна методологическая деталь или особые требования к структуре данных — [свяжитесь с командой](index.qmd#как-начать).
+Если нужна методологическая деталь или особые требования к структуре данных - [свяжитесь с командой](index.qmd#как-начать).

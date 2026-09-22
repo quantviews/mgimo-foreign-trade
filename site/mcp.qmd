@@ -132,7 +132,7 @@ async with streamablehttp_client(
 
 У этих моделей нет коннектора «по URL», но подключаются кодом через **function
 calling**: модель как LLM, а инструменты берутся из нашего MCP (через MCP-клиент,
-как в примере на Python) или напрямую из [REST API](technical.qmd). Ключ остаётся
+как в примере на Python) или напрямую из [REST API](api.qmd). Ключ остаётся
 вашим (учёт per-user).
 
 :::
@@ -165,5 +165,5 @@ calling**: модель как LLM, а инструменты берутся и�
 в [репозитории проекта](https://github.com/quantviews/mgimo-foreign-trade/blob/main/mcp-server/README.md).
 :::
 
-Технический справочник по данным и REST API - в
-[технической документации](technical.qmd).
+Модель данных - на странице [«Модель данных»](data-model.qmd), справочник по REST
+API - на странице [«Доступ по API»](api.qmd).

@@ -6,6 +6,8 @@ project:
   render:
     - site/index.qmd
     - site/technical.qmd
+    - site/data-model.qmd
+    - site/api.qmd
     - site/mcp.qmd
     - site/bulletin_comparison.qmd
     - other/intro-presentation.qmd
@@ -27,9 +29,15 @@ website:
       - text: "Главная"
         href: site/index.qmd
       - text: "Техническая документация"
-        href: site/technical.qmd
-      - text: "MCP"
-        href: site/mcp.qmd
+        menu:
+          - text: "Методология"
+            href: site/technical.qmd
+          - text: "Модель данных"
+            href: site/data-model.qmd
+          - text: "Доступ по API"
+            href: site/api.qmd
+          - text: "ИИ-агент (MCP)"
+            href: site/mcp.qmd
       - text: "Месячный бюллетень"
         menu:
           - text: "Сводный обзор"
