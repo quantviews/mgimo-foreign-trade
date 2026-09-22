@@ -28,6 +28,13 @@ def _build(to: str, link: str) -> EmailMessage:
 
 
 def _send_sync(msg: EmailMessage) -> None:
+    # Port 465 = implicit SSL (Yandex, Gmail); otherwise plain + STARTTLS on 587.
+    if settings.smtp_port == 465:
+        with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=30) as s:
+            if settings.smtp_user:
+                s.login(settings.smtp_user, settings.smtp_password)
+            s.send_message(msg)
+        return
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as s:
         if settings.smtp_starttls:
             s.starttls()
