@@ -72,7 +72,9 @@ repeatable: pass the flag again per value.
 - Keep `--limit` modest; the endpoint paginates and `meta.has_more`/`next_offset`
   tells you if more exist.
 - Read `meta` in the response (rows, table, has_more) and the units above before
-  stating a figure. State the unit (USD / kg / index) and the period.
+  stating a figure. State the unit (USD / kg / index) and the period. Every `trade`
+  response also carries `meta.period_max` (the latest available month), so you do
+  not need a separate `meta` call just to bound "latest" or "this year".
 - Values are USD and kg in absolute units; format large numbers readably (bln/mln).
 
 ## Fast answers: keep it to 1-2 calls
@@ -88,9 +90,12 @@ these recipes keeps a question to a couple of calls instead of an open explorati
   `period` (or `year`), filter country/napr/product, metric `stoim`.
 - **"Top products / partners by value"**: one `trade` call, group by `tnved2` (or
   `strana`), `--include tnved2_name`, `--order-by stoim --desc --limit 15`.
-- **"What grew / fell most (value)"**: exactly two `trade` calls (the two periods),
-  grouped by `tnved2`; join by code locally, rank by the difference. Give the
-  absolute change and the percent, and flag a small base.
+- **"What grew / fell most (value)"**: group by `tnved2,year` over the whole range
+  in one call (the `year` dimension yields a value per group per year), then diff the
+  years locally and rank; or, for two specific months, two calls grouped by `tnved2`.
+  Give the absolute change and the percent, and flag a small base.
+- **"Compare years / totals across years"**: one `trade` call with `year` in
+  `group_by` over the full range - not one call per year.
 - **"...in physical terms / tonnage"**: same as growth but metric `netto` (kg), not
   `stoim`. Weight is additive across countries, so group by `tnved2` directly.
 - **"Real / price-cleaned volume dynamics of <country>'s <product>"**: use `fizob`
