@@ -68,10 +68,6 @@ ul.task-list li input[type="checkbox"] {
     "search-label": "Поиск"
   }
 }</script>
-<meta name="mermaid-theme" content="neutral">
-<script src="../site_libs/quarto-diagram/mermaid.min.js"></script>
-<script src="../site_libs/quarto-diagram/mermaid-init.js"></script>
-<link href="../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
 
 
 </head>
@@ -291,95 +287,8 @@ ul.task-list li input[type="checkbox"] {
 <p><span><strong>Индия</strong> - 562 тыс.</span> <span><strong>Китай</strong> - 489 тыс.</span> <span><strong>Турция</strong> - 334 тыс.</span></p>
 </div>
 </div>
-<div class="cell" data-fig-width="11" data-fig-height="5" data-layout-align="default">
-<div class="cell-output-display">
-<div>
-<p></p><figure class="figure"><p></p>
-<div>
-<pre class="mermaid mermaid-js">%%{init: {
-  "theme": "base",
-  "themeVariables": {
-    "fontSize": "14px",
-    "fontFamily": "Inter, Segoe UI, Arial, sans-serif",
-    "primaryColor": "#ffffff",
-    "primaryTextColor": "#2c3e50",
-    "primaryBorderColor": "#c5dff5",
-    "secondaryColor": "#e8f4fd",
-    "secondaryTextColor": "#003d7a",
-    "secondaryBorderColor": "#003d7a",
-    "tertiaryColor": "#f0f5ff",
-    "tertiaryTextColor": "#003d7a",
-    "tertiaryBorderColor": "#c5dff5",
-    "clusterBkg": "#f8f9fb",
-    "clusterBorder": "#c5dff5",
-    "lineColor": "#5a6a7a",
-    "titleColor": "#003d7a"
-  }
-}}%%
-flowchart LR
-    subgraph sources["Источники"]
-        direction TB
-        A["Китай, Индия, Турция&lt;br/&gt;&lt;i&gt;статистика стран-партнёров:&lt;br/&gt;оперативно и детально&lt;/i&gt;"]
-        C["База ООН (UN Comtrade)&lt;br/&gt;&lt;i&gt;заполнение пробелов · 138 стран&lt;/i&gt;"]
-    end
-
-    subgraph etl["Обработка"]
-        direction TB
-        D["Автоматический&lt;br/&gt;сбор"]
-        E["Приведение&lt;br/&gt;к единому виду"]
-    end
-
-    subgraph storage["Единая база"]
-        F[("Готовые&lt;br/&gt;данные")]
-    end
-
-    subgraph access["Доступ"]
-        direction TB
-        G["Выгрузки и API"]
-        H["Дашборды"]
-        I["Физобъёмы и прогноз"]
-    end
-
-    A --&gt; D
-    C --&gt; D
-    D --&gt; E --&gt; F
-    F --&gt; G &amp; H &amp; I
-
-    style A fill:#ffffff,color:#2c3e50,stroke:#003d7a
-    style C fill:#ffffff,color:#2c3e50,stroke:#c5dff5
-    style D fill:#ffffff,color:#2c3e50,stroke:#c5dff5
-    style F fill:#003d7a,color:#fff,stroke:#e74c3c,stroke-width:3px
-    style G fill:#e8f4fd,color:#003d7a,stroke:#003d7a
-    style H fill:#e8f4fd,color:#003d7a,stroke:#003d7a
-    style I fill:#fdecea,color:#c0392b,stroke:#e74c3c
-    style E fill:#f0fff4,color:#1e7a45,stroke:#27ae60
-    style sources fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
-    style etl fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
-    style storage fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
-    style access fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
-</pre>
-</div>
-<p></p></figure><p></p>
-</div>
-</div>
-</div>
 <div class="slide-takeaway">
-<p>Для каждой записи сохраняется информация об источнике: видно, из национальной статистики какой страны или из какой международной базы получено значение.</p>
-</div>
-</section>
-<section id="как-мы-сводим-данные-воедино" class="level2">
-<h2 class="anchored" data-anchor-id="как-мы-сводим-данные-воедино">Как мы сводим данные воедино</h2>
-<p>Основная содержательная работа проекта - гармонизация. Данные из разных стран приходят в несовместимом виде, и мы приводим их к общему стандарту по трём направлениям.</p>
-<div class="feature-grid">
-<div class="feature-card">
-<p><strong>Единая структура</strong> Страна, товар, период, стоимость и объём во всех источниках названы и устроены одинаково - данные разных стран можно сравнивать напрямую.</p>
-</div>
-<div class="feature-card">
-<p><strong>Российские единицы измерения</strong> Тонны, штуки, литры и прочие единицы приведены к обозначениям, принятым в российской практике.</p>
-</div>
-<div class="feature-card">
-<p><strong>Русские названия товаров</strong> Для кодов ТН ВЭД, у которых нет официального русского названия, мы подготовили перевод - таблицы читаются без обращения к внешним справочникам.</p>
-</div>
+<p>Для каждой записи сохраняется источник: видно, из национальной статистики какой страны или из какой международной базы получено значение. Как устроены сбор и приведение к единому виду - на странице <a href="../site/technical.html">«Методология»</a>.</p>
 </div>
 </section>
 <section id="чего-нет-у-других-сервисов" class="level2">
