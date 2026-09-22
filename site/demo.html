@@ -252,6 +252,9 @@ ul.task-list li input[type="checkbox"] {
   </section>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+
 <style>
 .demo-app { max-width: 760px; margin: 0 auto; }
 .demo-card { border: 1px solid #e3e8ee; border-radius: 12px; padding: 20px; background: #fff; }
@@ -273,6 +276,19 @@ ul.task-list li input[type="checkbox"] {
 .demo-ex { font-size: .85rem; color: #003d7a; background: #eef4fb; border: 1px solid #d6e4f5; border-radius: 999px; padding: 6px 12px; cursor: pointer; }
 #demo-input { flex: 1 1 100%; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 8px; font-size: 1rem; resize: vertical; font-family: inherit; }
 .demo-disclaimer { margin-top: 14px; font-size: .8rem; color: #8494a5; }
+/* Rendered Markdown inside an AI answer */
+.demo-bubble.ai { max-width: 100%; }
+.demo-bubble.ai > :first-child { margin-top: 0; }
+.demo-bubble.ai > :last-child { margin-bottom: 0; }
+.demo-bubble.ai h1, .demo-bubble.ai h2, .demo-bubble.ai h3 { font-size: 1rem; margin: .6em 0 .3em; color: #003d7a; }
+.demo-bubble.ai p, .demo-bubble.ai ul, .demo-bubble.ai ol { margin: .4em 0; }
+.demo-bubble.ai ul, .demo-bubble.ai ol { padding-left: 1.2em; }
+.demo-bubble.ai strong { color: #14202b; }
+.demo-bubble.ai code { background: #e7ecf2; padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+.demo-bubble.ai table { border-collapse: collapse; margin: .5em 0; font-size: .88rem; display: block; overflow-x: auto; max-width: 100%; }
+.demo-bubble.ai th, .demo-bubble.ai td { border: 1px solid #d6dee8; padding: 4px 9px; text-align: right; white-space: nowrap; }
+.demo-bubble.ai th { background: #eef4fb; color: #003d7a; }
+.demo-bubble.ai td:first-child, .demo-bubble.ai th:first-child { text-align: left; }
 </style>
 
 <script>
@@ -365,9 +381,22 @@ ul.task-list li input[type="checkbox"] {
     history.push({ role: "user", content: text });
 
     let aiBubble = null, answer = "";
+    const renderMd = (t) => {
+      try {
+        if (window.marked && window.DOMPurify)
+          return window.DOMPurify.sanitize(window.marked.parse(t));
+      } catch (e) { /* fall back to text */ }
+      return null;
+    };
     const setAnswer = (t) => {
       answer = t;
-      if (!aiBubble) aiBubble = bubble("ai", t); else aiBubble.textContent = t;
+      if (!aiBubble) {
+        aiBubble = document.createElement("div");
+        aiBubble.className = "demo-bubble ai";
+        thread.appendChild(aiBubble);
+      }
+      const html = renderMd(t);
+      if (html !== null) aiBubble.innerHTML = html; else aiBubble.textContent = t;
       thread.scrollTop = thread.scrollHeight;
     };
 
