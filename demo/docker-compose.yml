@@ -22,9 +22,8 @@ services:
       MGIMO_DEMO_SMTP_PASSWORD: ${MGIMO_DEMO_SMTP_PASSWORD:-}
       MGIMO_DEMO_TURN_LIMIT: ${MGIMO_DEMO_TURN_LIMIT:-10}
       MGIMO_DEMO_DAILY_BUDGET: ${MGIMO_DEMO_DAILY_BUDGET:-500}
-    ports:
-      # Pilot: exposed on :8091 for testing. Once behind nginx (/demo/), drop this.
-      - "8091:8000"
+    # No published port: reached only through nginx (/demo/) on the Superset
+    # network. Add a `ports:` mapping back temporarily if you need to test direct.
     networks:
       - superset_net
 
