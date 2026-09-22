@@ -44,6 +44,8 @@ website:
       - text: "Дашборды"
         href: https://nts.mgimo.ru/superset/
         target: _blank
+      - text: "Спросить ИИ"
+        href: demo.qmd
       - text: "Презентации"
         menu:
           - text: "Обзор проекта"
