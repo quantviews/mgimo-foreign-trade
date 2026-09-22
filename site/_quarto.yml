@@ -18,7 +18,7 @@ website:
     left:
       - text: "Главная"
         href: index.qmd
-      - text: "Техническая документация"
+      - text: "Документация"
         menu:
           - text: "Методология"
             href: technical.qmd
