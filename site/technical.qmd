@@ -12,6 +12,74 @@ title: "Методология"
 
 Сбор → приведение к единому виду → единая база (DuckDB) → расчёт индексов физобъёмов и оперативного прогноза → выгрузки, дашборды и отчёты.
 
+```{mermaid}
+%%| fig-width: 11
+%%| fig-height: 5
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontSize": "14px",
+    "fontFamily": "Inter, Segoe UI, Arial, sans-serif",
+    "primaryColor": "#ffffff",
+    "primaryTextColor": "#2c3e50",
+    "primaryBorderColor": "#c5dff5",
+    "secondaryColor": "#e8f4fd",
+    "secondaryTextColor": "#003d7a",
+    "secondaryBorderColor": "#003d7a",
+    "tertiaryColor": "#f0f5ff",
+    "tertiaryTextColor": "#003d7a",
+    "tertiaryBorderColor": "#c5dff5",
+    "clusterBkg": "#f8f9fb",
+    "clusterBorder": "#c5dff5",
+    "lineColor": "#5a6a7a",
+    "titleColor": "#003d7a"
+  }
+}}%%
+flowchart LR
+    subgraph sources["Источники"]
+        direction TB
+        A["Китай, Индия, Турция<br/><i>статистика стран-партнёров:<br/>оперативно и детально</i>"]
+        C["База ООН (UN Comtrade)<br/><i>заполнение пробелов · 138 стран</i>"]
+    end
+
+    subgraph etl["Обработка"]
+        direction TB
+        D["Автоматический<br/>сбор"]
+        E["Приведение<br/>к единому виду"]
+    end
+
+    subgraph storage["Единая база"]
+        F[("Готовые<br/>данные")]
+    end
+
+    subgraph access["Доступ"]
+        direction TB
+        G["Выгрузки и API"]
+        H["Дашборды"]
+        I["Физобъёмы и прогноз"]
+    end
+
+    A --> D
+    C --> D
+    D --> E --> F
+    F --> G & H & I
+
+    style A fill:#ffffff,color:#2c3e50,stroke:#003d7a
+    style C fill:#ffffff,color:#2c3e50,stroke:#c5dff5
+    style D fill:#ffffff,color:#2c3e50,stroke:#c5dff5
+    style F fill:#003d7a,color:#fff,stroke:#e74c3c,stroke-width:3px
+    style G fill:#e8f4fd,color:#003d7a,stroke:#003d7a
+    style H fill:#e8f4fd,color:#003d7a,stroke:#003d7a
+    style I fill:#fdecea,color:#c0392b,stroke:#e74c3c
+    style E fill:#f0fff4,color:#1e7a45,stroke:#27ae60
+    style sources fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
+    style etl fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
+    style storage fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
+    style access fill:#f8f9fb,stroke:#c5dff5,color:#003d7a
+```
+
+Для каждой записи сохраняется информация об источнике: видно, из национальной статистики какой страны или из какой международной базы получено значение. Как именно источники приводятся к общему стандарту - в «Этапе 1» ниже.
+
 Порядок шагов и проверки качества описаны в [orchestration.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/orchestration.md), а целевая модель данных - в [data_model.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md).
 
 ## Этап 1. Сбор и приведение к единому виду
