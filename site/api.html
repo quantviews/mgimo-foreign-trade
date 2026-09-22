@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Подключение ИИ-агентов (MCP) – Национальная торговая статистика</title>
+<title>Доступ по API – Национальная торговая статистика</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -19,41 +19,6 @@ ul.task-list li input[type="checkbox"] {
   width: 0.8em;
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
-}
-/* CSS for syntax highlighting */
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-  }
-pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-div.sourceCode
-  {   }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
 </style>
 
@@ -226,8 +191,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Подключение ИИ-агентов (MCP)</h1>
-<p class="subtitle lead">Данные о внешней торговле - прямо в вашем ИИ-ассистенте</p>
+<h1 class="title">Доступ по API</h1>
 </div>
 
 
@@ -244,147 +208,70 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<p>MCP (Model Context Protocol) - стандарт, по которому ИИ-ассистенты подключаются к внешним источникам данных. У проекта есть готовый MCP-сервер: агент подключается к нему и сам вызывает нужные инструменты (свежие цифры, справочники, срезы торговли, индексы физобъёмов), а вы задаёте вопросы обычным языком.</p>
-<ul>
-<li><strong>Адрес удалённого сервера:</strong> <code>https://nts.mgimo.ru/mcp</code></li>
-<li><strong>Доступ:</strong> по персональному ключу (тот же, что для API); квоты и аудит считаются по каждому ключу отдельно.</li>
-<li><strong>Инструменты:</strong> <code>meta</code>, <code>reference</code>, <code>trade</code>, <code>fizob</code> (описаны ниже).</li>
-</ul>
-<section id="шаг-1.-получить-ключ" class="level2">
-<h2 class="anchored" data-anchor-id="шаг-1.-получить-ключ">Шаг 1. Получить ключ</h2>
-<p>Ключ выдаётся в личном кабинете: <strong><a href="https://nts.mgimo.ru/superset/apikey/">nts.mgimo.ru/superset/apikey/</a></strong> (нужна роль <code>API</code>, назначает администратор). Ключ начинается с <code>mgt_</code>, показывается один раз - сохраните его. При утере перевыпускается там же.</p>
+<p>Поверх базы работает read-only сервис: тонкая прослойка над DuckDB, без собственного хранилища. Базовый адрес - <code>https://nts.mgimo.ru/api</code>, интерактивная схема (Swagger) - <code>https://nts.mgimo.ru/api/docs</code>. Статус пилотный, доступ по персональному ключу.</p>
+<section id="авторизация" class="level2">
+<h2 class="anchored" data-anchor-id="авторизация">Авторизация</h2>
+<p>Каждый запрос, кроме <code>/health</code>, требует персонального токена. Для скриптов это заголовок <code>Authorization: Bearer &lt;токен&gt;</code>, для Excel и Power BI - HTTP Basic, где имя пользователя любое, а пароль и есть токен. Токен пользователь выпускает сам в <a href="https://nts.mgimo.ru/superset/apikey/">личном кабинете</a>, он показывается один раз и перевыпускается там же.</p>
 </section>
-<section id="шаг-2.-подключить-клиента" class="level2">
-<h2 class="anchored" data-anchor-id="шаг-2.-подключить-клиента">Шаг 2. Подключить клиента</h2>
-<p>Ниже - готовые настройки. Везде адрес один и тот же (<code>https://nts.mgimo.ru/mcp</code>), меняется только способ передачи ключа. Подставьте свой ключ вместо <code>mgt_ВАШ_ТОКЕН</code>.</p>
-<div class="tabset-margin-container"></div><div class="panel-tabset">
-<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true">Claude веб / мобайл и ChatGPT</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false">Claude Desktop</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-3-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-3" role="tab" aria-controls="tabset-1-3" aria-selected="false">Claude Code (CLI)</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-4-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-4" role="tab" aria-controls="tabset-1-4" aria-selected="false">Cursor</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-5-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-5" role="tab" aria-controls="tabset-1-5" aria-selected="false">VS Code (Copilot)</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-6-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-6" role="tab" aria-controls="tabset-1-6" aria-selected="false">Свой агент (Python)</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-7-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-7" role="tab" aria-controls="tabset-1-7" aria-selected="false">GigaChat / YandexGPT</a></li></ul>
-<div class="tab-content">
-<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
-<p>Эти клиенты подключаются как «удалённый коннектор по URL» - <strong>без установки и без файлов конфигурации</strong>, авторизация через OAuth:</p>
-<ol type="1">
-<li>В настройках клиента добавьте коннектор по URL <code>https://nts.mgimo.ru/mcp</code> (в Claude: <strong>Settings → Connectors → Add custom connector</strong>; в ChatGPT: <strong>Settings → Connectors</strong>, на платном тарифе / Developer Mode).</li>
-<li>Клиент откроет страницу входа - <strong>вставьте персональный ключ</strong> (<code>mgt_...</code>) и подтвердите. Всё.</li>
-</ol>
-<p>Коннектор синхронизируется на все устройства, включая <strong>телефон</strong> (Claude на мобиле). Ключ вводится один раз; на сервере в открытом виде не хранится.</p>
-</div>
-<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
-<p>Claude Desktop для удалённых серверов ждёт OAuth, поэтому ключ удобнее подключить через мост <a href="https://www.npmjs.com/package/mcp-remote"><code>mcp-remote</code></a> (нужен Node.js). Откройте <code>claude_desktop_config.json</code> (Windows <code>%APPDATA%\Claude\</code>, macOS <code>~/Library/Application Support/Claude/</code>), добавьте и перезапустите:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"mcpServers"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"mgimo-trade"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"command"</span><span class="fu">:</span> <span class="st">"npx"</span><span class="fu">,</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"args"</span><span class="fu">:</span> <span class="ot">[</span><span class="st">"-y"</span><span class="ot">,</span> <span class="st">"mcp-remote"</span><span class="ot">,</span> <span class="st">"https://nts.mgimo.ru/mcp"</span><span class="ot">,</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>               <span class="st">"--header"</span><span class="ot">,</span> <span class="st">"Authorization: Bearer mgt_ВАШ_ТОКЕН"</span><span class="ot">]</span></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div id="tabset-1-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-3-tab">
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">claude</span> mcp add <span class="at">--transport</span> http mgimo-trade https://nts.mgimo.ru/mcp <span class="dt">\</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--header</span> <span class="st">"Authorization: Bearer mgt_ВАШ_ТОКЕН"</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div id="tabset-1-4" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-4-tab">
-<p>Надёжнее всего - через мост <a href="https://www.npmjs.com/package/mcp-remote"><code>mcp-remote</code></a> (нужен Node.js): нативный <code>url</code> + <code>headers</code> у Cursor нестабильно работает с OAuth-сервером (может давать 401). В <code>.cursor/mcp.json</code> (в проекте) или <code>~/.cursor/mcp.json</code> (глобально):</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"mcpServers"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"mgimo-trade"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"command"</span><span class="fu">:</span> <span class="st">"npx"</span><span class="fu">,</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"args"</span><span class="fu">:</span> <span class="ot">[</span><span class="st">"-y"</span><span class="ot">,</span> <span class="st">"mcp-remote"</span><span class="ot">,</span> <span class="st">"https://nts.mgimo.ru/mcp"</span><span class="ot">,</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>               <span class="st">"--header"</span><span class="ot">,</span> <span class="st">"Authorization: Bearer mgt_ВАШ_ТОКЕН"</span><span class="ot">]</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Без Node - чистый OAuth: оставьте только <code>url</code> (без <code>headers</code>), Cursor откроет браузер с нашей страницей входа для ключа:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span> <span class="dt">"mcpServers"</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">"mgimo-trade"</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">"url"</span><span class="fu">:</span> <span class="st">"https://nts.mgimo.ru/mcp"</span> <span class="fu">}</span> <span class="fu">}</span> <span class="fu">}</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>После подключения сервер <code>mgimo-trade</code> загорится зелёным в <strong>Settings → MCP</strong> и покажет инструменты. Пользоваться в чате в режиме <strong>Agent</strong>.</p>
-</div>
-<div id="tabset-1-5" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-5-tab">
-<p>Файл <code>.vscode/mcp.json</code> (формат отличается от Cursor: ключ <code>servers</code>, <code>type: http</code>):</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"servers"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"mgimo-trade"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"type"</span><span class="fu">:</span> <span class="st">"http"</span><span class="fu">,</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"url"</span><span class="fu">:</span> <span class="st">"https://nts.mgimo.ru/mcp"</span><span class="fu">,</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"headers"</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">"Authorization"</span><span class="fu">:</span> <span class="st">"Bearer mgt_ВАШ_ТОКЕН"</span> <span class="fu">}</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div id="tabset-1-6" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-6-tab">
-<p>Любой MCP-совместимый агент (в т.ч. адаптеры LangChain / LlamaIndex):</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> mcp <span class="im">import</span> ClientSession</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> mcp.client.streamable_http <span class="im">import</span> streamablehttp_client</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> streamablehttp_client(</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"https://nts.mgimo.ru/mcp"</span>,</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        headers<span class="op">=</span>{<span class="st">"Authorization"</span>: <span class="st">"Bearer mgt_ВАШ_ТОКЕН"</span>}) <span class="im">as</span> (r, w, _):</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">with</span> ClientSession(r, w) <span class="im">as</span> s:</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> s.initialize()</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>([t.name <span class="cf">for</span> t <span class="kw">in</span> (<span class="cf">await</span> s.list_tools()).tools])</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>((<span class="cf">await</span> s.call_tool(<span class="st">"meta"</span>, {})).content[<span class="dv">0</span>].text)</span></code><button title="Скопировать текст" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div id="tabset-1-7" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-7-tab">
-<p>У этих моделей нет коннектора «по URL», но подключаются кодом через <strong>function calling</strong>: модель как LLM, а инструменты берутся из нашего MCP (через MCP-клиент, как в примере на Python) или напрямую из <a href="../site/api.html">REST API</a>. Ключ остаётся вашим (учёт per-user).</p>
-</div>
-</div>
-</div>
-</section>
-<section id="инструменты" class="level2">
-<h2 class="anchored" data-anchor-id="инструменты">Инструменты</h2>
+<section id="эндпоинты" class="level2">
+<h2 class="anchored" data-anchor-id="эндпоинты">Эндпоинты</h2>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
+<col style="width: 45%">
+<col style="width: 54%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Инструмент</th>
-<th>Что делает</th>
+<th>Эндпоинт</th>
+<th>Что отдаёт</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>meta</code></td>
-<td>последний доступный период данных + ваш тариф и остаток квоты</td>
+<td><code>GET /health</code></td>
+<td>живость сервиса и версия данных, без авторизации</td>
 </tr>
 <tr class="even">
-<td><code>reference</code></td>
-<td>справочники: <code>countries</code> (страны) или <code>tnved</code> (коды ТН ВЭД по уровню)</td>
+<td><code>GET /v1/meta</code></td>
+<td>доступные измерения, меры и поля, ваш план и остаток квоты</td>
 </tr>
 <tr class="odd">
-<td><code>trade</code></td>
-<td>строки торговли или агрегаты на сервере (страна, направление, код ТН ВЭД, период, <code>group_by</code>, метрики)</td>
+<td><code>GET /v1/reference/countries</code></td>
+<td>справочник стран с русскими названиями</td>
 </tr>
 <tr class="even">
-<td><code>fizob</code></td>
-<td>индексы физобъёмов - реальные объёмы без влияния цен (особенность проекта)</td>
+<td><code>GET /v1/reference/tnved</code></td>
+<td>коды ТН ВЭД и наименования, уровень задаётся параметром <code>level</code></td>
+</tr>
+<tr class="odd">
+<td><code>GET /v1/trade</code></td>
+<td>основной эндпоинт: фильтрация и агрегация торговых данных</td>
+</tr>
+<tr class="even">
+<td><code>GET /v1/fizob</code></td>
+<td>индексы физических объёмов по уровням <code>0/2/4/6</code></td>
+</tr>
+<tr class="odd">
+<td><code>GET /odata/trade</code>, <code>GET /odata/fizob</code></td>
+<td>те же данные OData-фидом для Excel и Power BI</td>
 </tr>
 </tbody>
 </table>
-<p>Агент вызывает их сам; вам достаточно спросить обычным языком, например: «сравни экспорт нефти в Индию и Китай за последние 12 месяцев» или «покажи топ товарных групп импорта из Турции в этом году».</p>
 </section>
-<section id="приватность-и-лимиты" class="level2">
-<h2 class="anchored" data-anchor-id="приватность-и-лимиты">Приватность и лимиты</h2>
-<ul>
-<li>Ключ идёт только на наш сервер (в заголовок авторизации) и агенту не показывается. Токены <strong>stateless</strong>: на сервере ключ в открытом виде не хранится.</li>
-<li>Доступ - только на чтение.</li>
-<li>Текущий план и остаток месячного объёма видны через инструмент <code>meta</code>; при исчерпании сервис отвечает понятной ошибкой с указанием, когда можно повторить.</li>
-</ul>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Локальный запуск (без хостинга)
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>Тот же сервер можно запустить у себя по stdio (ключ в переменной окружения), если не хотите указывать его в облачных конфигурациях. Исходники и инструкция - в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/mcp-server/README.md">репозитории проекта</a>.</p>
-</div>
-</div>
-<p>Модель данных - на странице <a href="../site/data-model.html">«Модель данных»</a>, справочник по REST API - на странице <a href="../site/api.html">«Доступ по API»</a>.</p>
+<section id="режимы-и-фильтры-v1trade" class="level2">
+<h2 class="anchored" data-anchor-id="режимы-и-фильтры-v1trade">Режимы и фильтры <code>/v1/trade</code></h2>
+<p>Если задан <code>group_by</code>, возвращаются измерения и суммы мер; если не задан - строки как есть. Фильтры: <code>strana</code>, <code>napr</code>, <code>type</code>, <code>source</code>, <code>tnved2/4/6</code>, <code>edizm_iso</code>, <code>period_from</code>, <code>period_to</code>. Меры задаются в <code>metrics</code> (по умолчанию <code>stoim,netto</code>), названия стран и товаров подтягиваются через <code>include</code>. Формат ответа - JSON или CSV.</p>
+<p><strong>Важное ограничение.</strong> Мера <code>kol</code> аддитивна только внутри одной единицы измерения, поэтому при <code>metrics=...,kol</code> параметр <code>edizm</code> обязан быть в <code>group_by</code>, иначе сервис вернёт <code>400</code>. <code>stoim</code> в долларах и <code>netto</code> в килограммах складываются без оговорок. Это то же самое ограничение, что и в самой базе: количество в разных единицах суммировать нельзя.</p>
+</section>
+<section id="лимиты" class="level2">
+<h2 class="anchored" data-anchor-id="лимиты">Лимиты</h2>
+<p>У каждого доступа есть план с тремя ограничениями: размер одной страницы, число запросов в минуту и месячная квота. При превышении сервис отвечает <code>429</code> с заголовком <code>Retry-After</code>; текущий остаток квоты виден в <code>/v1/meta</code>. Ошибки отдаются в формате RFC 7807.</p>
+</section>
+<section id="odata" class="level2">
+<h2 class="anchored" data-anchor-id="odata">OData</h2>
+<p>Поддерживается подмножество OData v4: <code>$filter</code> со сравнениями и логическими операторами, <code>$select</code>, <code>$orderby</code>, <code>$top</code>, <code>$skip</code>, <code>$count</code> и серверная пагинация. Функции вроде <code>contains</code> пока не поддержаны. Фильтры, поставленные мышкой в редакторе запросов Excel, сворачиваются в <code>$filter</code> и выполняются на сервере, так что в файл приезжает только нужный срез.</p>
+<hr>
+<p>Интерактивная схема со всеми параметрами - по <code>https://nts.mgimo.ru/api/docs</code>. Справочник - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md">api-reference.md</a>, инструкция для аналитиков без кода - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-excel-guide.md">api-excel-guide.md</a>. Подключение ИИ-агентов - на странице <a href="../site/mcp.html">«ИИ-агент (MCP)»</a>.</p>
 
 
 </section>
