@@ -68,22 +68,32 @@ claude mcp add --transport http mgimo-trade https://nts.mgimo.ru/mcp \
 
 ### Cursor
 
-Создайте `.cursor/mcp.json` в корне проекта (или `~/.cursor/mcp.json` глобально),
-либо добавьте через **Settings → MCP → New MCP Server**:
+Надёжнее всего - через мост [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)
+(нужен Node.js): нативный `url` + `headers` у Cursor нестабильно работает с
+OAuth-сервером (может давать 401). В `.cursor/mcp.json` (в проекте) или
+`~/.cursor/mcp.json` (глобально):
 
 ```json
 {
   "mcpServers": {
     "mgimo-trade": {
-      "url": "https://nts.mgimo.ru/mcp",
-      "headers": { "Authorization": "Bearer mgt_ВАШ_ТОКЕН" }
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://nts.mgimo.ru/mcp",
+               "--header", "Authorization: Bearer mgt_ВАШ_ТОКЕН"]
     }
   }
 }
 ```
 
-После этого в **Settings → MCP** сервер загорится зелёным и покажет инструменты.
-Пользоваться в чате в режиме **Agent**.
+Без Node - чистый OAuth: оставьте только `url` (без `headers`), Cursor откроет
+браузер с нашей страницей входа для ключа:
+
+```json
+{ "mcpServers": { "mgimo-trade": { "url": "https://nts.mgimo.ru/mcp" } } }
+```
+
+После подключения сервер `mgimo-trade` загорится зелёным в **Settings → MCP** и
+покажет инструменты. Пользоваться в чате в режиме **Agent**.
 
 ### VS Code (Copilot)
 

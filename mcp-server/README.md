@@ -123,34 +123,40 @@ claude mcp add --transport http mgimo-trade https://nts.mgimo.ru/mcp \
   --header "Authorization: Bearer mgt_ВАШ_ТОКЕН"
 ```
 
-**Cursor** - удалённый MCP через `url` + `headers`. Два способа, любой на выбор.
+**Cursor** - надёжнее всего через мост
+[`mcp-remote`](https://www.npmjs.com/package/mcp-remote) (нужен Node.js): он сам
+держит соединение с заголовком и отдаёт его Cursor как stdio, минуя нативную
+логику Cursor, которая с OAuth-сервером ведёт себя нестабильно (пробует OAuth и
+теряет статический заголовок → 401). В `.cursor/mcp.json` (в корне проекта) или
+`~/.cursor/mcp.json` (глобально):
 
-1. *Через файл конфигурации.* Создайте `.cursor/mcp.json` в корне проекта (сервер
-   будет только в этом проекте) или `~/.cursor/mcp.json` (глобально, во всех
-   проектах):
+```json
+{
+  "mcpServers": {
+    "mgimo-trade": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://nts.mgimo.ru/mcp",
+               "--header", "Authorization: Bearer mgt_ВАШ_ТОКЕН"]
+    }
+  }
+}
+```
 
-   ```json
-   {
-     "mcpServers": {
-       "mgimo-trade": {
-         "url": "https://nts.mgimo.ru/mcp",
-         "headers": { "Authorization": "Bearer mgt_ВАШ_ТОКЕН" }
-       }
-     }
-   }
-   ```
+Без Node - чистый OAuth: оставьте только `url` (без `headers`), Cursor откроет
+браузер с нашей страницей входа для ключа:
 
-2. *Через интерфейс.* Cursor Settings (`Ctrl/Cmd+Shift+J`) → раздел **MCP**
-   (в новых версиях **Tools & Integrations**) → **New MCP Server** / **Add** →
-   вставьте тот же JSON и сохраните.
+```json
+{ "mcpServers": { "mgimo-trade": { "url": "https://nts.mgimo.ru/mcp" } } }
+```
 
-После этого в **Settings → MCP** сервер `mgimo-trade` должен загореться зелёным и
-показать инструменты `meta`, `reference`, `trade`, `fizob` (если серый - нажмите
-кнопку обновления или проверьте ключ и интернет). Пользоваться в чате в режиме
-**Agent**: ассистент сам вызывает инструменты; при первом вызове Cursor может
-попросить подтвердить запуск - разрешите (можно включить «always allow» для этого
-сервера). Токен хранится в файле конфигурации в открытом виде, поэтому
-`.cursor/mcp.json` в проекте лучше не коммитить в общий репозиторий.
+Настроить можно и через интерфейс: **Settings → MCP** (в новых версиях **Tools &
+Integrations**) → **New MCP Server** → тот же JSON. После подключения сервер
+`mgimo-trade` загорится зелёным и покажет инструменты `meta`, `reference`,
+`trade`, `fizob`; пользоваться в чате в режиме **Agent**. Токен в `.cursor/mcp.json`
+хранится в открытом виде - файл в проекте лучше не коммитить.
+
+> Нативный `url` + `headers` со статическим ключом у Cursor может давать 401 с
+> нашим OAuth-сервером - используйте `mcp-remote` или чистый OAuth выше.
 
 **VS Code** (Copilot, режим Agent) - формат отличается: файл `.vscode/mcp.json`,
 ключ `servers` и `type: http`:
