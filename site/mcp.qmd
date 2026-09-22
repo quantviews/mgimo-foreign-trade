@@ -1,0 +1,159 @@
+---
+title: "Подключение ИИ-агентов (MCP)"
+subtitle: "Данные о внешней торговле - прямо в вашем ИИ-ассистенте"
+---
+
+MCP (Model Context Protocol) - стандарт, по которому ИИ-ассистенты подключаются к
+внешним источникам данных. У проекта есть готовый MCP-сервер: агент подключается к
+нему и сам вызывает нужные инструменты (свежие цифры, справочники, срезы торговли,
+индексы физобъёмов), а вы задаёте вопросы обычным языком.
+
+- **Адрес удалённого сервера:** `https://nts.mgimo.ru/mcp`
+- **Доступ:** по персональному ключу (тот же, что для API); квоты и аудит считаются
+  по каждому ключу отдельно.
+- **Инструменты:** `meta`, `reference`, `trade`, `fizob` (описаны ниже).
+
+## Шаг 1. Получить ключ
+
+Ключ выдаётся в личном кабинете: **[nts.mgimo.ru/superset/apikey/](https://nts.mgimo.ru/superset/apikey/)**
+(нужна роль `API`, назначает администратор). Ключ начинается с `mgt_`, показывается
+один раз - сохраните его. При утере перевыпускается там же.
+
+## Шаг 2. Подключить клиента
+
+Ниже - готовые настройки. Везде адрес один и тот же (`https://nts.mgimo.ru/mcp`),
+меняется только способ передачи ключа. Подставьте свой ключ вместо `mgt_ВАШ_ТОКЕН`.
+
+::: {.panel-tabset}
+
+### Claude веб / мобайл и ChatGPT
+
+Эти клиенты подключаются как «удалённый коннектор по URL» - **без установки и без
+файлов конфигурации**, авторизация через OAuth:
+
+1. В настройках клиента добавьте коннектор по URL `https://nts.mgimo.ru/mcp`
+   (в Claude: **Settings → Connectors → Add custom connector**; в ChatGPT:
+   **Settings → Connectors**, на платном тарифе / Developer Mode).
+2. Клиент откроет страницу входа - **вставьте персональный ключ** (`mgt_...`) и
+   подтвердите. Всё.
+
+Коннектор синхронизируется на все устройства, включая **телефон** (Claude на
+мобиле). Ключ вводится один раз; на сервере в открытом виде не хранится.
+
+### Claude Desktop
+
+Claude Desktop для удалённых серверов ждёт OAuth, поэтому ключ удобнее подключить
+через мост [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) (нужен Node.js).
+Откройте `claude_desktop_config.json` (Windows `%APPDATA%\Claude\`, macOS
+`~/Library/Application Support/Claude/`), добавьте и перезапустите:
+
+```json
+{
+  "mcpServers": {
+    "mgimo-trade": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://nts.mgimo.ru/mcp",
+               "--header", "Authorization: Bearer mgt_ВАШ_ТОКЕН"]
+    }
+  }
+}
+```
+
+### Claude Code (CLI)
+
+```bash
+claude mcp add --transport http mgimo-trade https://nts.mgimo.ru/mcp \
+  --header "Authorization: Bearer mgt_ВАШ_ТОКЕН"
+```
+
+### Cursor
+
+Создайте `.cursor/mcp.json` в корне проекта (или `~/.cursor/mcp.json` глобально),
+либо добавьте через **Settings → MCP → New MCP Server**:
+
+```json
+{
+  "mcpServers": {
+    "mgimo-trade": {
+      "url": "https://nts.mgimo.ru/mcp",
+      "headers": { "Authorization": "Bearer mgt_ВАШ_ТОКЕН" }
+    }
+  }
+}
+```
+
+После этого в **Settings → MCP** сервер загорится зелёным и покажет инструменты.
+Пользоваться в чате в режиме **Agent**.
+
+### VS Code (Copilot)
+
+Файл `.vscode/mcp.json` (формат отличается от Cursor: ключ `servers`, `type: http`):
+
+```json
+{
+  "servers": {
+    "mgimo-trade": {
+      "type": "http",
+      "url": "https://nts.mgimo.ru/mcp",
+      "headers": { "Authorization": "Bearer mgt_ВАШ_ТОКЕН" }
+    }
+  }
+}
+```
+
+### Свой агент (Python)
+
+Любой MCP-совместимый агент (в т.ч. адаптеры LangChain / LlamaIndex):
+
+```python
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async with streamablehttp_client(
+        "https://nts.mgimo.ru/mcp",
+        headers={"Authorization": "Bearer mgt_ВАШ_ТОКЕН"}) as (r, w, _):
+    async with ClientSession(r, w) as s:
+        await s.initialize()
+        print([t.name for t in (await s.list_tools()).tools])
+        print((await s.call_tool("meta", {})).content[0].text)
+```
+
+### GigaChat / YandexGPT
+
+У этих моделей нет коннектора «по URL», но подключаются кодом через **function
+calling**: модель как LLM, а инструменты берутся из нашего MCP (через MCP-клиент,
+как в примере на Python) или напрямую из [REST API](technical.qmd). Ключ остаётся
+вашим (учёт per-user).
+
+:::
+
+## Инструменты
+
+| Инструмент | Что делает |
+|---|---|
+| `meta` | последний доступный период данных + ваш тариф и остаток квоты |
+| `reference` | справочники: `countries` (страны) или `tnved` (коды ТН ВЭД по уровню) |
+| `trade` | строки торговли или агрегаты на сервере (страна, направление, код ТН ВЭД, период, `group_by`, метрики) |
+| `fizob` | индексы физобъёмов - реальные объёмы без влияния цен (особенность проекта) |
+
+Агент вызывает их сам; вам достаточно спросить обычным языком, например: «сравни
+экспорт нефти в Индию и Китай за последние 12 месяцев» или «покажи топ товарных
+групп импорта из Турции в этом году».
+
+## Приватность и лимиты
+
+- Ключ идёт только на наш сервер (в заголовок авторизации) и агенту не
+  показывается. Токены **stateless**: на сервере ключ в открытом виде не хранится.
+- Доступ - только на чтение.
+- Текущий план и остаток месячного объёма видны через инструмент `meta`; при
+  исчерпании сервис отвечает понятной ошибкой с указанием, когда можно повторить.
+
+::: {.callout-note}
+## Локальный запуск (без хостинга)
+Тот же сервер можно запустить у себя по stdio (ключ в переменной окружения), если
+не хотите указывать его в облачных конфигурациях. Исходники и инструкция -
+в [репозитории проекта](https://github.com/quantviews/mgimo-foreign-trade/blob/main/mcp-server/README.md).
+:::
+
+Технический справочник по данным и REST API - в
+[технической документации](technical.qmd).

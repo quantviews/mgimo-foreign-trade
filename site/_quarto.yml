@@ -6,6 +6,7 @@ project:
   render:
     - index.qmd
     - technical.qmd
+    - mcp.qmd
     - bulletin_comparison.qmd
 
 website:
@@ -17,6 +18,8 @@ website:
         href: index.qmd
       - text: "Техническая документация"
         href: technical.qmd
+      - text: "MCP"
+        href: mcp.qmd
       - text: "Месячный бюллетень"
         menu:
           - text: "Сводный обзор"

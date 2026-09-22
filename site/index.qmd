@@ -311,7 +311,7 @@ JSON и CSV для скриптов на Python и R, OData-фид для Excel 
 
 </div>
 
-Пошаговая настройка клиентов - в [инструкции MCP-сервера](https://github.com/quantviews/mgimo-foreign-trade/blob/main/mcp-server/README.md).
+Пошаговая настройка клиентов - на странице [«Подключение ИИ-агентов (MCP)»](mcp.qmd).
 
 ### Тарифы
 

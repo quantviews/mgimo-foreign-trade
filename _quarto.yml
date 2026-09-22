@@ -6,6 +6,7 @@ project:
   render:
     - site/index.qmd
     - site/technical.qmd
+    - site/mcp.qmd
     - site/bulletin_comparison.qmd
     - other/intro-presentation.qmd
     - other/foreign-trade-slide-2026.qmd
@@ -27,6 +28,8 @@ website:
         href: site/index.qmd
       - text: "Техническая документация"
         href: site/technical.qmd
+      - text: "MCP"
+        href: site/mcp.qmd
       - text: "Месячный бюллетень"
         menu:
           - text: "Сводный обзор"
