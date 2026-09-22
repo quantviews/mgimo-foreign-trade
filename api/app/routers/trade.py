@@ -81,6 +81,7 @@ def trade(
     request.state.rows_returned = len(rows)
     request.state.cost_units = 1
 
+    dv = db.data_version()
     meta = {
         "rows": len(rows),
         "has_more": has_more,
@@ -88,6 +89,10 @@ def trade(
         "page_rows": page,
         "max_rows": max_rows,
         "table": qmeta["table"],
+        # Latest available data month, so a caller never needs a separate /meta
+        # round-trip just to bound "this year" / "latest" questions.
+        "period_max": dv["period_max"],
+        "data_version": dv["data_version"],
     }
 
     if format == "csv":

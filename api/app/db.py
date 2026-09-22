@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from typing import Any
 
 import duckdb
@@ -11,6 +12,12 @@ from .config import settings
 
 _con: duckdb.DuckDBPyConnection | None = None
 _lock = threading.Lock()
+
+# data_version() scans the whole table (COUNT + MIN/MAX over PERIOD); the answer
+# changes only when a new month is loaded, so cache it briefly. This keeps /meta
+# fast and lets /trade attach period_max to every response for free.
+_DV_TTL = 300.0  # seconds
+_dv_cache: tuple[float, dict] | None = None
 
 
 def get_connection() -> duckdb.DuckDBPyConnection:
@@ -45,16 +52,23 @@ def run_query(sql: str, params: list[Any] | None = None) -> tuple[list[str], lis
 
 
 def data_version() -> dict:
-    """Cheap freshness/summary for /health and /meta."""
+    """Cheap freshness/summary for /health, /meta and /trade (cached, see _DV_TTL)."""
+    global _dv_cache
+    now = time.monotonic()
+    cached = _dv_cache
+    if cached is not None and now - cached[0] < _DV_TTL:
+        return cached[1]
     cols, rows = run_query(
         "SELECT COUNT(*) AS rows, MIN(PERIOD) AS period_min, MAX(PERIOD) AS period_max "
         "FROM unified_trade_data"
     )
     r = rows[0]
-    return {
+    result = {
         "rows": r[0],
         "period_min": str(r[1]) if r[1] is not None else None,
         "period_max": str(r[2]) if r[2] is not None else None,
         # "version" = latest reported month (build timestamp added by the pipeline later).
         "data_version": (str(r[2])[:7] if r[2] is not None else None),
     }
+    _dv_cache = (now, result)
+    return result
