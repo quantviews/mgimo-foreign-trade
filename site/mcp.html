@@ -371,6 +371,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Доступ - только на чтение.</li>
 <li>Текущий план и остаток месячного объёма видны через инструмент <code>meta</code>; при исчерпании сервис отвечает понятной ошибкой с указанием, когда можно повторить.</li>
 </ul>
+</section>
+<section id="безопасность-ключа" class="level2">
+<h2 class="anchored" data-anchor-id="безопасность-ключа">Безопасность ключа</h2>
+<p>Ключ даёт только доступ на чтение торговых данных: ни записи, ни персональных данных. Он персональный, на сервере хранится лишь как sha256-хэш, а по каждому ключу считаются квота и аудит, поэтому злоупотребление видно и ограничено. При любой утечке ключ достаточно отозвать и перевыпустить в <a href="https://nts.mgimo.ru/superset/apikey/">кабинете</a> - старый сразу перестаёт работать.</p>
+<p>Надёжнее всего не класть ключ в файл вовсе, а подключаться по <strong>OAuth</strong>: в Claude и ChatGPT это способ по умолчанию (ключ вводится один раз на нашей странице входа), а в Cursor - через <code>mcp-remote</code> без заголовка (<code>npx -y mcp-remote https://nts.mgimo.ru/mcp</code>): мост сам проведёт OAuth и сохранит доступ в <code>~/.mcp-auth</code>, а не в конфигурации.</p>
+<p>Если всё же указываете ключ прямо в конфиге клиента:</p>
+<ul>
+<li>используйте <strong>глобальный</strong> файл (например <code>~/.cursor/mcp.json</code>), а не файл внутри проекта, чтобы ключ не попал в репозиторий;</li>
+<li>добавьте конфиг в <code>.gitignore</code> и не коммитьте его;</li>
+<li>относитесь к ключу как к паролю: не пересылайте в переписке и не публикуйте.</li>
+</ul>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
