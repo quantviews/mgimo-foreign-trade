@@ -228,7 +228,7 @@
 <li>Зеркальная статистика стран-партнёров</li>
 <li>UN Comtrade как доп. источник</li>
 <li>Ограниченное покрытие (Китай, Индия, Турция + Comtrade)</li>
-<li>Задержка публикации в Comtrade (6–12 мес.)</li>
+<li>Задержка публикации в Comtrade (6-12 мес.)</li>
 </ul>
 </div></div>
 </section>
@@ -253,8 +253,8 @@
 <tr class="odd">
 <td><strong>National</strong> (CN, IN, TR)</td>
 <td>Зеркальная</td>
-<td>2005–2025</td>
-<td>8–10 знаков, физические объёмы</td>
+<td>2005-2025</td>
+<td>8-10 знаков, физические объёмы</td>
 </tr>
 <tr class="even">
 <td><strong>Comtrade</strong></td>
@@ -270,7 +270,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Колонка SOURCE:</strong> <code>national</code> или <code>comtrade</code> — откуда пришла запись.</p>
+<p><strong>Колонка SOURCE:</strong> <code>national</code> или <code>comtrade</code> - откуда пришла запись.</p>
 </section>
 <section id="un-comtrade" class="slide level2">
 <h2>UN Comtrade</h2>
@@ -278,7 +278,7 @@
 <li><strong>Что:</strong> База ООН по международной торговле</li>
 <li><strong>Как работает:</strong> Страны отчитываются о своей торговле; ООН агрегирует</li>
 <li><strong>Зеркальность:</strong> Экспорт Китая в РФ = импорт РФ из Китая (с точки зрения РФ)</li>
-<li><strong>Ограничения:</strong> Задержка до 6–12 мес., уровень HS6, не все страны отчитываются вовремя</li>
+<li><strong>Ограничения:</strong> Задержка до 6-12 мес., уровень HS6, не все страны отчитываются вовремя</li>
 </ul>
 </section>
 <section id="практика-1-подключение-и-данные-до-2022" class="slide level2">
@@ -297,7 +297,7 @@
 <span id="cb1-12"><a></a><span class="st">"""</span>).df()</span>
 <span id="cb1-13"><a></a></span>
 <span id="cb1-14"><a></a><span class="bu">print</span>(<span class="ss">f"Строк: </span><span class="sc">{</span><span class="bu">len</span>(df_old)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb1-15"><a></a><span class="bu">print</span>(<span class="ss">f"Период: </span><span class="sc">{</span>df_old[<span class="st">'PERIOD'</span>]<span class="sc">.</span><span class="bu">min</span>()<span class="sc">}</span><span class="ss"> — </span><span class="sc">{</span>df_old[<span class="st">'PERIOD'</span>]<span class="sc">.</span><span class="bu">max</span>()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-15"><a></a><span class="bu">print</span>(<span class="ss">f"Период: </span><span class="sc">{</span>df_old[<span class="st">'PERIOD'</span>]<span class="sc">.</span><span class="bu">min</span>()<span class="sc">}</span><span class="ss"> - </span><span class="sc">{</span>df_old[<span class="st">'PERIOD'</span>]<span class="sc">.</span><span class="bu">max</span>()<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb1-16"><a></a><span class="bu">print</span>(<span class="ss">f"Страны: </span><span class="sc">{</span>df_old[<span class="st">'STRANA'</span>]<span class="sc">.</span>unique()<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb1-17"><a></a><span class="cf">if</span> <span class="st">'SOURCE'</span> <span class="kw">in</span> df_old.columns:</span>
 <span id="cb1-18"><a></a>    <span class="bu">print</span>(df_old[<span class="st">'SOURCE'</span>].value_counts())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -342,7 +342,7 @@
 <span id="cb4-5"><a></a><span class="st">"""</span>).df()</span>
 <span id="cb4-6"><a></a></span>
 <span id="cb4-7"><a></a><span class="bu">print</span>(<span class="ss">f"Строк: </span><span class="sc">{</span><span class="bu">len</span>(df_new)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb4-8"><a></a><span class="bu">print</span>(<span class="ss">f"Период: </span><span class="sc">{</span>df_new[<span class="st">'PERIOD'</span>]<span class="sc">.</span><span class="bu">min</span>()<span class="sc">}</span><span class="ss"> — </span><span class="sc">{</span>df_new[<span class="st">'PERIOD'</span>]<span class="sc">.</span><span class="bu">max</span>()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb4-8"><a></a><span class="bu">print</span>(<span class="ss">f"Период: </span><span class="sc">{</span>df_new[<span class="st">'PERIOD'</span>]<span class="sc">.</span><span class="bu">min</span>()<span class="sc">}</span><span class="ss"> - </span><span class="sc">{</span>df_new[<span class="st">'PERIOD'</span>]<span class="sc">.</span><span class="bu">max</span>()<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb4-9"><a></a><span class="cf">if</span> <span class="st">'SOURCE'</span> <span class="kw">in</span> df_new.columns:</span>
 <span id="cb4-10"><a></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">По источникам:"</span>)</span>
 <span id="cb4-11"><a></a>    <span class="bu">print</span>(df_new[<span class="st">'SOURCE'</span>].value_counts())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -375,7 +375,7 @@
 <h2>Практика 6: Визуализация динамики</h2>
 <div class="sourceCode" id="cb6"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb6-2"><a></a></span>
-<span id="cb6-3"><a></a><span class="co"># Месячная динамика импорта и экспорта 2021–2024</span></span>
+<span id="cb6-3"><a></a><span class="co"># Месячная динамика импорта и экспорта 2021-2024</span></span>
 <span id="cb6-4"><a></a>dynamics <span class="op">=</span> conn.execute(<span class="st">"""</span></span>
 <span id="cb6-5"><a></a><span class="st">    SELECT </span></span>
 <span id="cb6-6"><a></a><span class="st">        PERIOD,</span></span>

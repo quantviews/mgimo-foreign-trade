@@ -211,7 +211,7 @@
 </section>
 <section id="что-такое-duckdb" class="slide level2">
 <h2>Что такое DuckDB?</h2>
-<p><strong>DuckDB</strong> — быстрая аналитическая СУБД, встроенная в приложение (embedded).</p>
+<p><strong>DuckDB</strong> - быстрая аналитическая СУБД, встроенная в приложение (embedded).</p>
 <table class="caption-top">
 <thead>
 <tr class="header">
@@ -242,7 +242,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Сравнение:</strong> SQLite — транзакции, малые объёмы; DuckDB — аналитика, большие данные.</p>
+<p><strong>Сравнение:</strong> SQLite - транзакции, малые объёмы; DuckDB - аналитика, большие данные.</p>
 </section>
 <section id="структура-бд-проекта" class="slide level2">
 <h2>Структура БД проекта</h2>
@@ -322,7 +322,7 @@
 </section>
 <section id="view-unified_trade_data_enriched" class="slide level2">
 <h2>VIEW unified_trade_data_enriched</h2>
-<p>Содержит JOIN с справочниками — готовые названия стран и товаров.</p>
+<p>Содержит JOIN с справочниками - готовые названия стран и товаров.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode numberSource sql number-lines code-with-copy"><code class="sourceCode sql"><span id="cb5-1"><a></a><span class="kw">SELECT</span> </span>
 <span id="cb5-2"><a></a>    COUNTRY_NAME,</span>
 <span id="cb5-3"><a></a>    TNVED2_NAME,</span>
@@ -347,7 +347,7 @@
 <span id="cb6-9"><a></a><span class="kw">GROUP</span> <span class="kw">BY</span> STRANA</span>
 <span id="cb6-10"><a></a><span class="kw">HAVING</span> <span class="fu">SUM</span>(NETTO) <span class="op">&gt;</span> <span class="dv">1000000</span></span>
 <span id="cb6-11"><a></a><span class="kw">ORDER</span> <span class="kw">BY</span> total_value_usd <span class="kw">DESC</span>;</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><strong>NULLIF(a, 0)</strong> — избегает деления на ноль. <strong>HAVING</strong> — фильтр после GROUP BY.</p>
+<p><strong>NULLIF(a, 0)</strong> - избегает деления на ноль. <strong>HAVING</strong> - фильтр после GROUP BY.</p>
 </section>
 <section id="практика-1-топ-товарных-групп-по-импорту" class="slide level2">
 <h2>Практика 1: Топ товарных групп по импорту</h2>
@@ -431,9 +431,9 @@
 <section id="итоги-занятия-3" class="slide level2">
 <h2>Итоги занятия 3</h2>
 <ul>
-<li><strong>DuckDB</strong> — аналитическая СУБД, быстрые запросы, работа с файлами</li>
+<li><strong>DuckDB</strong> - аналитическая СУБД, быстрые запросы, работа с файлами</li>
 <li><strong>SQL:</strong> SELECT, WHERE, GROUP BY, HAVING, ORDER BY, агрегаты</li>
-<li><strong>unified_trade_data_enriched</strong> — VIEW с названиями стран и товаров</li>
+<li><strong>unified_trade_data_enriched</strong> - VIEW с названиями стран и товаров</li>
 <li><strong>Практика:</strong> Товарная структура, динамика, физические объёмы, экспорт</li>
 </ul>
 <p><strong>Домашнее задание:</strong> Выполнить собственный аналитический запрос (например: топ-5 товарных позиций ТНВЭД 4 по экспорту в выбранную страну за 2024).</p>

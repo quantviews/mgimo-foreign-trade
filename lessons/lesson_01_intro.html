@@ -215,9 +215,9 @@
 <p><strong>Определение:</strong> Систематизированные данные о внешней торговле страны, формируемые на основе таможенных деклараций.</p>
 <p><strong>Кто собирает:</strong></p>
 <ul>
-<li><strong>ФТС России</strong> — до января 2022 публиковала детальную статистику - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/fts_csv_format.md">модель данных</a></li>
-<li><strong>Национальные таможенные службы</strong> — Китай, Индия, Турция и др.</li>
-<li><strong>UN Comtrade</strong> — агрегированная международная база ООН</li>
+<li><strong>ФТС России</strong> - до января 2022 публиковала детальную статистику - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/fts_csv_format.md">модель данных</a></li>
+<li><strong>Национальные таможенные службы</strong> - Китай, Индия, Турция и др.</li>
+<li><strong>UN Comtrade</strong> - агрегированная международная база ООН</li>
 </ul>
 <p><strong>Основные показатели:</strong></p>
 <table class="caption-top">
@@ -251,23 +251,23 @@
 <h2>Направления торговли (<code>NAPR</code>)</h2>
 <div class="columns">
 <div class="column" style="width:50%;">
-<p><strong>ИМ (Импорт)</strong> — товары, ввозимые в РФ</p>
+<p><strong>ИМ (Импорт)</strong> - товары, ввозимые в РФ</p>
 <ul>
 <li>С точки зрения РФ: что мы покупаем за рубежом</li>
 <li>Пример: китайский экспорт в РФ = российский импорт из Китая</li>
 </ul>
 </div><div class="column" style="width:50%;">
-<p><strong>ЭК (Экспорт)</strong> — товары, вывозимые из РФ</p>
+<p><strong>ЭК (Экспорт)</strong> - товары, вывозимые из РФ</p>
 <ul>
 <li>С точки зрения РФ: что мы продаём за рубеж</li>
 <li>Пример: российский экспорт в Турцию = турецкий импорт из РФ</li>
 </ul>
 </div></div>
-<p><strong>Важно:</strong> При работе с зеркальной статистикой направление «отзеркаливается» — экспорт партнёра становится нашим импортом.</p>
+<p><strong>Важно:</strong> При работе с зеркальной статистикой направление «отзеркаливается» - экспорт партнёра становится нашим импортом.</p>
 </section>
 <section id="классификатор-стран-strana" class="slide level2">
 <h2>Классификатор стран (<code>STRANA</code>)</h2>
-<p><strong>Справочник:</strong> <code>metadata/STRANA.csv</code> — соответствие кодов стран и их названий.</p>
+<p><strong>Справочник:</strong> <code>metadata/STRANA.csv</code> - соответствие кодов стран и их названий.</p>
 <table class="caption-top">
 <thead>
 <tr class="header">
@@ -348,16 +348,16 @@
 </tr>
 </tbody>
 </table>
-<p><em>Специальные коды: EU — страны ЕС, NNN — неизвестная страна, AB/OS — Абхазия/Южная Осетия.</em></p>
-<p><strong>Использование:</strong> В торговых данных колонка STRANA содержит только код. Для получения названия — JOIN со справочником:</p>
+<p><em>Специальные коды: EU - страны ЕС, NNN - неизвестная страна, AB/OS - Абхазия/Южная Осетия.</em></p>
+<p><strong>Использование:</strong> В торговых данных колонка STRANA содержит только код. Для получения названия - JOIN со справочником:</p>
 </section>
 <section id="что-такое-тн-вэд-и-зачем-он-нужен" class="slide level2">
 <h2>Что такое ТН ВЭД и зачем он нужен?</h2>
-<p><strong>Определение:</strong> ТН ВЭД — классификатор товаров, используемый таможенными органами (ФТС России) для таможенных операций, применения пошлин и ведения статистики.</p>
+<p><strong>Определение:</strong> ТН ВЭД - классификатор товаров, используемый таможенными органами (ФТС России) для таможенных операций, применения пошлин и ведения статистики.</p>
 <ul>
-<li><strong>Фундамент:</strong> В основе — Гармонизированная система (HS) Всемирной таможенной организации</li>
-<li><strong>Объём в проекте:</strong> В <code>metadata/tnved.csv</code> — <strong>31 532 записи</strong> по 5 уровням вложенности</li>
-<li><strong>Принцип:</strong> «От общего к частному» — с увеличением длины кода описание товара становится детальнее</li>
+<li><strong>Фундамент:</strong> В основе - Гармонизированная система (HS) Всемирной таможенной организации</li>
+<li><strong>Объём в проекте:</strong> В <code>metadata/tnved.csv</code> - <strong>31 532 записи</strong> по 5 уровням вложенности</li>
+<li><strong>Принцип:</strong> «От общего к частному» - с увеличением длины кода описание товара становится детальнее</li>
 </ul>
 </section>
 <section id="иерархическая-структура-кода-10-знаков" class="slide level2">
@@ -450,34 +450,34 @@
 </tr>
 </tbody>
 </table>
-<p><em>Количество записей растёт к 10-му уровню — чем детальнее код, тем больше вариантов.</em></p>
+<p><em>Количество записей растёт к 10-му уровню - чем детальнее код, тем больше вариантов.</em></p>
 </section>
-<section id="пример-1-группа-01-живые-животные-из-tnved.csv" class="slide level2">
-<h2>Пример 1: группа 01 (живые животные) — из tnved.csv</h2>
-<pre><code>01      — ЖИВЫЕ ЖИВОТНЫЕ
-0101    — ЛОШАДИ, ОСЛЫ, МУЛЫ И ЛОШАКИ ЖИВЫЕ
-010121  — ЛОШАДИ ЖИВЫЕ: ЧИСТОПОРОДНЫЕ ПЛЕМЕННЫЕ ЖИВОТНЫЕ
-01012100 — (то же на уровне 8 знаков)
-0101210000 — (полная детализация, 10 знаков)
-010129  — ЛОШАДИ ПРОЧИЕ
-010130  — ОСЛЫ, ЖИВЫЕ
-0102    — КРУПНЫЙ РОГАТЫЙ СКОТ ЖИВОЙ
-0103    — СВИНЬИ ЖИВЫЕ</code></pre>
+<section id="пример-1-группа-01-живые-животные---из-tnved.csv" class="slide level2">
+<h2>Пример 1: группа 01 (живые животные) - из tnved.csv</h2>
+<pre><code>01      - ЖИВЫЕ ЖИВОТНЫЕ
+0101    - ЛОШАДИ, ОСЛЫ, МУЛЫ И ЛОШАКИ ЖИВЫЕ
+010121  - ЛОШАДИ ЖИВЫЕ: ЧИСТОПОРОДНЫЕ ПЛЕМЕННЫЕ ЖИВОТНЫЕ
+01012100 - (то же на уровне 8 знаков)
+0101210000 - (полная детализация, 10 знаков)
+010129  - ЛОШАДИ ПРОЧИЕ
+010130  - ОСЛЫ, ЖИВЫЕ
+0102    - КРУПНЫЙ РОГАТЫЙ СКОТ ЖИВОЙ
+0103    - СВИНЬИ ЖИВЫЕ</code></pre>
 </section>
-<section id="пример-2-группа-27-топливо-крупнейшая-по-обороту" class="slide level2">
-<h2>Пример 2: группа 27 (топливо) — крупнейшая по обороту</h2>
-<p>Группа 27 объединяет минеральное топливо: уголь, нефть, нефтепродукты и <strong>газы</strong>. Иерархия строится по технологическим и химическим признакам (плотность, содержание серы, агрегатное состояние). Ниже — фрагмент дерева от группы до подсубпозиций.</p>
+<section id="пример-2-группа-27-топливо---крупнейшая-по-обороту" class="slide level2">
+<h2>Пример 2: группа 27 (топливо) - крупнейшая по обороту</h2>
+<p>Группа 27 объединяет минеральное топливо: уголь, нефть, нефтепродукты и <strong>газы</strong>. Иерархия строится по технологическим и химическим признакам (плотность, содержание серы, агрегатное состояние). Ниже - фрагмент дерева от группы до подсубпозиций.</p>
 <p><strong>Нефть и нефтепродукты (2710):</strong></p>
-<pre><code>27      — ТОПЛИВО МИНЕРАЛЬНОЕ, НЕФТЬ И ПРОДУКТЫ ИХ ПЕРЕГОНКИ; БИТУМИНОЗНЫЕ ВЕЩЕСТВА; ВОСКИ МИНЕРАЛЬНЫЕ
-2701    — УГОЛЬ КАМЕННЫЙ; БРИКЕТЫ, ОКАТЫШИ...
-2709    — НЕФТЬ СЫРАЯ И НЕФТЕПРОДУКТЫ СЫРЫЕ
-2710    — НЕФТЬ И НЕФТЕПРОДУКТЫ (кроме сырых)
-271012  — ЛЕГКИЕ ДИСТИЛЛЯТЫ (бензины)
-27101241 — БЕНЗИНЫ МОТОРНЫЕ (с октановым числом &lt; 95)
-2710124110 — БЕНЗИН АВТОМОБИЛЬНЫЙ (октановое число &lt; 80)
-271019  — ПРОЧИЕ ДИСТИЛЛЯТЫ (дизель, керосин, мазут)</code></pre>
-<p><strong>Природный газ — трубопроводный и СПГ (2711):</strong></p>
-<p>В группе <strong>2711</strong> учитываются углеводородные газы. Ключевое различие для аналитики — <strong>способ доставки</strong>: по трубам (газообразное состояние) или в сжиженном виде танкерами (СПГ).</p>
+<pre><code>27      - ТОПЛИВО МИНЕРАЛЬНОЕ, НЕФТЬ И ПРОДУКТЫ ИХ ПЕРЕГОНКИ; БИТУМИНОЗНЫЕ ВЕЩЕСТВА; ВОСКИ МИНЕРАЛЬНЫЕ
+2701    - УГОЛЬ КАМЕННЫЙ; БРИКЕТЫ, ОКАТЫШИ...
+2709    - НЕФТЬ СЫРАЯ И НЕФТЕПРОДУКТЫ СЫРЫЕ
+2710    - НЕФТЬ И НЕФТЕПРОДУКТЫ (кроме сырых)
+271012  - ЛЕГКИЕ ДИСТИЛЛЯТЫ (бензины)
+27101241 - БЕНЗИНЫ МОТОРНЫЕ (с октановым числом &lt; 95)
+2710124110 - БЕНЗИН АВТОМОБИЛЬНЫЙ (октановое число &lt; 80)
+271019  - ПРОЧИЕ ДИСТИЛЛЯТЫ (дизель, керосин, мазут)</code></pre>
+<p><strong>Природный газ - трубопроводный и СПГ (2711):</strong></p>
+<p>В группе <strong>2711</strong> учитываются углеводородные газы. Ключевое различие для аналитики - <strong>способ доставки</strong>: по трубам (газообразное состояние) или в сжиженном виде танкерами (СПГ).</p>
 <table class="caption-top">
 <colgroup>
 <col style="width: 35%">
@@ -500,45 +500,45 @@
 <tr class="even">
 <td><strong>2711 11</strong></td>
 <td>Природный газ сжиженный</td>
-<td><strong>СПГ (LNG)</strong> — доставка танкерами, регазификация у потребителя</td>
+<td><strong>СПГ (LNG)</strong> - доставка танкерами, регазификация у потребителя</td>
 </tr>
 <tr class="odd">
 <td><strong>2711 21</strong></td>
 <td>Природный газ в газообразном состоянии</td>
-<td><strong>Трубопроводный газ</strong> — поставки по магистральным газопроводам</td>
+<td><strong>Трубопроводный газ</strong> - поставки по магистральным газопроводам</td>
 </tr>
 </tbody>
 </table>
 <p>Для России и партнёров разделение 2711 11 (СПГ) и 2711 21 (труба) критично: география, цены и контракты сильно различаются. В зеркальной статистике партнёра код может быть тем же (HS/CN), но единицы измерения и агрегация иногда отличаются от российской практики.</p>
 </section>
-<section id="пример-3-группы-84-85-87-машины-и-оборудование" class="slide level2">
-<h2>Пример 3: группы 84, 85, 87 — машины и оборудование</h2>
-<pre><code>84      — РЕАКТОРЫ ЯДЕРНЫЕ, КОТЛЫ, ОБОРУДОВАНИЕ И МЕХАНИЧЕСКИЕ УСТРОЙСТВА; ИХ ЧАСТИ
-85      — ЭЛЕКТРИЧЕСКИЕ МАШИНЫ И ОБОРУДОВАНИЕ; ЗВУКОЗАПИСЫВАЮЩАЯ АППАРАТУРА...
-87      — СРЕДСТВА НАЗЕМНОГО ТРАНСПОРТА (кроме ж/д)</code></pre>
-<p>Эти три группы — среди топ-5 по обороту в данных ФТС 2021–2022.</p>
+<section id="пример-3-группы-84-85-87---машины-и-оборудование" class="slide level2">
+<h2>Пример 3: группы 84, 85, 87 - машины и оборудование</h2>
+<pre><code>84      - РЕАКТОРЫ ЯДЕРНЫЕ, КОТЛЫ, ОБОРУДОВАНИЕ И МЕХАНИЧЕСКИЕ УСТРОЙСТВА; ИХ ЧАСТИ
+85      - ЭЛЕКТРИЧЕСКИЕ МАШИНЫ И ОБОРУДОВАНИЕ; ЗВУКОЗАПИСЫВАЮЩАЯ АППАРАТУРА...
+87      - СРЕДСТВА НАЗЕМНОГО ТРАНСПОРТА (кроме ж/д)</code></pre>
+<p>Эти три группы - среди топ-5 по обороту в данных ФТС 2021-2022.</p>
 </section>
-<section id="пример-4-эволюция-кода-смартфоны" class="slide level2">
-<h2>Пример 4: Эволюция кода — смартфоны</h2>
+<section id="пример-4-эволюция-кода---смартфоны" class="slide level2">
+<h2>Пример 4: Эволюция кода - смартфоны</h2>
 <p>Проследим путь классификации одного из самых популярных товаров:</p>
-<pre><code>85           — Электрические машины и оборудование... (Группа)
-8517         — Аппараты телефонные, включая смартфоны... (Позиция)
-851713       — Смартфоны (Субпозиция — введена в 2022 году)
-85171300     — Смартфоны (Подсубпозиция)
-8517130000   — Смартфоны (Полный 10-значный код ТН ВЭД)</code></pre>
-<p><em>Префикс «ШТ-» в названии — указание на основную единицу измерения (штуки).</em></p>
+<pre><code>85           - Электрические машины и оборудование... (Группа)
+8517         - Аппараты телефонные, включая смартфоны... (Позиция)
+851713       - Смартфоны (Субпозиция - введена в 2022 году)
+85171300     - Смартфоны (Подсубпозиция)
+8517130000   - Смартфоны (Полный 10-значный код ТН ВЭД)</code></pre>
+<p><em>Префикс «ШТ-» в названии - указание на основную единицу измерения (штуки).</em></p>
 </section>
-<section id="пример-5-эволюция-кода-легковые-автомобили" class="slide level2">
-<h2>Пример 5: Эволюция кода — легковые автомобили</h2>
-<p>Транспортные средства (группа <strong>87</strong>) — ещё один крупный блок по обороту. Легковые авто — позиция <strong>8703</strong>; детализация идёт по типу двигателя и объёму:</p>
-<pre><code>87           — СРЕДСТВА НАЗЕМНОГО ТРАНСПОРТА (кроме ж/д)
-8703         — АВТОМОБИЛИ ЛЕГКОВЫЕ И ПРОЧИЕ ТРАНСПОРТНЫЕ СРЕДСТВА ДЛЯ ПЕРЕВОЗКИ ЛЮДЕЙ
-870321       — с двигателем с искровым зажиганием, объёмом цилиндров ≤ 1000 см³
-870322       — объёмом цилиндров &gt; 1000 см³, но ≤ 1500 см³
-870323       — объёмом цилиндров &gt; 1500 см³, но ≤ 3000 см³
-870324       — объёмом цилиндров &gt; 3000 см³
-8703234190   — пример подсубпозиции (легковые, 1500–3000 см³, прочие)</code></pre>
-<p>На уровне 6 знаков уже видна ключевая для статистики и пошлин характеристика — объём двигателя; дальше различают тип кузова, экологический класс и т.д.</p>
+<section id="пример-5-эволюция-кода---легковые-автомобили" class="slide level2">
+<h2>Пример 5: Эволюция кода - легковые автомобили</h2>
+<p>Транспортные средства (группа <strong>87</strong>) - ещё один крупный блок по обороту. Легковые авто - позиция <strong>8703</strong>; детализация идёт по типу двигателя и объёму:</p>
+<pre><code>87           - СРЕДСТВА НАЗЕМНОГО ТРАНСПОРТА (кроме ж/д)
+8703         - АВТОМОБИЛИ ЛЕГКОВЫЕ И ПРОЧИЕ ТРАНСПОРТНЫЕ СРЕДСТВА ДЛЯ ПЕРЕВОЗКИ ЛЮДЕЙ
+870321       - с двигателем с искровым зажиганием, объёмом цилиндров ≤ 1000 см³
+870322       - объёмом цилиндров &gt; 1000 см³, но ≤ 1500 см³
+870323       - объёмом цилиндров &gt; 1500 см³, но ≤ 3000 см³
+870324       - объёмом цилиндров &gt; 3000 см³
+8703234190   - пример подсубпозиции (легковые, 1500-3000 см³, прочие)</code></pre>
+<p>На уровне 6 знаков уже видна ключевая для статистики и пошлин характеристика - объём двигателя; дальше различают тип кузова, экологический класс и т.д.</p>
 </section>
 <section id="технические-особенности-данных-tnved.csv" class="slide level2">
 <h2>Технические особенности данных tnved.csv</h2>
@@ -557,7 +557,7 @@
 <tbody>
 <tr class="odd">
 <td><strong>KOD</strong></td>
-<td>Текстовое поле — сохранять ведущие нули (<code>01</code>, а не <code>1</code>)</td>
+<td>Текстовое поле - сохранять ведущие нули (<code>01</code>, а не <code>1</code>)</td>
 </tr>
 <tr class="even">
 <td><strong>NAME</strong></td>
@@ -565,7 +565,7 @@
 </tr>
 <tr class="odd">
 <td><strong>level</strong></td>
-<td>Индикатор вложенности (2, 4, 6, 8, 10) — упрощает построение древовидных моделей в Excel, Python, Power BI</td>
+<td>Индикатор вложенности (2, 4, 6, 8, 10) - упрощает построение древовидных моделей в Excel, Python, Power BI</td>
 </tr>
 </tbody>
 </table>
@@ -574,7 +574,7 @@
 <h2>Особенности кодирования</h2>
 <ul>
 <li><strong>Дополнение нулями справа:</strong> <code>2710</code> → <code>2710000000</code> (до 10 знаков)</li>
-<li><strong>Иерархия:</strong> каждый уровень — префикс следующего: <code>27</code> → <code>2701</code> → <code>271012</code> → <code>27101241</code> → <code>2710124110</code></li>
+<li><strong>Иерархия:</strong> каждый уровень - префикс следующего: <code>27</code> → <code>2701</code> → <code>271012</code> → <code>27101241</code> → <code>2710124110</code></li>
 </ul>
 </section>
 <section id="зеркальная-статистика" class="slide level2">
@@ -583,7 +583,7 @@
 <p><strong>Почему важна:</strong></p>
 <ul>
 <li>С января 2022 официальная статистика ФТС недоступна</li>
-<li>Зеркальная статистика — единственный легальный источник актуальных данных</li>
+<li>Зеркальная статистика - единственный легальный источник актуальных данных</li>
 <li>Данные партнёров часто публикуются быстрее, чем UN Comtrade</li>
 </ul>
 <p><strong>Источники в проекте:</strong></p>
@@ -597,16 +597,16 @@
 <section id="почему-прямая-и-зеркальная-статистика-отличаются" class="slide level2">
 <h2>Почему прямая и зеркальная статистика отличаются?</h2>
 <ol type="1">
-<li><strong>CIF vs FOB:</strong> Импорт учитывается по CIF (стоимость + страхование + фрахт), экспорт — по FOB (франко-борт)</li>
+<li><strong>CIF vs FOB:</strong> Импорт учитывается по CIF (стоимость + страхование + фрахт), экспорт - по FOB (франко-борт)</li>
 <li><strong>Страна происхождения vs страна отправления:</strong> Транзитные операции</li>
-<li><strong>Временной лаг:</strong> Морские перевозки — товар в пути</li>
-<li><strong>Разная классификация:</strong> Один товар — разные коды ТН ВЭД в разных странах</li>
+<li><strong>Временной лаг:</strong> Морские перевозки - товар в пути</li>
+<li><strong>Разная классификация:</strong> Один товар - разные коды ТН ВЭД в разных странах</li>
 </ol>
 </section>
 <section id="идея-и-структура-проекта" class="slide level2">
 <h2>Идея и структура проекта</h2>
-<p><strong>Идея:</strong> Собрать <strong>data-product</strong> по внешней торговле России на основе <strong>зеркальной статистики</strong> партнёров. После закрытия данных ФТС это единственный легальный способ получить актуальную картину экспорта и импорта. Задача — не просто хранить сырые выгрузки, а вести единый пайплайн: сбор с сайтов таможен/статслужб → очистка и приведение к общим кодам (страны, ТН ВЭД) → хранение в одной БД → аналитика и дашборды.</p>
-<p><strong>Фокус MVP:</strong> Китай, Индия, Турция — ключевые партнёры; исторические CSV ФТС (2021–нач. 2022) используются как референс и для сопоставления с зеркальными данными.</p>
+<p><strong>Идея:</strong> Собрать <strong>data-product</strong> по внешней торговле России на основе <strong>зеркальной статистики</strong> партнёров. После закрытия данных ФТС это единственный легальный способ получить актуальную картину экспорта и импорта. Задача - не просто хранить сырые выгрузки, а вести единый пайплайн: сбор с сайтов таможен/статслужб → очистка и приведение к общим кодам (страны, ТН ВЭД) → хранение в одной БД → аналитика и дашборды.</p>
+<p><strong>Фокус MVP:</strong> Китай, Индия, Турция - ключевые партнёры; исторические CSV ФТС (2021-нач. 2022) используются как референс и для сопоставления с зеркальными данными.</p>
 <p><strong>Целевая аудитория:</strong> участники ВЭД, логистика, инвестиционная аналитика; плюс учебные материалы для МГИМО.</p>
 <p><strong>Структура репозитория (https://github.com/quantviews/mgimo-foreign-trade):</strong></p>
 <pre><code>mgimo-foreign_trade/
@@ -648,7 +648,7 @@
 <tr class="even">
 <td>TNVED</td>
 <td>VARCHAR</td>
-<td>Код ТН ВЭД (8–10 знаков)</td>
+<td>Код ТН ВЭД (8-10 знаков)</td>
 </tr>
 <tr class="odd">
 <td>STOIM</td>
@@ -680,7 +680,7 @@
 </section>
 <section id="дополнительные-единицы-измерения-edizm" class="slide level2">
 <h2>Дополнительные единицы измерения (EDIZM)</h2>
-<p><strong>Справочник:</strong> <code>metadata/edizm.csv</code> — стандартизированные единицы для колонки KOL.</p>
+<p><strong>Справочник:</strong> <code>metadata/edizm.csv</code> - стандартизированные единицы для колонки KOL.</p>
 <table class="caption-top">
 <thead>
 <tr class="header">
@@ -735,7 +735,7 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Роль:</strong> KOL — количество в единице EDIZM. NETTO — всегда вес в кг. Для товаров «в штуках» KOL даёт натуральный объём, для «в литрах» — объём и т.д.</p>
+<p><strong>Роль:</strong> KOL - количество в единице EDIZM. NETTO - всегда вес в кг. Для товаров «в штуках» KOL даёт натуральный объём, для «в литрах» - объём и т.д.</p>
 </section>
 <section id="натуральные-показатели" class="slide level2">
 <h2>Натуральные показатели</h2>
@@ -757,7 +757,7 @@
 <tr class="odd">
 <td><strong>NETTO</strong></td>
 <td>кг</td>
-<td>Вес нетто — есть почти у всех товаров</td>
+<td>Вес нетто - есть почти у всех товаров</td>
 </tr>
 <tr class="even">
 <td><strong>KOL</strong></td>
@@ -766,29 +766,29 @@
 </tr>
 </tbody>
 </table>
-<p><strong>Зачем нужны:</strong> Отделение ценовых эффектов от реальных объёмов. Рост стоимости может быть из-за роста цен или роста поставок — только натуральные показатели показывают реальные потоки.</p>
+<p><strong>Зачем нужны:</strong> Отделение ценовых эффектов от реальных объёмов. Рост стоимости может быть из-за роста цен или роста поставок - только натуральные показатели показывают реальные потоки.</p>
 </section>
 <section id="эффективные-цены-по-категориям" class="slide level2">
 <h2>Эффективные цены по категориям</h2>
-<p><strong>Эффективная цена</strong> — стоимость за единицу физического объёма:</p>
+<p><strong>Эффективная цена</strong> - стоимость за единицу физического объёма:</p>
 <ul>
 <li><p><strong>Для весовых товаров (NETTO &gt; 0):</strong><br>
 <code>цена за кг = STOIM / NETTO</code><br>
 <em>(STOIM в USD → результат в USD/кг)</em></p></li>
 <li><p><strong>Для штучных/объёмных (KOL &gt; 0, EDIZM = ШТУКА и т.д.):</strong><br>
 <code>цена за единицу = STOIM / KOL</code><br>
-<em>(при KOL в тыс. шт. — цена за тыс. шт.)</em></p></li>
+<em>(при KOL в тыс. шт. - цена за тыс. шт.)</em></p></li>
 </ul>
 <p><strong>Важно:</strong> Сравнивать цены только внутри одной товарной категории (одинаковый TNVED) и одной единицы измерения. Суммарные цены по группе: <code>SUM(STOIM) / SUM(NETTO)</code> или <code>SUM(STOIM) / SUM(KOL)</code>.</p>
 </section>
 <section id="прямые-данные-фтс" class="slide level2">
 <h2>Прямые данные ФТС</h2>
-<p><strong>Источник:</strong> <code>data_raw/fts_data/</code> — CSV-файлы по месяцам (янв 2021 — янв 2022).</p>
+<p><strong>Источник:</strong> <code>data_raw/fts_data/</code> - CSV-файлы по месяцам (янв 2021 - янв 2022).</p>
 <p>Это <strong>прямая статистика</strong> российской таможни до её закрытия. Идеальная точка старта для понимания структуры данных.</p>
 </section>
 <section id="практика-2-загрузка-и-просмотр-данных-фтс" class="slide level2">
 <h2>Практика 2: Загрузка и просмотр данных ФТС</h2>
-<div id="343968c4" class="cell" data-execution_count="2">
+<div id="6b4675fb" class="cell" data-execution_count="2">
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
 <span id="cb7-2"><a></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
 <span id="cb7-3"><a></a></span>
@@ -803,7 +803,7 @@
 </section>
 <section id="практика-3-изучение-структуры" class="slide level2">
 <h2>Практика 3: Изучение структуры</h2>
-<div id="84e3f3c4" class="cell" data-execution_count="3">
+<div id="383f0b79" class="cell" data-execution_count="3">
 <div class="sourceCode cell-code" id="cb8"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a></a><span class="co"># Базовая информация</span></span>
 <span id="cb8-2"><a></a>df.info()</span>
 <span id="cb8-3"><a></a></span>
@@ -813,18 +813,18 @@
 <span id="cb8-7"><a></a><span class="co"># Направления и страны</span></span>
 <span id="cb8-8"><a></a><span class="bu">print</span>(<span class="st">"Направления:"</span>, df[<span class="st">'NAPR'</span>].unique())</span>
 <span id="cb8-9"><a></a><span class="bu">print</span>(<span class="st">"Страны (топ-10):"</span>, df[<span class="st">'STRANA'</span>].value_counts().head(<span class="dv">10</span>))</span>
-<span id="cb8-10"><a></a><span class="bu">print</span>(<span class="st">"Период:"</span>, df[<span class="st">'PERIOD'</span>].<span class="bu">min</span>(), <span class="st">"—"</span>, df[<span class="st">'PERIOD'</span>].<span class="bu">max</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb8-10"><a></a><span class="bu">print</span>(<span class="st">"Период:"</span>, df[<span class="st">'PERIOD'</span>].<span class="bu">min</span>(), <span class="st">"-"</span>, df[<span class="st">'PERIOD'</span>].<span class="bu">max</span>())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="практика-4-простые-агрегации-pandas" class="slide level2">
 <h2>Практика 4: Простые агрегации (pandas)</h2>
 <p><strong>Задание 1:</strong> Сколько записей по каждой стране?</p>
-<div id="38b6e8e6" class="cell" data-execution_count="4">
+<div id="485606f7" class="cell" data-execution_count="4">
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a></a>by_country <span class="op">=</span> df.groupby(<span class="st">'STRANA'</span>).size().sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb9-2"><a></a><span class="bu">print</span>(by_country.head(<span class="dv">15</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><strong>Задание 2:</strong> Сумма импорта и экспорта по странам за весь период</p>
-<div id="26ba3c08" class="cell" data-execution_count="5">
+<div id="5904cda4" class="cell" data-execution_count="5">
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a></a>import_by_country <span class="op">=</span> df[df[<span class="st">'NAPR'</span>] <span class="op">==</span> <span class="st">'ИМ'</span>].groupby(<span class="st">'STRANA'</span>)[<span class="st">'STOIM'</span>].<span class="bu">sum</span>().sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb10-2"><a></a>export_by_country <span class="op">=</span> df[df[<span class="st">'NAPR'</span>] <span class="op">==</span> <span class="st">'ЭК'</span>].groupby(<span class="st">'STRANA'</span>)[<span class="st">'STOIM'</span>].<span class="bu">sum</span>().sort_values(ascending<span class="op">=</span><span class="va">False</span>)</span>
 <span id="cb10-3"><a></a><span class="bu">print</span>(<span class="st">"Импорт (топ-10):"</span>)<span class="op">;</span> <span class="bu">print</span>(import_by_country.head(<span class="dv">10</span>))</span>
@@ -833,7 +833,7 @@
 </section>
 <section id="практика-5-топ-товарных-групп-tnved2" class="slide level2">
 <h2>Практика 5: Топ товарных групп (TNVED2)</h2>
-<div id="395d776c" class="cell" data-execution_count="6">
+<div id="2561f515" class="cell" data-execution_count="6">
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a></a>top_tnved2 <span class="op">=</span> df.groupby(<span class="st">'TNVED2'</span>).agg(</span>
 <span id="cb11-2"><a></a>    total_stoim<span class="op">=</span>(<span class="st">'STOIM'</span>, <span class="st">'sum'</span>),</span>
 <span id="cb11-3"><a></a>    cnt<span class="op">=</span>(<span class="st">'TNVED'</span>, <span class="st">'count'</span>)</span>
@@ -844,11 +844,11 @@
 <section id="практика-6-единицы-измерения-и-эффективные-цены" class="slide level2">
 <h2>Практика 6: Единицы измерения и эффективные цены</h2>
 <p><strong>Задание 1:</strong> Какие единицы измерения (EDIZM) чаще всего встречаются в данных?</p>
-<div id="8527d45d" class="cell" data-execution_count="7">
+<div id="de77422f" class="cell" data-execution_count="7">
 <div class="sourceCode cell-code" id="cb12"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a></a><span class="bu">print</span>(df[<span class="st">'EDIZM'</span>].value_counts().head(<span class="dv">15</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><strong>Задание 2:</strong> Рассчитать среднюю эффективную цену (USD за тонну) по товарным группам TNVED2 для импорта. Использовать только строки, где NETTO &gt; 0.</p>
-<div id="72c18dd2" class="cell" data-execution_count="8">
+<div id="c5cdc2d2" class="cell" data-execution_count="8">
 <div class="sourceCode cell-code" id="cb13"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a></a>imp <span class="op">=</span> df[(df[<span class="st">'NAPR'</span>] <span class="op">==</span> <span class="st">'ИМ'</span>) <span class="op">&amp;</span> (df[<span class="st">'NETTO'</span>] <span class="op">&gt;</span> <span class="dv">0</span>)]</span>
 <span id="cb13-2"><a></a>price_by_tnved2 <span class="op">=</span> imp.groupby(<span class="st">'TNVED2'</span>).agg(</span>
 <span id="cb13-3"><a></a>    total_stoim<span class="op">=</span>(<span class="st">'STOIM'</span>, <span class="st">'sum'</span>),</span>
@@ -858,7 +858,7 @@
 <span id="cb13-7"><a></a><span class="bu">print</span>(price_by_tnved2.sort_values(<span class="st">'total_stoim'</span>, ascending<span class="op">=</span><span class="va">False</span>).head(<span class="dv">10</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p><strong>Задание 3:</strong> Сравнить эффективные цены импорта из Китая и Германии по группе <strong>2710</strong> (нефтепродукты: бензин, дизель, мазут) за 2021 год. Группа более гомогенна, чем машины.</p>
-<div id="5b3cb3f6" class="cell" data-execution_count="9">
+<div id="97d57ed8" class="cell" data-execution_count="9">
 <div class="sourceCode cell-code" id="cb14"><pre class="sourceCode numberSource python number-lines code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a></a>g2710 <span class="op">=</span> df[(df[<span class="st">'NAPR'</span>] <span class="op">==</span> <span class="st">'ИМ'</span>) <span class="op">&amp;</span> (df[<span class="st">'TNVED4'</span>] <span class="op">==</span> <span class="st">'2710'</span>) <span class="op">&amp;</span> (df[<span class="st">'NETTO'</span>] <span class="op">&gt;</span> <span class="dv">0</span>)</span>
 <span id="cb14-2"><a></a>           <span class="op">&amp;</span> (df[<span class="st">'PERIOD'</span>].dt.year <span class="op">==</span> <span class="dv">2021</span>) <span class="op">&amp;</span> (df[<span class="st">'STRANA'</span>].isin([<span class="st">'CN'</span>, <span class="st">'DE'</span>]))]</span>
 <span id="cb14-3"><a></a>by_country <span class="op">=</span> g2710.groupby(<span class="st">'STRANA'</span>).agg(total_stoim<span class="op">=</span>(<span class="st">'STOIM'</span>, <span class="st">'sum'</span>), total_netto<span class="op">=</span>(<span class="st">'NETTO'</span>, <span class="st">'sum'</span>))</span>
@@ -885,34 +885,34 @@
 <tbody>
 <tr class="odd">
 <td><code>data_interim_csv/fts_2021_2022_TNVED2_27.parquet</code></td>
-<td><strong>Прямые данные ФТС</strong> — российская таможенная статистика по коду 27</td>
-<td>янв 2021 — янв 2022</td>
+<td><strong>Прямые данные ФТС</strong> - российская таможенная статистика по коду 27</td>
+<td>янв 2021 - янв 2022</td>
 </tr>
 <tr class="even">
 <td><code>data_interim_csv/CN_TNVED2_27.csv</code></td>
-<td><strong>Зеркальная статистика КНР</strong> — данные таможни Китая по коду 27 (торговля Китая с Россией)</td>
-<td>2019–2025</td>
+<td><strong>Зеркальная статистика КНР</strong> - данные таможни Китая по коду 27 (торговля Китая с Россией)</td>
+<td>2019-2025</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Зачем два источника:</strong> Прямая статистика ФТС после января 2022 года недоступна. Зеркальная (данные партнёра) даёт возможность анализировать <strong>текущие</strong> годы. Пересечение по <strong>2021 году</strong> позволяет сопоставить прямую и зеркальную статистику и оценить расхождения (CIF/FOB, классификация, лаги).</p>
-<p><strong>Направления:</strong> В зеркальной статистике КНР направление уже задано с точки зрения партнёра: <code>NAPR=ИМ</code> — импорт Китая из РФ, <code>NAPR=ЭК</code> — экспорт Китая в РФ; менять кодировку не нужно. При сопоставлении с ФТС: российский экспорт в Китай = ФТС <code>NAPR=ЭК</code>, <code>STRANA=CN</code> = в данных КНР <code>NAPR=ИМ</code>; российский импорт из Китая = ФТС <code>NAPR=ИМ</code>, <code>STRANA=CN</code> = в данных КНР <code>NAPR=ЭК</code>.</p>
+<p><strong>Направления:</strong> В зеркальной статистике КНР направление уже задано с точки зрения партнёра: <code>NAPR=ИМ</code> - импорт Китая из РФ, <code>NAPR=ЭК</code> - экспорт Китая в РФ; менять кодировку не нужно. При сопоставлении с ФТС: российский экспорт в Китай = ФТС <code>NAPR=ЭК</code>, <code>STRANA=CN</code> = в данных КНР <code>NAPR=ИМ</code>; российский импорт из Китая = ФТС <code>NAPR=ИМ</code>, <code>STRANA=CN</code> = в данных КНР <code>NAPR=ЭК</code>.</p>
 </section>
 <section>
 <section id="первичный-анализ-сырая-нефть-2709" class="title-slide slide level1 center">
 <h1>Первичный анализ: сырая нефть (2709)</h1>
-<p>Берём только <strong>сырую нефть</strong> (код <strong>2709</strong>). Строим помесячную динамику экспорта РФ в КНР в <strong>физических единицах</strong> (вес нетто, столбец <strong>NETTO</strong>, кг) — так сопоставление источников не зависит от цен и валюты. В <strong>2021 году</strong> — оба источника, с <strong>2022 года</strong> — только зеркальная статистика КНР.</p>
-<p>По оси ординат — <strong>тыс. т</strong> (сумма NETTO по месяцам, пересчитанная из кг). Сравнение по весу не зависит от курса и цен; при наличии данных КНР две линии в 2021 году показывают расхождение учёта по объёму.</p>
+<p>Берём только <strong>сырую нефть</strong> (код <strong>2709</strong>). Строим помесячную динамику экспорта РФ в КНР в <strong>физических единицах</strong> (вес нетто, столбец <strong>NETTO</strong>, кг) - так сопоставление источников не зависит от цен и валюты. В <strong>2021 году</strong> - оба источника, с <strong>2022 года</strong> - только зеркальная статистика КНР.</p>
+<p>По оси ординат - <strong>тыс. т</strong> (сумма NETTO по месяцам, пересчитанная из кг). Сравнение по весу не зависит от курса и цен; при наличии данных КНР две линии в 2021 году показывают расхождение учёта по объёму.</p>
 </section>
 <section id="итоги-занятия-1" class="slide level2">
 <h2>Итоги занятия 1</h2>
 <ul>
-<li><strong>Таможенная статистика</strong> — данные о внешней торговле на основе таможенных деклараций</li>
-<li><strong>Классификаторы</strong> — STRANA (страны), TNVED (товары), EDIZM (единицы измерения)</li>
-<li><strong>Натуральные показатели</strong> — NETTO (кг), KOL (в единицах EDIZM)</li>
-<li><strong>Эффективная цена</strong> — STOIM/NETTO или STOIM/KOL для анализа цен по категориям</li>
-<li><strong>Прямая и зеркальная статистика</strong> — ФТС (2021–нач. 2022) и данные партнёров (КНР и др.) для текущих лет; пересечение по 2021 году даёт возможность валидации</li>
-<li><strong>Практика</strong> — сводный датасет ФТС, агрегации, расчёт цен, сравнение ФТС и КНР по группе 27</li>
+<li><strong>Таможенная статистика</strong> - данные о внешней торговле на основе таможенных деклараций</li>
+<li><strong>Классификаторы</strong> - STRANA (страны), TNVED (товары), EDIZM (единицы измерения)</li>
+<li><strong>Натуральные показатели</strong> - NETTO (кг), KOL (в единицах EDIZM)</li>
+<li><strong>Эффективная цена</strong> - STOIM/NETTO или STOIM/KOL для анализа цен по категориям</li>
+<li><strong>Прямая и зеркальная статистика</strong> - ФТС (2021-нач. 2022) и данные партнёров (КНР и др.) для текущих лет; пересечение по 2021 году даёт возможность валидации</li>
+<li><strong>Практика</strong> - сводный датасет ФТС, агрегации, расчёт цен, сравнение ФТС и КНР по группе 27</li>
 </ul>
 </section>
 <section id="домашнее-задание" class="slide level2">
@@ -923,12 +923,12 @@
 <li><strong>Сравнение прямой и зеркальной статистики (группа 27):</strong>
 <ul>
 <li>Загрузить <code>fts_2021_2022_TNVED2_27.parquet</code> и <code>CN_TNVED2_27.csv</code>.</li>
-<li>Построить по годам (2019–2025) динамику стоимости по зеркальной статистике КНР: импорт Китая из России и экспорт Китая в Россию (USD).</li>
+<li>Построить по годам (2019-2025) динамику стоимости по зеркальной статистике КНР: импорт Китая из России и экспорт Китая в Россию (USD).</li>
 <li>За 2021 год: сравнить с агрегатами ФТС (экспорт РФ в КНР и импорт РФ из КНР). Рассчитать средние цены ($/т, или $/баррель) и относительное расхождение (в %) и кратко предложить возможные причины (FOB/CIF, классификация, лаг).</li>
 </ul></li>
-<li><strong>Отчёт:</strong> Оформить результат в виде короткого отчёта (1–2 страницы): таблица или график динамики, таблица сравнения за 2021, выводы.</li>
+<li><strong>Отчёт:</strong> Оформить результат в виде короткого отчёта (1-2 страницы): таблица или график динамики, таблица сравнения за 2021, выводы.</li>
 </ol>
-<p><strong>Дополнительно:</strong> Найти в <code>metadata/tnved.csv</code> самый длинный текст описания товара (колонка NAME). В группах 84 или 85 описания часто занимают несколько строк — это иллюстрирует сложность таможенного администрирования.</p>
+<p><strong>Дополнительно:</strong> Найти в <code>metadata/tnved.csv</code> самый длинный текст описания товара (колонка NAME). В группах 84 или 85 описания часто занимают несколько строк - это иллюстрирует сложность таможенного администрирования.</p>
 
 
 </section></section>
