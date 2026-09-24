@@ -164,3 +164,14 @@ async def try_consume_turn(user_id: int) -> tuple[bool, int, str]:
                 "UPDATE demo_usage_daily SET turns = turns + 1 WHERE day = current_date"
             )
             return (True, remaining - 1, "ok")
+
+
+async def log_chat(user_id: int, question: str, answer: str | None,
+                   tool_calls: int, status: str) -> None:
+    """Store a demo question (and its answer) for later analysis."""
+    pool = await _require_pool()
+    await pool.execute(
+        "INSERT INTO demo_chat_log(user_id, question, answer, tool_calls, status) "
+        "VALUES ($1, $2, $3, $4, $5)",
+        user_id, (question or "")[:4000], (answer or "")[:8000], tool_calls, status,
+    )

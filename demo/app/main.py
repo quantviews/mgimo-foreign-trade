@@ -162,10 +162,26 @@ async def chat(request: Request, body: ChatIn):
     if not msgs:
         return _sse_single({"type": "error", "text": "Пустой запрос."})
 
+    question = msgs[-1]["content"]
+
     async def gen():
         yield _event({"type": "start", "remaining": remaining})
+        answer_text, tool_calls, err = "", 0, None
         async for ev in run_agent(msgs):
+            t = ev.get("type")
+            if t == "answer":
+                answer_text = ev.get("text", "")
+            elif t == "tool":
+                tool_calls += 1
+            elif t == "error":
+                err = ev.get("text")
             yield _event(ev)
+        # Log the question (and answer) for later analysis. Best-effort.
+        try:
+            await db.log_chat(s["uid"], question, answer_text, tool_calls,
+                             "error" if err else "ok")
+        except Exception:  # noqa: BLE001
+            pass
         yield _event({"type": "done", "remaining": remaining})
 
     return StreamingResponse(gen(), media_type="text/event-stream",
