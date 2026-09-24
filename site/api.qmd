@@ -3,9 +3,13 @@ title: "Доступ по API"
 ---
 
 Поверх базы работает read-only сервис: тонкая прослойка над DuckDB, без
-собственного хранилища. Базовый адрес - `https://nts.mgimo.ru/api`, интерактивная
-схема (Swagger) - `https://nts.mgimo.ru/api/docs`. Статус пилотный, доступ по
-персональному ключу.
+собственного хранилища. Базовый адрес - `https://nts.mgimo.ru/api`. Статус
+пилотный, доступ по персональному ключу.
+
+Все эндпоинты, параметры и схемы ответов удобнее всего смотреть и пробовать в
+интерактивной документации Swagger:
+
+[Открыть Swagger (`/api/docs`) →](https://nts.mgimo.ru/api/docs){.btn .btn-primary target="_blank" rel="noopener"}
 
 ## Авторизация
 
@@ -57,7 +61,8 @@ title: "Доступ по API"
 
 ---
 
-Интерактивная схема со всеми параметрами - по `https://nts.mgimo.ru/api/docs`.
+Интерактивная схема со всеми параметрами -
+[Swagger `/api/docs`](https://nts.mgimo.ru/api/docs).
 Справочник -
 [api-reference.md](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md),
 инструкция для аналитиков без кода -
