@@ -212,7 +212,9 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>Поверх базы работает read-only сервис: тонкая прослойка над DuckDB, без собственного хранилища. Базовый адрес - <code>https://nts.mgimo.ru/api</code>, интерактивная схема (Swagger) - <code>https://nts.mgimo.ru/api/docs</code>. Статус пилотный, доступ по персональному ключу.</p>
+<p>Поверх базы работает read-only сервис: тонкая прослойка над DuckDB, без собственного хранилища. Базовый адрес - <code>https://nts.mgimo.ru/api</code>. Статус пилотный, доступ по персональному ключу.</p>
+<p>Все эндпоинты, параметры и схемы ответов удобнее всего смотреть и пробовать в интерактивной документации Swagger:</p>
+<p><a href="https://nts.mgimo.ru/api/docs" class="btn btn-primary" target="_blank" rel="noopener">Открыть Swagger (<code>/api/docs</code>) →</a></p>
 <section id="авторизация" class="level2">
 <h2 class="anchored" data-anchor-id="авторизация">Авторизация</h2>
 <p>Каждый запрос, кроме <code>/health</code>, требует персонального токена. Для скриптов это заголовок <code>Authorization: Bearer &lt;токен&gt;</code>, для Excel и Power BI - HTTP Basic, где имя пользователя любое, а пароль и есть токен. Токен пользователь выпускает сам в <a href="https://nts.mgimo.ru/superset/apikey/">личном кабинете</a>, он показывается один раз и перевыпускается там же.</p>
@@ -275,7 +277,7 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="odata">OData</h2>
 <p>Поддерживается подмножество OData v4: <code>$filter</code> со сравнениями и логическими операторами, <code>$select</code>, <code>$orderby</code>, <code>$top</code>, <code>$skip</code>, <code>$count</code> и серверная пагинация. Функции вроде <code>contains</code> пока не поддержаны. Фильтры, поставленные мышкой в редакторе запросов Excel, сворачиваются в <code>$filter</code> и выполняются на сервере, так что в файл приезжает только нужный срез.</p>
 <hr>
-<p>Интерактивная схема со всеми параметрами - по <code>https://nts.mgimo.ru/api/docs</code>. Справочник - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md">api-reference.md</a>, инструкция для аналитиков без кода - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-excel-guide.md">api-excel-guide.md</a>. Подключение ИИ-агентов - на странице <a href="../site/mcp.html">«ИИ-агент (MCP)»</a>.</p>
+<p>Интерактивная схема со всеми параметрами - <a href="https://nts.mgimo.ru/api/docs">Swagger <code>/api/docs</code></a>. Справочник - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-reference.md">api-reference.md</a>, инструкция для аналитиков без кода - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/api-excel-guide.md">api-excel-guide.md</a>. Подключение ИИ-агентов - на странице <a href="../site/mcp.html">«ИИ-агент (MCP)»</a>.</p>
 
 
 </section>

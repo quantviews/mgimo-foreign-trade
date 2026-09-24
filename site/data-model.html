@@ -212,61 +212,282 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>Данные хранятся в единой базе (DuckDB): все торговые потоки приведены к одной структуре независимо от источника. Ниже - основные поля.</p>
-<section id="основные-поля" class="level2">
-<h2 class="anchored" data-anchor-id="основные-поля">Основные поля</h2>
+<p>Все сырые данные из разных источников (Китай, Турция, Индия, UN Comtrade и т.д.) преобразуются в единую стандартизированную схему и хранятся в одной базе (DuckDB). Ниже - полное описание этой модели.</p>
+<section id="таблица-unified_trade_data" class="level2">
+<h2 class="anchored" data-anchor-id="таблица-unified_trade_data">Таблица <code>unified_trade_data</code></h2>
+<p>Основная факт-таблица. Каждая строка - торговый поток за месяц по конкретной стране-партнёру и коду ТН ВЭД.</p>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 17%">
+<col style="width: 34%">
+<col style="width: 27%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Поле</th>
+<th>Тип</th>
 <th>Описание</th>
+<th>Пример</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>NAPR</code></td>
+<td><code>VARCHAR</code></td>
+<td>Направление потока относительно РФ: <code>ИМ</code> (импорт) или <code>ЭК</code> (экспорт)</td>
+<td><code>ИМ</code></td>
+</tr>
+<tr class="even">
+<td><code>PERIOD</code></td>
+<td><code>DATE</code></td>
+<td>Отчётный период - первый день месяца, формат <code>YYYY-MM-DD</code></td>
+<td><code>2023-01-01</code></td>
+</tr>
+<tr class="odd">
+<td><code>STRANA</code></td>
+<td><code>VARCHAR</code></td>
+<td>Страна-партнёр, двухбуквенный ISO-код</td>
+<td><code>CN</code></td>
+</tr>
+<tr class="even">
+<td><code>TNVED</code></td>
+<td><code>VARCHAR</code></td>
+<td>Полный код ТН ВЭД строкой. Ведущие нули сохраняются; короткие коды дополняются справа до 10 знаков</td>
+<td><code>0101210000</code></td>
+</tr>
+<tr class="odd">
+<td><code>EDIZM</code></td>
+<td><code>VARCHAR</code></td>
+<td>Дополнительная единица измерения для <code>KOL</code>, как в источнике. <code>?</code> - неизвестна</td>
+<td><code>Number of item</code></td>
+</tr>
+<tr class="even">
+<td><code>EDIZM_ISO</code></td>
+<td><code>VARCHAR</code></td>
+<td>Код стандартизированной единицы (справочник <code>metadata/edizm.csv</code>)</td>
+<td><code>166</code></td>
+</tr>
+<tr class="odd">
+<td><code>STOIM</code></td>
+<td><code>DECIMAL</code></td>
+<td>Стоимость в долларах США (в единицах, не в тысячах)</td>
+<td><code>12500500</code></td>
+</tr>
+<tr class="even">
+<td><code>NETTO</code></td>
+<td><code>DECIMAL</code></td>
+<td>Вес нетто, кг</td>
+<td><code>450.0</code></td>
+</tr>
+<tr class="odd">
+<td><code>KOL</code></td>
+<td><code>DECIMAL</code></td>
+<td>Количество в единице <code>EDIZM</code></td>
+<td><code>150</code></td>
+</tr>
+<tr class="even">
+<td><code>TNVED8</code></td>
+<td><code>VARCHAR</code></td>
+<td>Первые 8 знаков <code>TNVED</code> (подкатегория)</td>
+<td><code>01012100</code></td>
+</tr>
+<tr class="odd">
+<td><code>TNVED6</code></td>
+<td><code>VARCHAR</code></td>
+<td>Первые 6 знаков (субпозиция)</td>
+<td><code>010121</code></td>
+</tr>
+<tr class="even">
+<td><code>TNVED4</code></td>
+<td><code>VARCHAR</code></td>
+<td>Первые 4 знака (позиция)</td>
+<td><code>0101</code></td>
+</tr>
+<tr class="odd">
+<td><code>TNVED2</code></td>
+<td><code>VARCHAR</code></td>
+<td>Первые 2 знака (группа)</td>
+<td><code>01</code></td>
+</tr>
+<tr class="even">
+<td><code>SOURCE</code></td>
+<td><code>VARCHAR</code></td>
+<td>Источник ряда: <code>national</code>, <code>comtrade</code> или <code>nowcast</code></td>
+<td><code>national</code></td>
+</tr>
+<tr class="odd">
+<td><code>TYPE</code></td>
+<td><code>VARCHAR</code></td>
+<td>Тип ряда: <code>fact</code> (факт) или <code>pred</code> (nowcast-прогноз)</td>
+<td><code>fact</code></td>
+</tr>
+</tbody>
+</table>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Уведомление
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>В Python-пайплайне <code>PERIOD</code> хранится как <code>datetime64[ns]</code> (с нормализацией времени <code>00:00:00</code>), а при записи в DuckDB приводится к типу <code>DATE</code>.</p>
+</div>
+</div>
+</section>
+<section id="состав-базы-dbunified_trade_data.duckdb" class="level2">
+<h2 class="anchored" data-anchor-id="состав-базы-dbunified_trade_data.duckdb">Состав базы <code>db/unified_trade_data.duckdb</code></h2>
+<p>Помимо основной таблицы база содержит справочники и обогащённые представления.</p>
+<p><strong><code>tnved_reference</code></strong> - справочник ТН ВЭД:</p>
+<ul>
+<li><code>TNVED_CODE</code> - код;</li>
+<li><code>TNVED_LEVEL</code> - уровень (2/4/6/8/10);</li>
+<li><code>TNVED_NAME</code> - наименование (без приклеенной единицы измерения);</li>
+<li><code>TNVED_NAME_EN</code> - оригинал на английском, из которого сделан машинный перевод (только для <code>NAME_SOURCE IN ('mt','manual')</code>);</li>
+<li><code>TNVED_UNIT</code> - дополнительная единица измерения (<code>ШТ</code>, <code>М2</code>, <code>КГ P2O5</code>, …), <code>NULL</code> если не задана;</li>
+<li><code>NAME_SOURCE</code> - откуда наименование: <code>fts</code> (справочник ФТС, заморожен 09.02.2022), <code>fns</code> (классификатор ТН ВЭД ФНС, обновляемый), <code>mt</code> (машинный перевод из зарубежного источника), <code>manual</code> (выверено вручную);</li>
+<li><code>TRANSLATED</code> - то же, что <code>NAME_SOURCE = 'mt'</code> (оставлено для совместимости).</li>
+</ul>
+<p><strong><code>country_reference</code></strong> - справочник стран: <code>STRANA</code> (ISO2), <code>STRANA_NAME</code>.</p>
+<p><strong><code>hs4_reference</code></strong> - короткие подписи товарных групп: <code>TNVED4</code>, <code>TNVED4_NAME_SHORT</code> (для графиков), <code>TNVED4_NAME_FULL</code> (полное русское название).</p>
+<p><strong><code>unified_trade_data_enriched</code></strong> (view) - join основной таблицы со справочниками плюс вычисляемый <code>period_rank</code>. Кроме <code>TNVED_NAME</code> отдаёт:</p>
+<ul>
+<li><code>TNVED_NAME_OFFICIAL</code> - ближайшее наименование из официального справочника: если на 10 знаках лежит машинный перевод, берётся официальный текст на 8, 6, 4 или 2 знаках. Менее подробно, зато проверяемо (99,7 % машинных строк получают официальную подпись на уровне 6 или глубже);</li>
+<li><code>TNVED_NAME_OFFICIAL_LEVEL</code> - на каком уровне оно нашлось (<code>NULL</code>, если официального наименования нет ни на одном уровне);</li>
+<li><code>TNVED_NAME_EN</code>, <code>TNVED_UNIT</code>, <code>TNVED_NAME_SOURCE</code> - оригинал, единица измерения и происхождение;</li>
+<li><code>TNVED_TRANSLATED</code> - то же, что <code>TNVED_NAME_SOURCE = 'mt'</code>.</li>
+</ul>
+</section>
+<section id="индексы-физических-объёмов-fizob" class="level2">
+<h2 class="anchored" data-anchor-id="индексы-физических-объёмов-fizob">Индексы физических объёмов (<code>fizob</code>)</h2>
+<ul>
+<li><strong><code>fizob_index</code></strong> - базовая таблица: <code>STRANA</code>, <code>NAPR</code>, <code>PERIOD</code>, <code>tn_level</code>, <code>tn_code</code>, <code>fizob</code>, <code>fizob_bp</code>.</li>
+<li><strong><code>fizob_index_v</code></strong> (view) - надстройка с вычисляемой колонкой <code>idx = fizob / fizob_bp</code>.</li>
+<li><strong><code>fizob_enriched</code></strong> - обогащённый индекс, который читают дашборды Superset и API (<code>/v1/fizob</code>, OData <code>fizob</code>): <code>fizob_index_v</code> плюс названия и коды-префиксы, перекластеризованный по <code>STRANA, NAPR, tn_level, tn_code, PERIOD</code>. Индекс считается <strong>только по факту</strong> (<code>TYPE='fact'</code>).</li>
+</ul>
+<p>Столбцы <code>fizob_enriched</code>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Колонка</th>
+<th>Тип</th>
+<th>Описание</th>
+<th>Пример</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td><code>STRANA</code></td>
-<td>Страна-партнёр - двухбуквенный ISO-код</td>
+<td><code>VARCHAR</code></td>
+<td>страна-партнёр, ISO2</td>
+<td><code>CN</code></td>
 </tr>
 <tr class="even">
+<td><code>COUNTRY_NAME</code></td>
+<td><code>VARCHAR</code></td>
+<td>название страны</td>
+<td><code>КИТАЙ</code></td>
+</tr>
+<tr class="odd">
 <td><code>NAPR</code></td>
-<td>Направление: <code>ИМ</code> (импорт) или <code>ЭК</code> (экспорт)</td>
+<td><code>VARCHAR</code></td>
+<td>направление: <code>ИМ</code> / <code>ЭК</code></td>
+<td><code>ИМ</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>PERIOD</code></td>
-<td>Отчётный период - первый день месяца</td>
-</tr>
-<tr class="even">
-<td><code>TNVED</code></td>
-<td>Код товара по ТН ВЭД (плюс уровни <code>TNVED2/4/6/8</code>)</td>
+<td><code>DATE</code></td>
+<td>отчётный месяц (первое число)</td>
+<td><code>2024-01-01</code></td>
 </tr>
 <tr class="odd">
-<td><code>STOIM</code></td>
-<td>Стоимость, USD (в единицах, не в тысячах)</td>
+<td><code>YEAR</code></td>
+<td><code>INTEGER</code></td>
+<td>год, производный от <code>PERIOD</code></td>
+<td><code>2024</code></td>
 </tr>
 <tr class="even">
-<td><code>NETTO</code></td>
-<td>Вес нетто, кг</td>
+<td><code>tn_level</code></td>
+<td><code>INTEGER</code></td>
+<td>уровень агрегации: <code>0</code> (итог по стране), <code>2</code> / <code>4</code> / <code>6</code> (по коду ТН ВЭД)</td>
+<td><code>4</code></td>
 </tr>
 <tr class="odd">
-<td><code>KOL</code></td>
-<td>Количество в дополнительной единице измерения</td>
+<td><code>tn_code</code></td>
+<td><code>VARCHAR</code></td>
+<td>код ТН ВЭД на уровне <code>tn_level</code>; на уровне <code>0</code> равен <code>0</code></td>
+<td><code>0101</code></td>
 </tr>
 <tr class="even">
-<td><code>EDIZM</code></td>
-<td>Дополнительная единица измерения</td>
+<td><code>fizob</code></td>
+<td><code>DOUBLE</code></td>
+<td>физический объём текущего периода (рабочая величина)</td>
+<td><code>1.12</code></td>
 </tr>
 <tr class="odd">
-<td><code>SOURCE</code></td>
-<td>Источник ряда: <code>national</code>, <code>comtrade</code> или <code>nowcast</code></td>
+<td><code>fizob_bp</code></td>
+<td><code>DOUBLE</code></td>
+<td>физический объём базового периода (знаменатель индекса)</td>
+<td><code>0.0625</code></td>
 </tr>
 <tr class="even">
-<td><code>TYPE</code></td>
-<td>Тип ряда: <code>fact</code> (факт) или <code>pred</code> (прогноз)</td>
+<td><strong><code>idx</code></strong></td>
+<td><code>DOUBLE</code></td>
+<td><strong>индекс физического объёма</strong> = <code>fizob / fizob_bp</code>, очищенный от изменения цен</td>
+<td><code>0.98</code></td>
+</tr>
+<tr class="odd">
+<td><code>TNVED2</code>, <code>TNVED4</code>, <code>TNVED6</code></td>
+<td><code>VARCHAR</code></td>
+<td>коды-префиксы для join/фильтра</td>
+<td><code>01</code></td>
+</tr>
+<tr class="even">
+<td><code>TNVED2_NAME</code>, <code>TNVED4_NAME</code></td>
+<td><code>VARCHAR</code></td>
+<td>названия группы/позиции (на уровнях <code>2</code> / <code>4</code>)</td>
+<td><code>ЖИВЫЕ ЖИВОТНЫЕ</code></td>
 </tr>
 </tbody>
 </table>
-<p>Индексы физобъёмов хранятся отдельно (<code>fizob_index</code>), названия стран и товаров - в справочниках. При выгрузке можно выбрать нужные таблицы и уровень агрегации.</p>
-<p>Полное описание схемы - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a>. Как эти поля запрашивать программно - в разделе <a href="../site/api.html">«Доступ по API»</a>.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Совет
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Строки существуют <strong>на каждом уровне отдельно</strong> (<code>tn_level</code> 0/2/4/6): при анализе сначала фиксируют один уровень, иначе агрегаты разных уровней смешиваются. Для содержательного показателя берут <code>idx</code>; <code>fizob</code>/<code>fizob_bp</code> - промежуточные величины.</p>
+</div>
+</div>
+</section>
+<section id="ключевые-концепции-и-преобразования" class="level2">
+<h2 class="anchored" data-anchor-id="ключевые-концепции-и-преобразования">Ключевые концепции и преобразования</h2>
+<ul>
+<li><strong>Гармонизация.</strong> Сырые данные в разных форматах приводятся к единой структуре, что позволяет вести унифицированный анализ по странам и периодам.</li>
+<li><strong>Нормализация ТН ВЭД.</strong> Коды хранятся строками, ведущие нули значимы (группы 01-10). Короткие коды дополняются нулями справа до 10 знаков; <code>TNVED2/4/6/8</code> формируются как префиксы.</li>
+<li><strong>Нормализация периода.</strong> Любые обозначения даты из источников (<code>202301</code>, <code>Jan-2023</code>) приводятся к первому дню месяца (<code>2023-01-01</code>).</li>
+<li><strong>Направление потока.</strong> Значение <code>NAPR</code> определяется относительно России: экспорт из Китая в Россию для нас - импорт (<code>ИМ</code>). Для национальных данных направление инвертируется: Export → <code>ИМ</code>, Import → <code>ЭК</code>.</li>
+<li><strong>Стандартизация единиц.</strong> Оригинальные единицы из <code>EDIZM</code> сопоставляются со справочником (<code>metadata/edizm.csv</code>) и дают код <code>EDIZM_ISO</code>.</li>
+<li><strong>Происхождение и тип рядов.</strong> <code>SOURCE</code> фиксирует источник (<code>national</code> / <code>comtrade</code> / <code>nowcast</code>), <code>TYPE</code> разделяет факт (<code>fact</code>) и прогноз (<code>pred</code>).</li>
+<li><strong>Nowcast только в «дырах».</strong> При финальном merge строки nowcast (<code>TYPE='pred'</code>, <code>SOURCE='nowcast'</code>) отбрасываются, если для той же торговой ячейки уже есть фактическая строка. Ключ совпадения: <code>PERIOD</code>, <code>STRANA</code>, <code>TNVED</code> (нормализованный к 10 знакам), <code>NAPR</code>. Единица измерения в ключ не входит: наличие факта блокирует nowcast целиком по этой ячейке.</li>
+<li><strong>Физобъёмы только по факту.</strong> Индексы считаются из <code>unified_trade_data</code> только по строкам <code>TYPE='fact'</code>, чтобы не смешивать факт с прогнозом.</li>
+<li><strong>SQL quality gate.</strong> После merge выполняются проверки: обязательные таблицы и колонки, валидные значения <code>NAPR</code> / <code>SOURCE</code> / <code>TYPE</code>, отсутствие <code>NULL</code> в <code>PERIOD</code> и отсутствие пересечения <code>pred</code> с фактом по торговому ключу.</li>
+</ul>
+<hr>
+<p>Первоисточник этого описания - <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md">data_model.md</a> в репозитории. Как запрашивать эти поля программно - на странице <a href="../site/api.html">«Доступ по API»</a>.</p>
 
 
 </section>
