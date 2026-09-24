@@ -58,8 +58,9 @@ $mermaid-fg-color--lightest: #f0f5ff; // subgraph background (Quarto default is 
 }
 
 // CTA-подсветка пункта «Спросить ИИ»: аккуратная пилюля с красным акцентом.
-// Таргет по ссылке демо (href оканчивается на demo.html) на всех страницах.
-.navbar-dark .navbar-nav .nav-link[href$="demo.html"] {
+// Bootstrap 5.3 у Quarto использует data-bs-theme="dark" без класса navbar-dark,
+// поэтому таргетим просто .navbar .nav-link по ссылке демо (href на demo.html).
+.navbar .nav-link[href$="demo.html"] {
   background: #e74c3c;
   color: #ffffff;
   border-radius: 999px;
