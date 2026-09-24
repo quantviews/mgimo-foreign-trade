@@ -19,16 +19,11 @@ website:
     left:
       - text: "Главная"
         href: index.qmd
-      - text: "Документация"
-        menu:
-          - text: "Методология"
-            href: technical.qmd
-          - text: "Модель данных"
-            href: data-model.qmd
-          - text: "Доступ по API"
-            href: api.qmd
-          - text: "ИИ-агент (MCP)"
-            href: mcp.qmd
+      - text: "Спросить ИИ"
+        href: demo.qmd
+      - text: "Дашборды"
+        href: https://nts.mgimo.ru/superset/
+        target: _blank
       - text: "Месячный бюллетень"
         menu:
           - text: "Сводный обзор"
@@ -41,11 +36,6 @@ website:
             href: country_bulletins/turkey/bulletin_turkey_pdf.qmd
       # Занятия рендерятся отдельным (корневым) проектом; в локальном превью
       # ссылаемся на опубликованные слайды, чтобы не требовать их сборки здесь.
-      - text: "Дашборды"
-        href: https://nts.mgimo.ru/superset/
-        target: _blank
-      - text: "Спросить ИИ"
-        href: demo.qmd
       - text: "Презентации"
         menu:
           - text: "Обзор проекта"
@@ -60,6 +50,16 @@ website:
             href: https://quantviews.github.io/mgimo-foreign-trade/lessons/lesson_04_superset.html
           - text: "5. Визуализация данных и бизнес-аналитика"
             href: https://quantviews.github.io/mgimo-foreign-trade/presentations/dataviz-story.html
+      - text: "Документация"
+        menu:
+          - text: "Методология"
+            href: technical.qmd
+          - text: "Модель данных"
+            href: data-model.qmd
+          - text: "Доступ по API"
+            href: api.qmd
+          - text: "ИИ-агент (MCP)"
+            href: mcp.qmd
 
 format:
   html:

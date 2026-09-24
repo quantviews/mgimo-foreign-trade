@@ -29,16 +29,11 @@ website:
     left:
       - text: "Главная"
         href: site/index.qmd
-      - text: "Документация"
-        menu:
-          - text: "Методология"
-            href: site/technical.qmd
-          - text: "Модель данных"
-            href: site/data-model.qmd
-          - text: "Доступ по API"
-            href: site/api.qmd
-          - text: "ИИ-агент (MCP)"
-            href: site/mcp.qmd
+      - text: "Спросить ИИ"
+        href: site/demo.qmd
+      - text: "Дашборды"
+        href: https://nts.mgimo.ru/superset/
+        target: _blank
       - text: "Месячный бюллетень"
         menu:
           - text: "Сводный обзор"
@@ -49,11 +44,6 @@ website:
             href: site/country_bulletins/india/bulletin_india_pdf.qmd
           - text: "Турция"
             href: site/country_bulletins/turkey/bulletin_turkey_pdf.qmd
-      - text: "Дашборды"
-        href: https://nts.mgimo.ru/superset/
-        target: _blank
-      - text: "Спросить ИИ"
-        href: site/demo.qmd
       - text: "Презентации"
         menu:
           - text: "Обзор проекта"
@@ -68,6 +58,16 @@ website:
             href: lessons/lesson_04_superset.qmd
           - text: "5. Визуализация данных и бизнес-аналитика"
             href: ../presentations/dataviz-story.html
+      - text: "Документация"
+        menu:
+          - text: "Методология"
+            href: site/technical.qmd
+          - text: "Модель данных"
+            href: site/data-model.qmd
+          - text: "Доступ по API"
+            href: site/api.qmd
+          - text: "ИИ-агент (MCP)"
+            href: site/mcp.qmd
 
 format:
   html:
