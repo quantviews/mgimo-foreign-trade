@@ -57,6 +57,23 @@ $mermaid-fg-color--lightest: #f0f5ff; // subgraph background (Quarto default is 
   text-underline-offset: 4px;
 }
 
+// CTA-подсветка пункта «Спросить ИИ»: аккуратная пилюля с красным акцентом.
+// Таргет по ссылке демо (href оканчивается на demo.html) на всех страницах.
+.navbar-dark .navbar-nav .nav-link[href$="demo.html"] {
+  background: #e74c3c;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 0.3rem 0.95rem;
+  margin: 0 0.15rem;
+  font-weight: 600;
+
+  &:hover {
+    background: #c0392b;
+    color: #ffffff;
+    text-decoration: none;
+  }
+}
+
 // Титульный баннер
 .quarto-title-banner {
   background: linear-gradient(135deg, #003d7a 0%, #005fa3 100%);
