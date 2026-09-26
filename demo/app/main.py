@@ -26,6 +26,33 @@ from .domains import is_corporate, is_valid_email
 
 COOKIE = "demo_session"
 
+# --- Registration anti-abuse (in-memory backstop behind the nginx rate limit) --
+_reg_ip_hits: dict[str, list[float]] = {}
+_reg_global_hits: list[float] = []
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "?"
+
+
+def _reg_allowed(ip: str) -> bool:
+    """Per-IP and global hourly caps on registrations, to blunt form spam."""
+    now = time.time()
+    cutoff = now - 3600
+    _reg_global_hits[:] = [t for t in _reg_global_hits if t > cutoff]
+    hits = [t for t in _reg_ip_hits.get(ip, []) if t > cutoff]
+    if (len(hits) >= settings.reg_max_per_ip_hour
+            or len(_reg_global_hits) >= settings.reg_max_global_hour):
+        _reg_ip_hits[ip] = hits
+        return False
+    hits.append(now)
+    _reg_ip_hits[ip] = hits
+    _reg_global_hits.append(now)
+    return True
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):

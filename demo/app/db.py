@@ -52,6 +52,18 @@ async def create_verification(email: str, org: str | None) -> str:
     return token
 
 
+async def recent_verification(email: str, minutes: int) -> bool:
+    """True if a verification for this email was created within the last N minutes
+    (used to avoid re-sending mail to the same address, e.g. under bot spam)."""
+    pool = await _require_pool()
+    val = await pool.fetchval(
+        "SELECT 1 FROM email_verifications "
+        "WHERE email = $1 AND created_at > now() - make_interval(mins => $2) LIMIT 1",
+        email.lower(), minutes,
+    )
+    return val is not None
+
+
 async def consume_verification(token: str) -> dict | None:
     """Return {email, org} and mark consumed, or None if invalid/expired/used."""
     pool = await _require_pool()
