@@ -93,8 +93,14 @@ async def health():
     return {"ok": True}
 
 
+_REG_OK = {"ok": True, "message": "Проверьте почту: мы отправили ссылку для подтверждения."}
+
+
 @app.post("/demo/register")
-async def register(body: RegisterIn):
+async def register(request: Request, body: RegisterIn):
+    if not _reg_allowed(_client_ip(request)):
+        return JSONResponse({"error": "Слишком много запросов. Попробуйте позже."},
+                            status_code=429)
     e = body.email.strip().lower()
     if not is_valid_email(e):
         return JSONResponse({"error": "Некорректный адрес почты."}, status_code=400)
@@ -107,12 +113,16 @@ async def register(body: RegisterIn):
                       "Бесплатные почтовые сервисы не подходят для демо-доступа."},
             status_code=400,
         )
+    # Dedup: if we mailed this address recently, do not send again (anti-spam).
+    if await db.recent_verification(e, settings.reg_dedup_minutes):
+        return _REG_OK
     org = body.org or None
     token = await db.create_verification(e, org)
     link = f"{settings.site_base_url}/demo/verify?token={token}"
     await email.send_verification(e, link)
-    await email.send_admin_notice(e, org, existing)
-    return {"ok": True, "message": "Проверьте почту: мы отправили ссылку для подтверждения."}
+    # Admin notice is sent on confirmation (see /demo/verify), not here, so the open
+    # form cannot be used to spam the team.
+    return _REG_OK
 
 
 @app.get("/demo/verify")
@@ -120,7 +130,11 @@ async def verify(token: str):
     rec = await db.consume_verification(token)
     if rec is None:
         return _html("Ссылка недействительна или истекла. Запросите доступ заново.")
+    existing = await db.user_exists(rec["email"])
     user_id = await db.provision_user(rec["email"], rec["org"])
+    # Notify the team only on a CONFIRMED registration (the email link was clicked),
+    # so bots hitting the open register endpoint do not generate notices.
+    await email.send_admin_notice(rec["email"], rec["org"], existing)
     cookie = _sign({"uid": user_id, "email": rec["email"], "iat": int(time.time())})
     resp = RedirectResponse(f"{settings.site_base_url}/site/demo.html", status_code=302)
     resp.set_cookie(COOKIE, cookie, max_age=settings.session_ttl_hours * 3600,

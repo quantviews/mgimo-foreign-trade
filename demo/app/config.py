@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # Limits and cost guards.
     turn_limit: int = 10             # new users: free turns (stored per row)
     existing_user_turn_limit: int = 100   # users already in api.users (pilot etc.)
+
+    # Anti-abuse on /demo/register (bots hammer the open form).
+    reg_max_per_ip_hour: int = 5     # registrations per IP per hour
+    reg_max_global_hour: int = 60    # registrations total per hour (SMTP guard)
+    reg_dedup_minutes: int = 10      # do not re-send to the same email within N min
     daily_budget: int = 500          # global turns/day backstop
     max_tool_rounds: int = 6         # tool calls per turn before forcing an answer
     max_output_tokens: int = 1200
