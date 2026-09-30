@@ -52,13 +52,15 @@ def get_chrome_major_version():
 
 
 def _autofill_form(driver, year: str, month: str, flow: str, partner_code: str):
-    """Заполнить форму запроса (она внутри iframe) и отправить запрос, чтобы
-    вручную оставалось только решить CAPTCHA и скачать файл.
+    """Заполнить надёжно автозаполняемые поля формы (она внутри iframe): период,
+    валюта USD, чекбокс «по месяцам» и направление.
 
-    Best-effort: любая неудача логируется, и пользователь дозаполняет руками.
-    Селекторы получены инспекцией портала: select #year/#startMonth/#endMonth,
-    радио iEType (Import=10/Export=1) и currencyType (usd), чекбокс monthFlag,
-    партнёр через outerField1=ORIGIN_COUNTRY + outerValue1, кнопка #doSearch.
+    ПАРТНЁРА и отправку запроса намеренно НЕ автоматизируем: портал регистрирует
+    страну-партнёра только через свой попап «Selection coding», а не через значение
+    поля `outerValue1`. Если проставить его программно, запрос уходит без партнёра
+    (портал возвращает 400 и пустую капчу - проверено захватом сети). Поэтому
+    партнёра Russia и кнопку Enquiry оставляем пользователю. Best-effort: при сбое
+    селектора скрипт сообщит и даст дозаполнить вручную.
     """
     wait = WebDriverWait(driver, 30)
     wait.until(lambda d: d.find_elements(By.TAG_NAME, "iframe"))
@@ -70,28 +72,20 @@ def _autofill_form(driver, year: str, month: str, flow: str, partner_code: str):
         Select(driver.find_element(By.ID, "startMonth")).select_by_value(m)
         Select(driver.find_element(By.ID, "endMonth")).select_by_value(m)
 
-        # Партнёр: поле-селектор -> ORIGIN_COUNTRY, значение -> код страны.
-        try:
-            Select(driver.find_element(By.ID, "outerField1")).select_by_value("ORIGIN_COUNTRY")
-        except Exception as exc:  # noqa: BLE001
-            print(f"  [autofill] outerField1 не удалось проставить ({exc}); выберите Russia вручную.")
-
-        # Радио (iEType, currencyType) и чекбокс monthFlag на портале - кастомные
-        # виджеты: обычный клик Selenium по ним не срабатывает, а нативный
-        # element.click() через JS работает надёжно (проверено readback-ом).
+        # Радио (iEType, currencyType) и чекбокс monthFlag - кастомные виджеты:
+        # обычный клик Selenium по ним не срабатывает, нативный element.click()
+        # через JS работает. Направление проставляем, но просим пользователя
+        # проверить (иногда виджет переинициализируется и сбрасывает выбор).
         driver.execute_script(
             "var ie=[...document.getElementsByName('iEType')].find(e=>e.value===arguments[0]);"
             "if(ie) ie.click();"
             "var cu=[...document.getElementsByName('currencyType')].find(e=>e.value==='usd');"
             "if(cu) cu.click();"
             "var mf=document.querySelector('input[name=monthFlag]');"
-            "if(mf && !mf.checked) mf.click();"
-            "var ov=document.getElementById('outerValue1');"
-            "if(ov){ov.value=arguments[1]; ov.dispatchEvent(new Event('change',{bubbles:true}));}",
-            IE_RADIO.get(flow, "10"), str(partner_code),
+            "if(mf && !mf.checked) mf.click();",
+            IE_RADIO.get(flow, "10"),
         )
-        driver.execute_script("document.getElementById('doSearch').click();")
-        print("  [autofill] Форма заполнена, запрос отправлен. Осталось: решить CAPTCHA и скачать файл.")
+        print("  [autofill] Проставлено: период, валюта USD, «по месяцам», направление.")
     finally:
         driver.switch_to.default_content()
 
@@ -137,12 +131,16 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
         except Exception as exc:  # noqa: BLE001
             print(f"[autofill] Автозаполнение не удалось ({exc}). Заполните форму вручную.")
 
-        print("\n" + "="*50)
-        print("Форма заполнена автоматически (год/месяц/направление/USD/по месяцам/партнёр).")
-        print("Осталось вручную: решить CAPTCHA и нажать скачивание.")
-        print("Проверьте поля (особенно партнёр = Russia), при необходимости поправьте.")
+        flow_en = "Import" if flow == "ИМ" else "Export"
+        print("\n" + "="*60)
+        print("Форма частично заполнена: период, валюта USD, «по месяцам», направление.")
+        print("Вручную осталось:")
+        print(f"  1) проверьте Flow = {flow_en};")
+        print("  2) выберите партнёра Russia кнопкой «Selection coding» - иначе")
+        print("     запрос уйдёт без партнёра и вернёт пустую капчу (HTTP 400);")
+        print("  3) нажмите Enquiry, затем Download, решите CAPTCHA и скачайте файл.")
         print("Когда 'downloadData.csv' скачается, нажмите Enter здесь.")
-        print("="*50)
+        print("="*60)
         input()
 
         # Wait for download to be present, assuming user has completed it.
