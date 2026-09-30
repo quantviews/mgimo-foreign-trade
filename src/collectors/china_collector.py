@@ -3,8 +3,13 @@ import argparse
 import sys
 import pandas as pd
 from pathlib import Path
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.common.by import By
 import undetected_chromedriver as uc
+
+# Направление с точки зрения Китая -> значение радио iEType на портале.
+# ИМ = импорт Китая (радио "10"), ЭК = экспорт Китая (радио "1").
+IE_RADIO = {"ИМ": "10", "ЭК": "1"}
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from collectors._base import get_project_root
@@ -46,6 +51,51 @@ def get_chrome_major_version():
     return None
 
 
+def _autofill_form(driver, year: str, month: str, flow: str, partner_code: str):
+    """Заполнить форму запроса (она внутри iframe) и отправить запрос, чтобы
+    вручную оставалось только решить CAPTCHA и скачать файл.
+
+    Best-effort: любая неудача логируется, и пользователь дозаполняет руками.
+    Селекторы получены инспекцией портала: select #year/#startMonth/#endMonth,
+    радио iEType (Import=10/Export=1) и currencyType (usd), чекбокс monthFlag,
+    партнёр через outerField1=ORIGIN_COUNTRY + outerValue1, кнопка #doSearch.
+    """
+    wait = WebDriverWait(driver, 30)
+    wait.until(lambda d: d.find_elements(By.TAG_NAME, "iframe"))
+    driver.switch_to.frame(driver.find_element(By.TAG_NAME, "iframe"))
+    try:
+        wait.until(lambda d: d.find_elements(By.ID, "year"))
+        m = str(int(month))
+        Select(driver.find_element(By.ID, "year")).select_by_value(str(int(year)))
+        Select(driver.find_element(By.ID, "startMonth")).select_by_value(m)
+        Select(driver.find_element(By.ID, "endMonth")).select_by_value(m)
+
+        # Партнёр: поле-селектор -> ORIGIN_COUNTRY, значение -> код страны.
+        try:
+            Select(driver.find_element(By.ID, "outerField1")).select_by_value("ORIGIN_COUNTRY")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [autofill] outerField1 не удалось проставить ({exc}); выберите Russia вручную.")
+
+        # Радио (iEType, currencyType) и чекбокс monthFlag на портале - кастомные
+        # виджеты: обычный клик Selenium по ним не срабатывает, а нативный
+        # element.click() через JS работает надёжно (проверено readback-ом).
+        driver.execute_script(
+            "var ie=[...document.getElementsByName('iEType')].find(e=>e.value===arguments[0]);"
+            "if(ie) ie.click();"
+            "var cu=[...document.getElementsByName('currencyType')].find(e=>e.value==='usd');"
+            "if(cu) cu.click();"
+            "var mf=document.querySelector('input[name=monthFlag]');"
+            "if(mf && !mf.checked) mf.click();"
+            "var ov=document.getElementById('outerValue1');"
+            "if(ov){ov.value=arguments[1]; ov.dispatchEvent(new Event('change',{bubbles:true}));}",
+            IE_RADIO.get(flow, "10"), str(partner_code),
+        )
+        driver.execute_script("document.getElementById('doSearch').click();")
+        print("  [autofill] Форма заполнена, запрос отправлен. Осталось: решить CAPTCHA и скачать файл.")
+    finally:
+        driver.switch_to.default_content()
+
+
 def automate_download(year: str, month: str, flow: str, partner_code: str):
     """
     Opens the Chinese customs stats website, fills the form,
@@ -81,11 +131,17 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
     try:
         print("Opening browser to the Chinese customs statistics website...")
         driver.get("http://stats.customs.gov.cn/indexEn")
-        
+
+        try:
+            _autofill_form(driver, year, month, flow, partner_code)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[autofill] Автозаполнение не удалось ({exc}). Заполните форму вручную.")
+
         print("\n" + "="*50)
-        print("Please fill out the form, solve the CAPTCHA, and download the data file.")
-        print("Once the 'downloadData.csv' file has finished downloading,")
-        print("press Enter here to continue.")
+        print("Форма заполнена автоматически (год/месяц/направление/USD/по месяцам/партнёр).")
+        print("Осталось вручную: решить CAPTCHA и нажать скачивание.")
+        print("Проверьте поля (особенно партнёр = Russia), при необходимости поправьте.")
+        print("Когда 'downloadData.csv' скачается, нажмите Enter здесь.")
         print("="*50)
         input()
 
@@ -193,7 +249,7 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
 
         month_str = str(month).zfill(2)
 
-        # Mirror the trade flow for Russia's perspective (единая точка — контракт)
+        # Mirror the trade flow for Russia's perspective (единая точка - контракт)
         mirrored = mirror_napr_value(flow)
         if flow == 'ИМ':
             df['NAPR'] = mirrored
