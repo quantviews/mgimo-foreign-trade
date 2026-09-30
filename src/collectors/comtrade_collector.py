@@ -38,6 +38,8 @@ datasetChecksum. Перед обновлением манифест сверяе
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import sys
@@ -271,7 +273,7 @@ def active_reporters(api) -> pd.DataFrame:
     Справочник отдаётся без ключа подписки, поэтому шаг работает и при
     исчерпанной квоте.
     """
-    reference = api.getReference("partner")
+    reference = _api_call(api.getReference, "partner")
     if reference is None or reference.empty:
         raise RuntimeError("Comtrade вернул пустой справочник партнёров")
     reporters = reference[
@@ -284,15 +286,49 @@ def active_reporters(api) -> pd.DataFrame:
     return reporters
 
 
+def _api_call(fn, *args, **kwargs):
+    """Вызвать функцию comtradeapicall, распознавая исчерпание квоты.
+
+    Библиотека на любой не-200 (включая 403 "out of call volume quota") печатает
+    JSON ошибки в stdout/stderr и возвращает None, исключения не бросая. Мы
+    перехватываем этот вывод: на квотной 403 поднимаем QuotaExceeded, чтобы прогон
+    остановился штатно (код 2) и продолжился в следующее окно, а не принял
+    заблокированный вызов за "данных нет". Прочий вывод уводим в лог.
+    """
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        result = fn(*args, **kwargs)
+    out = buf.getvalue().strip()
+    if out:
+        low = out.lower()
+        if "out of call volume quota" in low or ("quota" in low and "403" in low):
+            raise QuotaExceeded(out.splitlines()[0].strip()[:200])
+        logger.debug("comtrade API: %s", out.splitlines()[-1][:200])
+    return result
+
+
+# Доступность за месяц спрашивают дважды (при построении плана и при загрузке),
+# поэтому кэшируем её на время прогона, чтобы не бить один месяц два раза.
+_AVAILABILITY_CACHE: "dict[str, pd.DataFrame | None]" = {}
+
+
 def fetch_availability(api, period: str) -> pd.DataFrame | None:
-    """Справочник доступности за период. Публичный вызов: без ключа и квоты."""
-    return api.getFinalDataAvailability(
-        None, typeCode="C", freqCode="M", clCode="HS", period=period, reporterCode=None
+    """Справочник доступности за период (публичный эндпоинт, ключ не нужен).
+
+    У публичного эндпоинта свой лимит частоты, поэтому пачку месяцев разносим
+    паузой (иначе серия быстрых вызовов ловит 403 rate-limit), а успешный ответ
+    кэшируем на время прогона.
+    """
+    if period in _AVAILABILITY_CACHE:
+        return _AVAILABILITY_CACHE[period]
+    result = _api_call(
+        api.getFinalDataAvailability,
+        None, typeCode="C", freqCode="M", clCode="HS", period=period, reporterCode=None,
     )
-
-
-def _is_quota_error(exc: Exception) -> bool:
-    return "quota" in str(exc).lower()
+    if result is not None:
+        _AVAILABILITY_CACHE[period] = result
+    time.sleep(REQUEST_PAUSE_SECONDS)
+    return result
 
 
 def fetch_reporters(
@@ -313,7 +349,8 @@ def fetch_reporters(
         return [], set()
     budget.take()
     try:
-        data = api.getFinalData(
+        data = _api_call(
+            api.getFinalData,
             key,
             typeCode="C",
             freqCode="M",
@@ -329,9 +366,9 @@ def fetch_reporters(
             maxRecords=MAX_RECORDS,
             includeDesc=False,
         )
+    except QuotaExceeded:
+        raise
     except Exception as exc:
-        if _is_quota_error(exc):
-            raise QuotaExceeded(f"квота исчерпана на пачке из {len(codes)} стран за {period}") from exc
         logger.warning("  пачка %s: %s", ",".join(codes), exc)
         return [], set(codes)
     finally:
