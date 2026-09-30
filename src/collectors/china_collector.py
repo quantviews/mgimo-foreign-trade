@@ -90,7 +90,7 @@ def _autofill_form(driver, year: str, month: str, flow: str, partner_code: str):
         driver.switch_to.default_content()
 
 
-def automate_download(year: str, month: str, flow: str, partner_code: str):
+def automate_download(year: str, month: str, flow: str, partner_code: str, autofill: bool = False):
     """
     Opens the Chinese customs stats website, fills the form,
     and waits for the user to solve the CAPTCHA to download the data.
@@ -126,19 +126,26 @@ def automate_download(year: str, month: str, flow: str, partner_code: str):
         print("Opening browser to the Chinese customs statistics website...")
         driver.get("http://stats.customs.gov.cn/indexEn")
 
-        try:
-            _autofill_form(driver, year, month, flow, partner_code)
-        except Exception as exc:  # noqa: BLE001
-            print(f"[autofill] Автозаполнение не удалось ({exc}). Заполните форму вручную.")
-
-        flow_en = "Import" if flow == "ИМ" else "Export"
-        print("\n" + "="*60)
-        print("Форма частично заполнена: период, валюта USD, «по месяцам», направление.")
-        print("Вручную осталось:")
-        print(f"  1) проверьте Flow = {flow_en};")
-        print("  2) выберите партнёра Russia кнопкой «Selection coding» - иначе")
-        print("     запрос уйдёт без партнёра и вернёт пустую капчу (HTTP 400);")
-        print("  3) нажмите Enquiry, затем Download, решите CAPTCHA и скачайте файл.")
+        if autofill:
+            # Автозаполнение opt-in. Портал чувствителен к автоматизации: при
+            # серии автосеансов его антибот отвечает 412 на входе и 400 на
+            # скачивании (пустая капча). Поэтому по умолчанию автозаполнение
+            # выключено, а форма заполняется вручную, как в проверенном режиме.
+            try:
+                _autofill_form(driver, year, month, flow, partner_code)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[autofill] Автозаполнение не удалось ({exc}). Заполните форму вручную.")
+            flow_en = "Import" if flow == "ИМ" else "Export"
+            print("\n" + "="*60)
+            print("Форма частично заполнена: период, валюта USD, «по месяцам», направление.")
+            print("Вручную осталось:")
+            print(f"  1) проверьте Flow = {flow_en};")
+            print("  2) выберите партнёра Russia кнопкой «Selection coding»;")
+            print("  3) нажмите Enquiry, затем Download, решите CAPTCHA и скачайте файл.")
+        else:
+            print("\n" + "="*60)
+            print("Заполните форму вручную: год, месяц, направление, валюта USD,")
+            print("«по месяцам», партнёр Russia; нажмите Enquiry, решите CAPTCHA и скачайте.")
         print("Когда 'downloadData.csv' скачается, нажмите Enter здесь.")
         print("="*60)
         input()
@@ -295,7 +302,10 @@ def main():
     parser.add_argument("flow", type=str, choices=['ИМ', 'ЭК'], help="Flow type: 'ИМ' for Import, 'ЭК' for Export")
     parser.add_argument("--partner", type=str, default="344", help="Partner code (e.g., 344 for Russia).")
     parser.add_argument("--output_dir", type=Path, default=default_output, help="Directory to save processed files.")
-    
+    parser.add_argument("--autofill", action="store_true",
+                        help="автозаполнить поля формы (период/валюта/направление). "
+                             "Опционально: портал чувствителен к автоматизации, по умолчанию выключено.")
+
     args = parser.parse_args()
     
     month_padded = args.month.zfill(2)
@@ -303,7 +313,7 @@ def main():
     print(f"Starting automation for Year: {args.year}, Month: {month_padded}, Flow: {args.flow}, Partner: {args.partner}")
     
     # Step 1: Automate the download
-    download_successful = automate_download(args.year, month_padded, args.flow, args.partner)
+    download_successful = automate_download(args.year, month_padded, args.flow, args.partner, autofill=args.autofill)
 
     # Step 2: Process the downloaded file
     if download_successful:
