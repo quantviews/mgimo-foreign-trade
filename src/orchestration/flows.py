@@ -37,6 +37,42 @@ def _command_text(command: Sequence[str]) -> str:
     return " ".join(str(part) for part in command)
 
 
+def _assert_turkey_export_ready(root: Path) -> None:
+    """Turkey data is produced by the sibling ``turkey-foreign-trade`` project,
+    not here. Instead of running the deprecated local processor, verify its
+    export is in place (``data_processed/tr_full.parquet`` carrying the
+    new-schema marker column ``ISTPOZ``) and fail with instructions if it is
+    missing or is an old-schema file. See docs/turkey-collector-docs.md.
+    """
+    path = Path(root) / "data_processed" / "tr_full.parquet"
+    hint = (
+        "Данные по Турции собирает соседний проект turkey-foreign-trade, а не этот "
+        "репозиторий. Обновите их там и положите выгрузку сюда:\n"
+        "  cd ../turkey-foreign-trade\n"
+        "  python -m pipeline.cli update            # догнать новые месяцы TUIK\n"
+        "  python -m pipeline.cli compat-export     # собрать tr_full_compat.parquet\n"
+        "  затем data/exports/tr_full_compat.parquet -> data_processed/tr_full.parquet\n"
+        "Подробности: docs/turkey-collector-docs.md"
+    )
+    if not path.exists():
+        raise RuntimeError(f"Нет {path}.\n{hint}")
+    try:
+        import pyarrow.parquet as pq
+
+        columns = set(pq.ParquetFile(str(path)).schema_arrow.names)
+    except Exception:  # noqa: BLE001 - schema read is best-effort
+        columns = set()
+    if columns and "ISTPOZ" not in columns:
+        raise RuntimeError(
+            f"{path} без колонки ISTPOZ: похоже, это выгрузка старой схемы, а не "
+            f"текущий compat-export соседнего проекта.\n{hint}"
+        )
+    get_run_logger().info(
+        "Турция: используется внешняя выгрузка %s (turkey-foreign-trade compat-export)",
+        path,
+    )
+
+
 def _build_merge_command(
     python: str,
     *,
@@ -440,7 +476,10 @@ def mgimo_full_refresh(
         run_command([python, "src/collectors/india_processor.py"], project_root=root)
 
     if process_turkey:
-        run_command([python, "src/collectors/turkey_processor.py", "--all"], project_root=root)
+        # Сбор по Турции переехал в соседний проект turkey-foreign-trade. Здесь не
+        # запускаем устаревший локальный процессор (он затёр бы tr_full.parquet
+        # старой схемой), а проверяем, что внешняя выгрузка уже на месте.
+        _assert_turkey_export_ready(root)
 
     # Comtrade: скачивание месячных parquet и пересборка db/comtrade.db, который
     # читает merge. Оба шага opt-in — первый ходит в сеть и тратит квоту API,

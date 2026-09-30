@@ -179,7 +179,7 @@ python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_re
 
 Если появился новый сырой файл только для одной страны, запускайте processor только этой страны, а остальные оставляйте выключенными.
 
-Только Турция:
+Только Турция: сбор идёт в соседнем проекте, поэтому **сначала обновите выгрузку там** (см. раздел «Турция» ниже) и положите её в `data_processed/tr_full.parquet`, а затем пересоберите базу. `process_turkey=True` теперь не запускает локальный процессор, а лишь проверяет, что внешняя выгрузка на месте:
 
 ```bash
 python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_refresh(process_turkey=True, run_nowcast=True, run_fizob=True, require_fizob_quality=True, rscript='G:/R/R-4.5.1/bin/Rscript.exe')"
@@ -205,7 +205,7 @@ python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_re
 python -c "from src.orchestration.flows import mgimo_full_refresh; mgimo_full_refresh(process_china=True, process_india=True, process_turkey=True, run_nowcast=True, run_fizob=True, require_fizob_quality=True, rscript='G:/R/R-4.5.1/bin/Rscript.exe')"
 ```
 
-Это самый тяжелый режим; для обычного месячного обновления он нужен только если действительно надо заново прогнать processors.
+Это самый тяжелый режим; для обычного месячного обновления он нужен только если действительно надо заново прогнать processors. Турцию перед этим обновите в соседнем проекте (раздел «Турция»): `process_turkey=True` здесь только проверит, что её выгрузка на месте, но сам сбор не выполнит.
 
 ### 5. Собрать candidate-базу перед публикацией
 
@@ -260,7 +260,8 @@ python -c "from src.orchestration.checks import run_sql_quality_checks; print(ru
 
 ## Параметры flow
 
-- `process_china=False`, `process_india=False`, `process_turkey=False` — запуск страновых processors. По умолчанию выключены, чтобы не делать полный апдейт при каждом rebuild.
+- `process_china=False`, `process_india=False` — запуск страновых processors Китая и Индии. По умолчанию выключены, чтобы не делать полный апдейт при каждом rebuild.
+- `process_turkey=False` — Турция собирается **не здесь**, а в соседнем проекте `turkey-foreign-trade`. Этот флаг больше не запускает локальный процессор (он затёр бы `tr_full.parquet` старой схемой): он лишь проверяет, что внешняя выгрузка `data_processed/tr_full.parquet` (compat-export, с колонкой `ISTPOZ`) на месте, и падает с инструкцией, если её нет. См. раздел «Турция» ниже.
 - `collect_comtrade=False` — скачать недостающие месяцы Comtrade в `data_raw/comtrade_data/`. Ходит в сеть и расходует квоту API, поэтому выключено по умолчанию.
 - `refresh_comtrade=False` — вместе с `collect_comtrade` дополнительно перекачать страны, пересмотревшие отчётность за уже скачанные месяцы (см. ниже).
 - `rebuild_comtrade_db=None` — пересобрать `db/comtrade.db` из parquet. `None` означает «вместе со скачиванием»: если parquet обновились, а база осталась прежней, merge молча возьмёт старые данные.
@@ -303,6 +304,43 @@ python src/collectors/comtrade_collector.py --refresh --max-requests 130
 
 Подробно — методология пересмотров, расход запросов, обрезка ответа и
 диагностика — в `docs/comtrade-collector-docs.md`.
+
+## Турция
+
+Сбор по Турции выполняется **не в этом репозитории**, а в соседнем проекте
+`turkey-foreign-trade` (лежит рядом, `../turkey-foreign-trade`). Причина: ТУИК
+перевёл данные на BI-портал Qlik, доступный только через браузерную сессию
+(Playwright), поэтому пайплайн живёт отдельно. Локальные `src/collectors/turkey_*`
+устарели и запускать их не нужно. Коллектор сюда не переносится - этот раздел
+только фиксирует, как его прогон и выгрузка стыкуются с нашим merge.
+
+Порядок обновления (перед полным refresh с Турцией):
+
+```powershell
+cd ..\turkey-foreign-trade
+python -m pipeline.cli update              # догнать новые месяцы TUIK (и пересмотры)
+python -m pipeline.cli compat-export       # собрать data/exports/tr_full_compat.parquet
+```
+
+Затем выгрузка кладётся в этот репозиторий как `data_processed/tr_full.parquet`
+(drop-in замена; наш merge подхватывает все `data_processed/*.parquet`):
+
+```powershell
+copy ..\turkey-foreign-trade\data\exports\tr_full_compat.parquet data_processed\tr_full.parquet
+```
+
+- Файл в нашей страновой схеме (`NAPR/PERIOD/STRANA/TNVED/EDIZM/EDIZM_ISO/STOIM/NETTO/KOL/TNVED2/4/6`)
+  плюс `ISTPOZ` (полный GTIP-12) и названия. Признак свежей выгрузки - наличие
+  колонки `ISTPOZ`; у файла старой схемы её нет.
+- Соседний проект сам импортирует справочники из нашего `src` (нормализация
+  `EDIZM`, русские названия ТН ВЭД), находя его как sibling или по переменной
+  `MGIMO_FOREIGN_TRADE_SRC`.
+- В нашем flow шаг `process_turkey=True` не собирает данные, а лишь проверяет,
+  что `data_processed/tr_full.parquet` на месте и новой схемы; иначе падает с
+  инструкцией. Собственно сбор всегда делается в соседнем проекте.
+
+Подробно - устройство пайплайна, система учёта (только General Trade System) и
+формат выгрузки - в `docs/turkey-collector-docs.md`.
 
 ## Run Manifest
 
