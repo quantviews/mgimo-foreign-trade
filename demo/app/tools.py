@@ -7,10 +7,15 @@ demo-plan key. Results are trimmed so a chat turn cannot balloon the token budge
 from __future__ import annotations
 
 import json
+import copy
+import logging
 
 import httpx
 
 from .config import settings
+from .analysis import monthly_evidence
+from .trade_evidence import trade_evidence
+from .exports import export_context, save_export, MAX_EXPORT_ROWS
 
 _STR_ARRAY = {"type": "array", "items": {"type": "string"}}
 
@@ -49,7 +54,7 @@ TOOLS = [
             "name": "trade",
             "description": "Foreign-trade rows or server-side aggregates. Work general "
                            "to specific: aggregate high (tnved2/strana/year) first, then "
-                           "drill down. Every response includes meta.period_max.",
+                           "drill down. To explain changes, fetch complete child-code aggregates for current and prior matched periods; calculate shares and contribution pp, not just child growth rates. Every response includes meta.period_max.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -57,7 +62,7 @@ TOOLS = [
                     "napr": {**_STR_ARRAY, "description": "'ЭК' export / 'ИМ' import"},
                     "tnved2": _STR_ARRAY, "tnved4": _STR_ARRAY,
                     "tnved6": _STR_ARRAY, "tnved": _STR_ARRAY,
-                    "type": {**_STR_ARRAY, "description": "'fact' or 'nowcast'"},
+                    "type": {**_STR_ARRAY, "description": "'fact' or 'pred' (nowcast)"},
                     "source": _STR_ARRAY,
                     "edizm": _STR_ARRAY,
                     "period_from": {"type": "string", "description": "YYYY-MM-DD (month start)"},
@@ -97,6 +102,40 @@ TOOLS = [
     },
 ]
 
+_export_tool = copy.deepcopy(next(t for t in TOOLS if t["function"]["name"] == "trade"))
+_export_tool["function"]["name"] = "export_trade"
+_export_tool["function"]["description"] = (
+    "Prepare monthly XLSX and a short computed summary. Requires period_from and countries or product filter; max 60 months, 1000 rows, 5 MB. Use FIRST for "
+    "requests for monthly series over multiple years/countries. Use product code "
+    "2710 for petroleum products. Default end is the latest available month; "
+    "set end_mode=fixed ONLY if the user explicitly specified an end date. "
+    "Missing observations are not zeros. Do not use continent names as country codes.")
+_export_tool["function"]["parameters"]["properties"]["end_mode"] = {
+    "type": "string", "enum": ["latest", "fixed"]}
+TOOLS.append(_export_tool)
+
+TOOLS.append({"type": "function", "function": {
+    "name": "compare_trade",
+    "description": "FIRST tool for comparing countries, before trade or export_trade. Computes value, mass and physical-volume index (fizob) on common factual periods. For crude oil to India vs China: strana=['IN','CN'], napr='ex', tnved4=['2709'], months=12. Resolves latest month itself. If the user also requests Excel, the chat automatically creates the matching workbook. Do not call export_trade separately.",
+    "parameters": {"type":"object", "additionalProperties":False,
+        "properties": {
+            "strana": {**_STR_ARRAY, "minItems":2, "maxItems":10},
+            "napr": {"type":"string", "enum":["ex","im","ЭК","ИМ"]},
+            "months": {"type":"integer", "minimum":1, "maximum":60},
+            "period_from": {"type":"string"}, "period_to": {"type":"string"},
+            "tnved2": _STR_ARRAY, "tnved4": _STR_ARRAY, "tnved6": _STR_ARRAY, "tnved": _STR_ARRAY,
+        }, "required":["strana","napr"]}
+}})
+
+TOOLS.append({"type":"function","function":{
+    "name":"explain_trade",
+    "description":"FIRST for explaining year-on-year drivers/structure for one country and HS2/HS4. Calculates parent totals, child shares, changes and contributions pp; no exploratory calls needed. China cars: strana='CN',napr='im',code='8703',months=12. Monetary analysis, not quantity/fizob decomposition; no file.",
+    "parameters":{"type":"object","additionalProperties":False,"properties":{
+        "strana":{"type":"string"},"napr":{"type":"string","enum":["im","ex"]},
+        "code":{"type":"string"},"months":{"type":"integer","minimum":1,"maximum":12},
+        "period_to":{"type":"string"},"source":{"type":"string","enum":["national","comtrade"]}
+    },"required":["strana","napr","code"]}}})
+
 _LIST_FIELDS = {
     "strana", "napr", "tnved2", "tnved4", "tnved6", "tnved", "type", "source",
     "edizm", "tn_level", "tn_code",
@@ -130,18 +169,32 @@ def _trim(text: str) -> str:
     try:
         obj = json.loads(text)
         data = obj.get("data")
-        if isinstance(data, list) and len(data) > _MAX_RESULT_ROWS:
+        if isinstance(data, list):
+            total = len(data)
             obj["data"] = data[:_MAX_RESULT_ROWS]
-            obj.setdefault("meta", {})
-            obj["_truncated"] = f"showing {_MAX_RESULT_ROWS} of {len(data)} rows"
-        return json.dumps(obj, ensure_ascii=False)[:_MAX_RESULT_CHARS + 500]
+            while True:
+                obj["_truncated"] = {
+                    "returned_rows": len(obj["data"]), "received_rows": total,
+                    "instruction": "Partial result. Narrow the period/countries or aggregate by year. Do not infer totals from this subset.",
+                }
+                result = json.dumps(obj, ensure_ascii=False)
+                if len(result) <= _MAX_RESULT_CHARS:
+                    return result
+                if not obj["data"]:
+                    break
+                obj["data"].pop()
+        return json.dumps({"error": "Result too large; narrow the query."})
     except Exception:
-        return text[:_MAX_RESULT_CHARS] + ' ...","_truncated":true}'
+        return json.dumps({"error": "Invalid API response."})
 
 
 async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
     headers = {"Authorization": f"Bearer {settings.service_api_key}",
                "Accept": "application/json"}
+    if name == "explain_trade":
+        return await _compare_trade(client, args, tool_name="explain_trade")
+    if name == "compare_trade":
+        return await _compare_trade(client, args)
     if name == "meta":
         path, params = "/v1/meta", []
     elif name == "reference":
@@ -154,7 +207,30 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
             params.append(("level", str(args["level"])))
         if args.get("limit") is not None:
             params.append(("limit", str(args["limit"])))
+    elif name == "export_trade":
+        if export_context.get() is not None and export_context.get().get('wants_export') is False:
+            return await execute_tool(client, 'trade', args)
+        return await _export_trade(client, args, headers)
     elif name in ("trade", "fizob"):
+        args = dict(args)
+        ctx = export_context.get() or {}
+        if (name == 'trade' and ctx.get('wants_ranking')
+                and args.get('group_by', '').strip() == 'tnved2'
+                and args.get('metrics', 'stoim') == 'stoim'
+                and args.get('order_by') == '-stoim'
+                and args.get('type', ['fact']) == ['fact']):
+            return await _rank_chapters(client, args, headers)
+        if name == 'trade' and args.get('tnved4') == ['8703']:
+            metrics = (args.get('metrics') or 'stoim,netto').split(',')
+            dims = (args.get('group_by') or 'strana,period').split(',')
+            for d in ('strana','type','source','edizm','edizm_iso'):
+                if d not in dims: dims.append(d)
+            if 'kol' not in metrics: metrics.append('kol')
+            if args.get('include'):
+                for label in args['include'].split(','):
+                    dim = 'strana' if label=='country_name' else label.replace('_name','')
+                    if dim in ('tnved','tnved2','tnved4','tnved6') and dim not in dims: dims.append(dim)
+            args.update(group_by=','.join(dims),metrics=','.join(metrics))
         path, params = f"/v1/{name}", _build_params(args)
     else:
         return json.dumps({"error": f"unknown tool '{name}'"})
@@ -166,7 +242,215 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
         return json.dumps({"error": f"request failed: {e}"})
     if r.status_code >= 400:
         return json.dumps({"error": f"HTTP {r.status_code}", "detail": r.text[:400]})
+    obj = r.json()
+    if name == "trade" and export_context.get() is not None:
+        dims = (args.get("group_by") or "").split(",")
+        if export_context.get().get("wants_export") and "period" in dims and (len(obj.get("data", [])) > 40 or obj.get("meta", {}).get("has_more")):
+            return await _export_trade(client, args, headers)
+    if name == 'trade' and not obj.get('meta',{}).get('has_more') and len(obj.get('data',[])) <= 40:
+        obj.update(await _monthly_analysis(client,args,obj.get('data',[]),headers))
+        obj.update(trade_evidence(obj))
+        enriched = json.dumps(obj,ensure_ascii=False)
+        if len(enriched)<=24000: return enriched
     return _trim(r.text)
+
+
+async def _rank_chapters(client, args, headers):
+    """Calculate a top-N from complete chapter aggregates; never hide genuine truncation."""
+    from decimal import Decimal
+    params = dict(args, type=['fact'], group_by='tnved2', metrics='stoim',
+                  include='tnved2_name', order_by='-stoim', limit=1000)
+    try:
+        response = await client.get(settings.api_base+'/v1/trade', params=_build_params(params), headers=headers, timeout=60)
+        response.raise_for_status()
+        obj = response.json()
+        rows = obj.get('data', [])
+        if obj.get('meta', {}).get('has_more') or obj.get('_truncated'):
+            raise ValueError('Incomplete chapter universe')
+        if any(r.get('stoim') is None for r in rows):
+            raise ValueError('Missing chapter value')
+        codes = [r.get('tnved2') for r in rows]
+        if len(set(codes)) != len(codes): raise ValueError('Duplicate chapter')
+        rows = sorted(rows, key=lambda r: (-Decimal(str(r['stoim'])), str(r['tnved2'])))
+        total = sum((Decimal(str(r['stoim'])) for r in rows), Decimal(0))
+        n = max(1, min(40, int(args.get('limit') or 10)))
+        top = [{**r, 'share_pct': float(Decimal(str(r['stoim']))/total*100) if total>0 else None} for r in rows[:n]]
+        top_total = sum((Decimal(str(r['stoim'])) for r in rows[:n]), Decimal(0))
+        coverage_params = dict(params, group_by='period,source', include=None, order_by='period')
+        coverage_response = await client.get(settings.api_base+'/v1/trade', params=_build_params(coverage_params),headers=headers,timeout=60)
+        coverage_response.raise_for_status()
+        coverage = coverage_response.json()
+        if coverage.get('meta', {}).get('has_more'): raise ValueError('Incomplete monthly coverage')
+        months = sorted({str(r['period'])[:7] for r in coverage.get('data', [])})
+        return json.dumps({'meta': {**obj.get('meta', {}), 'has_more': False}, 'data': top,
+            'ranking': {'complete_universe':True,'total_groups':len(rows),'shown_groups':len(top),
+                'total_stoim':str(total),'other_groups_stoim':str(total-top_total),
+                'top_share_pct':float(top_total/total*100) if total>0 else None,
+                'filters':params,'fact_months':months,
+                'sources':sorted({r['source'] for r in coverage.get('data',[])})},
+            'instruction':'Это запрошенный топ из полного списка групп, а не усечение API. Итог и доли рассчитаны по всем группам. Покажи лидеров с названиями и кодами, стоимостью и долями; назови фактические месяцы из fact_months. Это данные за доступную часть года, не за весь календарный год. Рейтинг по факту. Отсутствие месяца не равно нулю. Общая сумма относится к выбранным фильтрам. В этом денежном рейтинге физические показатели не анализируются: не выводи примечания о массе, количестве или единицах из quality_flags. Не утверждай ни ошибочность, ни гарантированную достоверность стоимости на основании физических флагов. Сами флаги сохранены для запросов о соответствующих показателях.'},ensure_ascii=False)
+    except (ValueError, KeyError, httpx.HTTPError) as exc:
+        ctx = export_context.get()
+        if ctx is not None:
+            ctx['error_code']='ranking_unavailable'
+            ctx['answer']='Не удалось получить полный список групп для рейтинга. Повторите запрос позже.'
+        return json.dumps({'error':'Ranking unavailable','code':type(exc).__name__})
+
+
+async def _monthly_analysis(client, args, rows, headers):
+    """Fetch 12 baseline months privately; never expand displayed/exported rows."""
+    evidence = monthly_evidence(rows)
+    start = args.get('period_from')
+    if not start or 'period' not in (args.get('group_by') or '').split(',') or not rows:
+        return evidence
+    try:
+        from datetime import date
+        d = date.fromisoformat(str(start)[:7]+'-01')
+        month = d.year*12+d.month-1
+        def label(m): return f'{m//12:04d}-{m%12+1:02d}-01'
+        previous = dict(args,period_from=label(month-12),period_to=label(month-1),limit=1000,type=['fact'])
+        previous.pop('offset',None)
+        r = await client.get(f"{settings.api_base}/v1/trade", params=_build_params(previous),headers=headers,timeout=60)
+        r.raise_for_status()
+        data = r.json()
+        if data.get('meta',{}).get('has_more') or not isinstance(data.get('data'),list):
+            raise ValueError('Incomplete baseline')
+        evidence = monthly_evidence(rows,data['data'])
+        evidence['baseline_period'] = {'from':previous['period_from'],'to':previous['period_to']}
+        evidence['display_rule'] = 'Show only requested current rows. Baseline months are calculation inputs, not additional displayed months or current totals. Use stoim_yoy_pct and kol_yoy_pct; mass in netto_thousand_tonnes (thousand metric tonnes).'
+    except (ValueError,httpx.HTTPError):
+        evidence['baseline_note'] = 'Previous-year baseline could not be loaded completely. Do not invent YoY changes; current data are still available.'
+    return evidence
+
+
+def _export_explanation_args(filters):
+    """Only explain a slice the decomposition tool can represent exactly."""
+    countries=filters.get('strana') or []
+    directions=filters.get('napr') or []
+    codes=[(k,filters[k]) for k in ('tnved2','tnved4','tnved6','tnved') if filters.get(k)]
+    if len(countries)!=1 or len(directions)!=1 or len(codes)!=1: return None
+    key,values=codes[0]
+    if key not in ('tnved2','tnved4') or len(values)!=1: return None
+    if filters.get('edizm') or filters.get('edizm_iso'): return None
+    sources=[v for v in filters.get('source',[]) if v!='nowcast']
+    if len(sources)>1: return None
+    if filters.get('type') and 'fact' not in filters['type']: return None
+    try:
+        def mid(s):
+            y,m=map(int,str(s)[:7].split('-'));return y*12+m
+        months=mid(filters['period_to'])-mid(filters['period_from'])+1
+    except (KeyError,ValueError,TypeError): return None
+    if not 1<=months<=12: return None
+    return dict(strana=countries[0],napr=directions[0],code=values[0],months=months,
+                period_to=filters['period_to'],source=sources[0] if sources else ('national' if countries[0] in ('CN','IN','TR') else 'comtrade'))
+
+
+async def _attach_export_explanation(client, filters, ctx):
+    args=_export_explanation_args(filters)
+    if not args or ctx.get('export_explanation_in_progress'): return
+    previous=ctx.get('wants_export')
+    prior_answer,prior_error=ctx.get('answer'),ctx.get('error_code')
+    ctx['export_explanation_in_progress']=True
+    ctx['wants_export']=False
+    try:
+        result=json.loads(await _compare_trade(client,args,tool_name='explain_trade'))
+        evidence=ctx.setdefault('analysis_evidence',{})
+        evidence['explanation']=result
+        if result.get('available') is False:
+            evidence['incomplete_period_answer_rule'] = 'ОБЯЗАТЕЛЬНО начни ответ: «Выгрузка содержит доступные записи за запрошенное окно. Полный фактический итог за 12 месяцев не установлен». Затем назови отсутствующие месяцы. Сумму называй только «В доступных фактических записях отражено ...». Запрещены выводы о масштабе торговли (мало, крайне мало, редко, незначительно) по этому неполному периоду. Явно сообщи, что доли и вклады год к году не рассчитаны из-за несопоставимых периодов. Нулевые строки назови существующими записями со стоимостью 0, не пропусками. Не называй выгрузку полными 12 месяцами факта.'
+        evidence['explanation_instruction']='Начни с итога и 2-3 главных подкатегорий: названия с кодами, доли и рассчитанные вклады в изменение стоимости год к году. Используй числа explanation, не пересчитывай их. При available=false или error не придумывай разложение. Excel содержит запрошенный помесячный ряд; не утверждай, что в нем есть подкатегории или прошлый год, если их нет в file_manifest. Национальный источник сам по себе не доказывает, что масса и количество непосредственно наблюдаемые, а не оценки.'
+    except Exception:
+        ctx.setdefault('analysis_evidence',{})['explanation_note']='Разбор подкатегорий недоступен; файл создан. Не придумывай драйверы.'
+    finally:
+        ctx['wants_export']=previous
+        ctx['answer']=prior_answer
+        if prior_error is None: ctx.pop('error_code',None)
+        else: ctx['error_code']=prior_error
+        ctx.pop('export_explanation_in_progress',None)
+
+
+async def _export_trade(client, args, headers):
+    ctx = export_context.get()
+    if not ctx:
+        return json.dumps({"error": "Export requires a chat session."})
+    if ctx.get("completed_export"):
+        return json.dumps(ctx["completed_export"], ensure_ascii=False)
+    allowed = _LIST_FIELDS | {"period_from", "period_to", "group_by", "metrics", "include", "end_mode", "compare_yoy"}
+    body = {k: v for k, v in args.items() if k in allowed and v is not None}
+    body["inline"] = True
+    # Cars are naturally counted in items; retain units in the API grouping.
+    if body.get('tnved4') == ['8703']:
+        metrics = (body.get('metrics') or 'stoim,netto').split(',')
+        if 'kol' not in metrics: metrics.append('kol')
+        dims = (body.get('group_by') or 'strana,period').split(',')
+        for dim in ('edizm', 'edizm_iso'):
+            if dim not in dims: dims.append(dim)
+        body.update(metrics=','.join(metrics), group_by=','.join(dims))
+    labels = [v.strip() for v in (body.get("include") or "").split(",") if v.strip()]
+    if "country_name" not in labels: labels.append("country_name")
+    # A single filtered code can safely be added without splitting aggregates.
+    dims = [v.strip() for v in body.get("group_by", "strana,period").split(",") if v.strip()]
+    required = {"country_name": "strana", "tnved2_name": "tnved2", "tnved4_name": "tnved4", "tnved6_name": "tnved6"}
+    kept = []
+    for label in labels:
+        dim = required.get(label, "tnved")
+        if dim in dims or dim == "strana":
+            kept.append(label)
+        elif len(body.get(dim) or []) == 1:
+            dims.append(dim)
+            kept.append(label)
+    body["group_by"] = ",".join(dict.fromkeys(dims))
+    body["include"] = ",".join(kept)
+    # Identity comes from the signed chat session, never from model arguments.
+    headers = {**headers, "X-Export-User-Id": str(ctx["user_id"])}
+    try:
+        response = await client.post(f"{settings.api_base}/v1/exports/trade",
+                                     json=body, headers=headers, timeout=90)
+        if response.is_error:
+            ctx["error_code"] = f"export_http_{response.status_code}"
+            try:
+                detail = response.json().get("detail", "")
+            except ValueError:
+                detail = ""
+            logging.getLogger(__name__).warning("Export rejected: status=%s detail=%s", response.status_code, str(detail)[:500])
+        if response.status_code == 429:
+            retry = response.headers.get("Retry-After", "")
+            ctx["answer"] = ("Лимит выгрузок временно исчерпан. За последние 24 часа можно создать до 10 файлов, "
+                             "суммарно до 5 000 строк и 20 МБ. Новый файл не создан. "
+                             "Ранее созданные файлы доступны по прежним ссылкам.")
+            if retry.isdigit():
+                ctx["answer"] += f" Повторите запрос примерно через {max(1, (int(retry)+59)//60)} мин."
+            return json.dumps({"error": "Export rate or volume limit reached", "retry_after": retry})
+        if response.status_code == 400:
+            messages = {
+                "period_from is required; exports span at most 60 months": "Укажите начальный месяц выгрузки.",
+                "Export period must span 1 to 60 months": "Период выгрузки должен составлять от 1 до 60 месяцев.",
+                "Select countries or a product group for export": "Укажите страну или товарную группу.",
+                "Invalid export period": "Не удалось распознать даты выгрузки.",
+            }
+            ctx["answer"] = messages.get(str(detail), "Не удалось согласовать параметры выгрузки. Это ошибка подготовки запроса, а не отсутствие данных.") + " Файл не создан."
+            return json.dumps({"error": "Invalid export filters", "detail": response.text[:400]})
+        if response.status_code == 413:
+            ctx["answer"] = "Запрос превышает размер выгрузки. Полный файл не создан. Сузьте страны, товары или период; по обрезанным данным итоги не рассчитаны."
+            return json.dumps({"error": "Incomplete result; no export created."})
+        if response.status_code == 404:
+            ctx["answer"] = "По выбранным фильтрам нет наблюдений. Это не означает отсутствие торговли."
+            return json.dumps({"rows": 0})
+        response.raise_for_status()
+        obj = response.json()
+        if not obj["meta"].get("complete") or obj["meta"].get("has_more"):
+            raise ValueError("Incomplete export")
+        saved = await save_export(obj["data"], obj["meta"], obj["filters"], prepared=obj)
+        if len(obj["data"])<=40:
+            ctx.setdefault('analysis_evidence', {}).update(await _monthly_analysis(client,obj['filters'],obj['data'],headers))
+        ctx["completed_export"] = saved
+        await _attach_export_explanation(client, obj["filters"], ctx)
+        return json.dumps(saved)
+    except Exception as exc:
+        ctx["error_code"] = "export_failed"
+        ctx["answer"] = "Не удалось создать Excel из-за сбоя сервиса. Повторите запрос позже."
+        return json.dumps({"error": "Export failed", "code": type(exc).__name__})
+
 
 
 def summarize_tool_result(name: str, args: dict, result: str) -> str:
@@ -186,3 +470,107 @@ def summarize_tool_result(name: str, args: dict, result: str) -> str:
             bits.append(f"{k}={','.join(v) if isinstance(v, list) else v}")
     tail = f" -> {rows} rows" if rows is not None else ""
     return f"{name}: {' '.join(bits)}{tail}".strip()
+
+
+async def _compare_trade(client, args, tool_name="compare_trade"):
+    """Use the deployed MCP implementation; do not maintain a second calculator."""
+    headers = {"Authorization": f"Bearer {settings.service_api_key}",
+               "Accept": "application/json, text/event-stream"}
+    seq = 0
+    async def rpc(method, params):
+        nonlocal seq
+        seq += 1
+        r = await client.post(settings.mcp_url, headers=headers,
+            json={"jsonrpc":"2.0","id":seq,"method":method,"params":params},timeout=90)
+        r.raise_for_status()
+        if r.headers.get("mcp-session-id"):
+            headers["mcp-session-id"] = r.headers["mcp-session-id"]
+        if "text/event-stream" in r.headers.get("content-type", ""):
+            # Split SSE lines on LF, not unicode whitespace inside numeric strings.
+            events = r.content.decode("utf-8").replace("\r\n", "\n").split("\n\n")
+            values = [json.loads("\n".join(line[5:].lstrip() for line in event.split("\n") if line.startswith("data:")))
+                      for event in events if any(line.startswith("data:") for line in event.split("\n"))]
+            obj = next(v for v in values if v.get("id") == seq)
+        else:
+            obj = r.json()
+        if obj.get("error"): raise ValueError("MCP RPC failed")
+        return obj["result"]
+    ctx = export_context.get()
+    try:
+        await rpc("initialize", {"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"mgimo-demo","version":"1"}})
+        r = await client.post(settings.mcp_url,headers=headers,
+            json={"jsonrpc":"2.0","method":"notifications/initialized"},timeout=30)
+        r.raise_for_status()
+        allowed={"strana","napr","months","period_from","period_to","tnved2","tnved4","tnved6","tnved"}
+        body={k:v for k,v in args.items() if k in allowed}
+        body["include_fizob"]=True
+        if tool_name == "explain_trade": body={k:v for k,v in args.items() if k in {"strana","napr","code","months","period_to","source"}}
+        result = await rpc("tools/call", {"name":tool_name,"arguments":body})
+        if result.get("isError"): raise ValueError("Comparison tool failed")
+        obj=json.loads(next(item["text"] for item in result["content"] if item.get("type")=="text"))
+        if tool_name == "explain_trade":
+            if obj.get("error"): raise ValueError("Decomposition unavailable")
+            if ctx is not None and ctx.get("wants_export"):
+                if not obj.get("available"):
+                    # Export the requested windows as partial observations, without inventing a complete YoY result.
+                    end = str(body.get("period_to") or ctx["period_max"])[:7]
+                    year, month = map(int, end.split("-"))
+                    last = year * 12 + month - 1
+                    first = last - int(body.get("months", 12)) + 1
+                    def month_date(value): return f"{value//12:04d}-{value%12+1:02d}-01"
+                    obj.update(country=body["strana"].upper(),
+                        source=body.get("source") or ("national" if body["strana"].upper() in ("CN","IN","TR") else "comtrade"),
+                        current_period=[month_date(first),month_date(last)],
+                        previous_period=[month_date(first-12),month_date(last-12)],
+                        coverage_warning="Полного сопоставимого периода нет. Excel содержит только доступные наблюдения. Не рассчитывай и не называй полный итог, рост год к году, доли или вклады. Назови отсутствующие месяцы и ограничения физических показателей.")
+                code = str(body["code"])
+                dimension = "tnved4" if len(code) == 2 else "tnved6"
+                export_args = {"strana": [obj["country"]], "napr": [body["napr"]],
+                    "tnved" + str(len(code)): [code],
+                    "source": [obj["source"], "nowcast"], "type": ["fact", "pred"],
+                    "period_from": obj["current_period"][0], "period_to": obj["current_period"][1],
+                    "end_mode": "fixed", "compare_yoy": True,
+                    "group_by": dimension + ",period,edizm,edizm_iso", "metrics": "stoim,netto,kol",
+                    "include": dimension + "_name"}
+                ctx["export_explanation_in_progress"] = True
+                exported = json.loads(await _export_trade(client, export_args,
+                    {"Authorization": f"Bearer {settings.service_api_key}"}))
+                ctx.pop("export_explanation_in_progress", None)
+                if exported.get("export_ready"):
+                    ctx["analysis_evidence"] = {"explanation": obj,
+                        "file_manifest": exported.get("file_manifest"),
+                        "coverage": exported.get("coverage"), "coverage_note": exported.get("coverage_note"),
+                        "instruction": "Объясни динамику по explanation. Excel содержит исходные строки обоих периодов на листе Факт, оценки проекта отдельно на Nowcast, методологию на Описание. Не утверждай, что в файле есть расчетные доли и вклады. Названия можно сократить, но указывай точный код. Не называй ненулевые оценки нулевыми. Не суммируй оба периода."}
+                return json.dumps(exported, ensure_ascii=False)
+            return json.dumps(obj,ensure_ascii=False)
+        if obj.get("error") or not isinstance(obj.get("answer_ru"),str): raise ValueError("Comparison unavailable")
+        if ctx is not None:
+            ctx["answer"] = obj["answer_ru"]
+            ctx["analysis_evidence"] = obj
+        if ctx is not None and ctx.get('wants_export'):
+            # Reuse the resolved requested window and filters, not rounded totals
+            # or a second interpretation by the model. File calculation is authoritative.
+            export_args = {k:v for k,v in body.items() if k in {'strana','tnved2','tnved4','tnved6','tnved'}}
+            export_args.update(napr=[body['napr']], metrics='stoim,netto',
+                               group_by='strana,period', end_mode='fixed',
+                               period_from=obj['requested_period']['from'],
+                               period_to=obj['requested_period']['to'])
+            exported = json.loads(await _export_trade(client, export_args,
+                {'Authorization': f'Bearer {settings.service_api_key}'}))
+            if not exported.get('export_ready'):
+                failure = ctx.get('answer')
+                if failure == obj['answer_ru']:
+                    failure = 'Excel не удалось создать. Повторите запрос выгрузки позже.'
+                ctx['answer'] = obj['answer_ru'] + '\n\n' + failure
+            return json.dumps(exported)
+        return json.dumps({"comparison_ready":True,"common_month_count":obj.get("common_month_count"),
+                           "fizob_available":obj.get("physical_volume",{}).get("available",False)})
+    except Exception as exc:
+        if ctx is not None:
+            ctx["error_code"]="comparison_failed"
+            ctx["answer"]="Не удалось получить проверенное сравнение. Повторите запрос позже; итоги по неполным данным не рассчитаны."
+        return json.dumps({"error":"Comparison unavailable","code":type(exc).__name__})
+    finally:
+        if headers.get("mcp-session-id"):
+            try: await client.delete(settings.mcp_url, headers=headers, timeout=10)
+            except httpx.HTTPError: pass

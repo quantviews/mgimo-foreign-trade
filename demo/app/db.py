@@ -52,6 +52,11 @@ async def create_verification(email: str, org: str | None) -> str:
     return token
 
 
+async def delete_unsent_verification(token: str) -> None:
+    pool = await _require_pool()
+    await pool.execute("DELETE FROM email_verifications WHERE token=$1 AND consumed_at IS NULL", token)
+
+
 async def recent_verification(email: str, minutes: int) -> bool:
     """True if a verification for this email was created within the last N minutes
     (used to avoid re-sending mail to the same address, e.g. under bot spam)."""
@@ -179,11 +184,20 @@ async def try_consume_turn(user_id: int) -> tuple[bool, int, str]:
 
 
 async def log_chat(user_id: int, question: str, answer: str | None,
-                   tool_calls: int, status: str) -> None:
+                   tool_calls: int, status: str, error_code: str | None = None) -> None:
     """Store a demo question (and its answer) for later analysis."""
     pool = await _require_pool()
     await pool.execute(
-        "INSERT INTO demo_chat_log(user_id, question, answer, tool_calls, status) "
-        "VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO demo_chat_log(user_id, question, answer, tool_calls, status, error_code) "
+        "VALUES ($1, $2, $3, $4, $5, $6)",
         user_id, (question or "")[:4000], (answer or "")[:8000], tool_calls, status,
+        error_code,
     )
+
+
+async def refund_turn(user_id: int) -> int:
+    """Return a failed reservation once; daily budget still counts actual attempts."""
+    pool = await _require_pool()
+    return await pool.fetchval(
+        "UPDATE demo_access SET turns_used=GREATEST(0,turns_used-1), updated_at=now() "
+        "WHERE user_id=$1 RETURNING GREATEST(0,turn_limit-turns_used)", user_id)

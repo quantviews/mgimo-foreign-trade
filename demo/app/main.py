@@ -8,12 +8,15 @@ API key; no per-user raw key is ever stored.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import contextlib
 import hashlib
 import hmac
 import json
+import logging
 import time
+from uuid import UUID
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
@@ -146,7 +149,9 @@ async def register(request: Request, body: RegisterIn):
     org = body.org or None
     token = await db.create_verification(e, org)
     link = f"{settings.site_base_url}/demo/verify?token={token}"
-    await email.send_verification(e, link)
+    if not await email.send_verification(e, link):
+        await db.delete_unsent_verification(token)
+        return JSONResponse({"error": "Не удалось отправить письмо. Попробуйте позже."}, status_code=503)
     # Admin notice is sent on confirmation (see /demo/verify), not here, so the open
     # form cannot be used to spam the team.
     return _REG_OK
@@ -189,6 +194,11 @@ async def chat(request: Request, body: ChatIn):
     if not s:
         return JSONResponse({"error": "Требуется вход."}, status_code=401)
 
+    msgs = _sanitize(body.messages)
+    if not msgs:
+        return _sse_single({"type": "error", "text": "Пустой запрос."})
+
+
     ok, remaining, reason = await db.try_consume_turn(s["uid"])
     if not ok:
         text = {
@@ -199,31 +209,39 @@ async def chat(request: Request, body: ChatIn):
         return _sse_single({"type": "error", "reason": reason, "text": text,
                             "remaining": remaining})
 
-    msgs = _sanitize(body.messages)
-    if not msgs:
-        return _sse_single({"type": "error", "text": "Пустой запрос."})
-
     question = msgs[-1]["content"]
 
     async def gen():
-        yield _event({"type": "start", "remaining": remaining})
         answer_text, tool_calls, err = "", 0, None
-        async for ev in run_agent(msgs):
-            t = ev.get("type")
-            if t == "answer":
-                answer_text = ev.get("text", "")
-            elif t == "tool":
-                tool_calls += 1
-            elif t == "error":
-                err = ev.get("text")
-            yield _event(ev)
-        # Log the question (and answer) for later analysis. Best-effort.
+        successful = False
+        current_remaining = remaining
         try:
-            await db.log_chat(s["uid"], question, answer_text, tool_calls,
-                             "error" if err else "ok")
-        except Exception:  # noqa: BLE001
-            pass
-        yield _event({"type": "done", "remaining": remaining})
+            yield _event({"type": "start", "remaining": remaining})
+            async for ev in run_agent(msgs, user_id=s["uid"]):
+                t = ev.get("type")
+                if t == "answer":
+                    answer_text = ev.get("text", "")
+                    successful = bool(answer_text.strip())
+                elif t == "tool":
+                    tool_calls += 1
+                elif t == "error":
+                    err = ev.get("code") or "agent_error"
+                    answer_text = ev.get("text", "")
+                yield _event(ev)
+        except Exception:
+            err = "chat_failed"
+            answer_text = "Не удалось завершить запрос. Вопрос не будет списан."
+            yield _event({"type": "error", "code": err, "text": answer_text})
+        finally:
+            if err or not successful:
+                current_remaining = await asyncio.shield(db.refund_turn(s["uid"]))
+            try:
+                await db.log_chat(s["uid"], question, answer_text, tool_calls,
+                                  "error" if err or not successful else "ok",
+                                  error_code=err or (None if successful else "incomplete_answer"))
+            except Exception:
+                logging.getLogger(__name__).warning("Could not save demo chat log", exc_info=False)
+        yield _event({"type": "done", "remaining": current_remaining})
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache",
@@ -231,6 +249,24 @@ async def chat(request: Request, body: ChatIn):
 
 
 # --- Helpers ----------------------------------------------------------------
+
+
+@app.get("/demo/exports/{export_id}")
+async def download_export(export_id: UUID, request: Request):
+    s = _session(request)
+    if not s:
+        return JSONResponse({"error": "Войдите в свой аккаунт, чтобы скачать файл."}, status_code=401)
+    pool = await db._require_pool()
+    row = await pool.fetchrow(
+        "SELECT csv_content, xlsx_content FROM demo_exports WHERE id=$1 AND user_id=$2 AND expires_at>now()",
+        export_id, s["uid"])
+    if not row:
+        return JSONResponse({"error": "Выгрузка не найдена или срок ссылки истёк."}, status_code=404)
+    is_xlsx = row["xlsx_content"] is not None
+    ext = "xlsx" if is_xlsx else "csv"
+    return Response(row["xlsx_content"] if is_xlsx else row["csv_content"], media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if is_xlsx else "text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="trade-{export_id}.{ext}"',
+                             "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 def _sanitize(messages: list[ChatMessage]) -> list[dict]:
     out = []

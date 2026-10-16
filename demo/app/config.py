@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # demo-plan key used for every tool call (per-user limits live in demo_access).
     api_base: str = "http://trade-api:8000"
     service_api_key: str = ""
+    mcp_url: str = "https://nts.mgimo.ru/mcp"
 
     # Postgres (same instance/schema as the API): users, demo_access, verifications.
     postgres_dsn: str = ""
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
     session_ttl_hours: int = 12
 
     # Limits and cost guards.
-    turn_limit: int = 10             # new users: free turns (stored per row)
+    turn_limit: int = 30             # new users: free turns (stored per row)
     existing_user_turn_limit: int = 100   # users already in api.users (pilot etc.)
 
     # Anti-abuse on /demo/register (bots hammer the open form).
@@ -39,8 +40,9 @@ class Settings(BaseSettings):
     daily_budget: int = 500          # global turns/day backstop
     max_tool_rounds: int = 6         # tool calls per turn before forcing an answer
     max_output_tokens: int = 1200
+    analytical_output_tokens: int = 2800
     max_history_messages: int = 24   # client history kept per turn
-    verify_ttl_hours: int = 24
+    verify_ttl_hours: int = 168
 
     # Domain gate.
     allow_domains: str = ""          # comma allowlist override (optional)
@@ -49,11 +51,16 @@ class Settings(BaseSettings):
     # Verification email + lead notification (empty notify_email disables it).
     mail_from: str = "research@fief.ru"
     notify_email: str = "m_salihov@fief.ru"
-    smtp_host: str = ""              # empty -> log link to stdout (dev)
+    smtp_host: str = ""              # required for the primary sender
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_starttls: bool = True
+    # Optional backup sender, used only after the primary SMTP fails.
+    fallback_smtp_host: str = "smtp.gmail.com"
+    fallback_smtp_port: int = 465
+    fallback_smtp_user: str = ""
+    fallback_smtp_password: str = ""
 
 
 settings = Settings()

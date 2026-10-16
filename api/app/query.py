@@ -45,7 +45,11 @@ _GROUP_DIMS = {
 }
 
 # Summable metrics.
-_METRICS = {"stoim": "SUM(STOIM)", "netto": "SUM(NETTO)", "kol": "SUM(KOL)"}
+from .quality import QUALITY_SQL
+
+_METRICS = {"stoim": "SUM(STOIM)",
+            "netto": "CASE WHEN COUNT(NETTO)=COUNT(*) THEN SUM(NETTO) END",
+            "kol": "CASE WHEN COUNT(KOL)=COUNT(*) AND COUNT(DISTINCT COALESCE(EDIZM_ISO, EDIZM))=1 AND COUNT(CASE WHEN EDIZM_ISO IS NOT NULL OR EDIZM NOT IN ('?', '-', 'N/A', '\"') THEN 1 END)=COUNT(*) THEN SUM(KOL) END"}
 _DEFAULT_METRICS = ["stoim", "netto"]  # kol is opt-in (needs edizm in group_by)
 
 # Opt-in name labels — only available from the enriched view.
@@ -81,6 +85,8 @@ _LABEL_REQUIRES_DIM = {
 _RAW_COLUMNS = [
     "NAPR", "STRANA", "TNVED", "EDIZM", "EDIZM_ISO", "STOIM", "NETTO", "KOL",
     "TNVED2", "TNVED4", "TNVED6", "TNVED8", "SOURCE", "TYPE", "PERIOD",
+    "SOURCE_UNIT", "SOURCE_QTY_ESTIMATED", "SOURCE_NETTO_ESTIMATED",
+    "KOL_ESTIMATED", "NETTO_ESTIMATED",
 ]
 
 _BASE_TABLE = "unified_trade_data"
@@ -187,13 +193,14 @@ def build_trade_query(
             group_parts.append(_LABELS[i])
         for m in metrics:
             select_parts.append(f"{_METRICS[m]} AS {m}")
+        select_parts.append(f"string_agg(DISTINCT NULLIF({QUALITY_SQL}, ''), '; ') AS quality_flags")
         sql = f"SELECT {', '.join(select_parts)} FROM {table}"
         if where:
             sql += f" WHERE {where}"
         sql += " GROUP BY " + ", ".join(group_parts)
     else:
         # Raw mode: full rows + any requested labels. `metrics` ignored (no aggregation).
-        select_parts = list(_RAW_COLUMNS)
+        select_parts = list(_RAW_COLUMNS) + [f"{QUALITY_SQL} AS quality_flags"]
         for i in include:
             select_parts.append(f"{_LABELS[i]} AS {i}")
         sql = f"SELECT {', '.join(select_parts)} FROM {table}"

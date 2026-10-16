@@ -26,6 +26,9 @@ returned to the model or logged.
 from __future__ import annotations
 
 import os
+import json
+import base64
+from uuid import UUID
 from pathlib import Path
 
 import httpx
@@ -35,7 +38,15 @@ DEFAULT_BASE = "https://nts.mgimo.ru/api"
 
 API_BASE = os.environ.get("MGIMO_API_BASE", DEFAULT_BASE).rstrip("/")
 
-INSTRUCTIONS = """\
+INSTRUCTIONS = """
+Неполные периоды и нулевые строки: различай запрошенное окно, месяцы имеющихся фактических записей и nowcast. Если фактического месяца нет, пиши «Полный фактический итог за запрошенный период не установлен; в доступных записях отражено ...». Не характеризуй масштаб торговли как малый или редкий по неполному срезу. Количество или массу при пропусках называй только известной частью. Нулевая стоимость в существующей строке означает запись со значением 0, а не отсутствие наблюдения; не объясняй ее округлением или отсутствием торговли без подтверждения источника. NULL не равен нулю. Национальный источник и TYPE=fact не доказывают непосредственно наблюдаемую природу физических показателей.
+Для Excel одного товара HS2/HS4 и одной страны с аналитическим разбором сначала вызови explain_trade за запрошенное окно (не более 12 месяцев), затем export_trade за тот же период. available=false или missing_months запрещает полный рост год к году, доли и вклады в изменение за это окно. Не сдвигай период молча. Выгрузка доступных записей допустима. complete/has_more описывают передачу строк API, а не полноту исходной статистики. Nowcast не заполняет пробелы факта в сопоставлении; оценки физических показателей Comtrade сохраняют источник и не являются nowcast проекта.
+Не добавляй собственные отношения массы к количеству, включая иллюстрации неправильного среднего, если mean_status блокирует расчет. Предупреждения сформированы проверками проекта; не приписывай их таможне. Для июля нельзя утверждать ни массу менее 100 кг по всему месяцу, ни среднюю 1,7 т: флаг касается исходных записей. В выводе достаточно: «Средняя масса не приводится: отдельные исходные записи отмечены проверкой качества». Не добавляй утверждений о гарантированной достоверности стоимости.
+Используй computed_summary для итогов, row_display.mass_display для массы: малые значения показывай в тоннах или кг, без округления до нуля. Эти указания приоритетнее общего правила тыс. тонн. quality_flags агрегата означает наличие подозрительной исходной записи, а не нарушение порога всем месячным итогом. Отсутствие флага не подтверждает достоверность. Не объявляй апрель/май надежными только по правдоподобному отношению массы к количеству. Итог относится к имеющимся наблюдениям; явно называй отсутствующие месяцы запрошенного окна.
+Область предупреждений о качестве: связывай каждый флаг только с проверяемым показателем. Предупреждение о массе относится к массе и производным от нее (цена за кг, динамика массы); предупреждение о количестве или единице относится к количеству и производным от него. Низкая масса на транспортное средство сама по себе не доказывает ошибку стоимости. Стоимость, ее динамику и доли по стоимости ставь под сомнение только при отдельном свидетельстве проблемы стоимости или покрытия. Для топа по стоимости не добавляй оговорку о массе, если масса не используется в выводах. Не скрывай соответствующие флаги при ответах о физических показателях. Если предупреждение неоднозначно, не расширяй его смысл на другие показатели.
+Качество данных: передавай пользователю существенные quality_flags. Оценки количества и массы самим Comtrade отличаются от нашего nowcast: TYPE=fact не отменяет NETTO_ESTIMATED/KOL_ESTIMATED и предупреждения об оценке источника. Не называй такие физические показатели непосредственно наблюдаемыми. Не округляй оцененное количество автомобилей до целых как достоверное число машин. Если стандартная единица не установлена, сохраняй обозначение источника и не складывай его с другими единицами. NULL массы или количества не означает ноль; не рассчитывай цену за кг по неизвестной массе.
+Турция: по информации команды проекта от 15.10.2026, статистика сырой нефти не раскрывается. Скрытая позиция 27999999, вероятно, связана с ней, но ее состав не подтвержден: не присваивай всему итогу код 2709 и не трактуй отсутствие 2709 как отсутствие поставок нефти.
+\
 Russian foreign-trade data (exports/imports by partner country, HS / ТН ВЭД code
 and month), served read-only.
 
@@ -54,6 +65,52 @@ pulling raw rows:
 Every trade() response includes the latest available month (meta.period_max), so
 you rarely need meta() first - reserve it for quota or discovering valid fields.
 Prefer one well-chosen call over several narrow ones."""
+INSTRUCTIONS += """
+For a long monthly series use export_trade first: show its short summary and
+provide the export, not hundreds of rows in chat. The server defaults to the
+latest period. Never call a has_more/truncated response complete. Completeness
+of an export only covers the selected filters, not missing source observations.
+Use download_export to obtain XLSX for a client-side file/artifact; never paste a
+large XLSX into the chat. API download URLs require the user's Authorization header.
+"""
+
+INSTRUCTIONS += """
+## Comparable periods and analyst-facing answers
+
+- For country comparisons, fetch monthly aggregates by country, period, type and source (not raw records). Compare the intersection of months with factual observations for every requested country within the requested interval. Missing countries or months are not zero. If no common months exist, say a factual comparison is unavailable.
+- For "latest 12 months", anchor the requested window to meta.period_max. If only 11 common fact months exist, label the comparison as 11 months and list the excluded months; do not silently shift the window backwards. For year-on-year comparisons, align the same calendar months in both years before summing. Enumerate gaps rather than presenting a discontinuous set as a continuous period.
+- Show absolute differences and percentages with an explicit denominator (comparison baseline). Do not compute percentages against a zero baseline; flag small bases. Verify comparable direction, product scope and units. Matching months alone does not guarantee equal source/product coverage. A null metric is not zero and cannot establish comparable coverage for that metric.
+- Keep fact and pred separate. Do not add estimates to factual totals or use them to fill a comparison without explicitly labeling a separate scenario. A zero-valued forecast row must not extend the displayed period of an estimate; retain it in the export and explain its presence when relevant. Do not infer a whole month is forecast from the mere existence of one pred row. Check overlap at the detailed product-code level before claiming double counting.
+- An export's summary totals may cover different periods by country: never compare those totals directly. Use the bounded monthly data to calculate matched-period totals. Never call has_more/truncated results complete. Respect export quotas and Retry-After; do not split requests to evade them.
+- Lead with 1-2 substantive findings, then a compact table, then necessary qualifications and the download link if available. Use country names and plain labels (стоимость, масса, факт, модельная оценка), not internal API field names. Keep technical filters out of the main narrative.
+- In Russian answers use space-separated thousands and a decimal comma: 112 756,9; 60,02 млрд долл.; 8,4%. Calculate with unrounded values, round only for display, and name units. Mass is not a price-adjusted physical-volume index. Do not invent explanations for observed differences.
+
+"""
+
+INSTRUCTIONS += """
+For country comparisons ALWAYS use compare_trade first, before the general-to-specific
+workflow or export_trade. It resolves latest periods internally. For crude oil use
+2709, not chapter 27. Present answer_ru or its concise Russian paraphrase, preserving
+computed values, common months and exclusions. Do not expose scratch calculations,
+add an unrequested prior-year analysis, or recompute rounded differences. Use spaces
+for thousands, decimal commas and ordinary hyphens. Export only when requested.
+"""
+
+INSTRUCTIONS += """
+## Explain dynamics from aggregate to subcategories
+
+For analytical questions about changes, drivers, structure or "why", start with the parent total and its comparable-period change, then drill down ONE level (HS2 -> HS4, HS4 -> HS6). Do not add this investigation to a simple file request. For 8703 use tnved6, never assume every subcategory is an electric vehicle.
+
+1. Establish the same calendar months, direction, country, source and fact status in current and prior-year periods. First verify parent monthly coverage. Retain the chosen window; missing months are not zeros. National statistics, Comtrade source estimates and project nowcast remain distinct.
+2. Fetch complete child aggregates for BOTH periods, retaining the parent filter. Usually two trade calls with group_by=tnved6,type,source (plus edizm,edizm_iso for quantity), metrics=stoim,netto,kol and include=tnved6_name suffice after coverage checks. Aggregate over each entire matched window; do not fetch 24 months times all child codes unless necessary. Check has_more/truncation; never use a top-N subset as the denominator. Reconcile the sum of children with the independently obtained parent totals for both periods. Show a residual as unallocated, not zero; unresolved coverage means decomposition is incomplete.
+3. For value V_i of child i and parent T, compute prior and current shares 100*V_i/T, absolute change d_i=V_i(current)-V_i(prior), child's growth 100*d_i/V_i(prior), and contribution to PARENT growth in percentage points 100*d_i/T(prior). Contributions reconcile to parent percentage growth. Do not confuse a child's growth %, its share %, and contribution pp. Avoid d_i/sum(d_i) as the default contribution: offsetting movements or a near-zero net change make it misleading. No percentages with zero/unknown denominator. An absent child in one period is unknown unless zero coverage is independently confirmed, not an automatic zero.
+4. Rank by absolute change magnitude, show 3-5 leading positive/negative contributors, their names and codes, previous/current shares, absolute changes and contributions pp. Account for other categories as a residual ONLY from complete reconciled data. Lead with a substantive finding (broad-based change or concentrated in specific categories). Keep tables compact. Retain full precision for calculations; Russian display uses spaced thousands, decimal commas, mass in thousand tonnes.
+5. Quantity is additive only within matching units and complete coverage. Do not convert partial known quantities into a total. For fizob use project methodology: heterogeneous physical units can be aggregated by the index methodology, but child indices cannot simply be summed or treated as additive contributions. Monetary decomposition is not a decomposition of real-volume growth. Structural contributions explain WHICH categories changed, not WHY tariffs, prices or consumer behavior caused it without other evidence.
+"""
+
+INSTRUCTIONS += "\nFor year-on-year drivers of ONE country/product, call explain_trade FIRST (CN, im, 8703). Use its calculated shares/contribution_pp and retain unmatched_codes/residual; do not reconstruct arithmetic from monthly rows. For country comparisons compare_trade remains first.\n"
+
+INSTRUCTIONS += '\nUse names from the database in human-facing tables and prose, followed by codes in parentheses. explain_trade includes the canonical Russian name from the database, name_source and name_status. Use the Russian database label as the semantic reference; concise labels with exact codes are allowed. Never infer subcategory names from the parent. Show only 3-5 leading contributors plus the largest negative contributors and a brief unallocated-residual note.\n'
 
 # OAuth is enabled for HTTP transports (unless MCP_OAUTH=0). It lets OAuth-only
 # clients (Claude web/mobile, ChatGPT) connect; clients that send the raw API key
@@ -87,6 +144,10 @@ if _OAUTH:
             revocation_options=RevocationOptions(enabled=True),
         ),
     )
+
+INSTRUCTIONS += '\n## Аналитический ответ: суть и драйверы\n\nНачинай с результата для аналитика: изменение агрегата, величина и сопоставимый период. В первом абзаце назови также 1-2 главных драйвера, до таблицы. Источник достаточно кратко указать в конце. Для одного короткого ограничения используй примечание, без отдельного большого раздела «Оговорки». Пиши содержательно: «Динамика стоимости включает изменение количества и цен», без противопоставления «это не физические объемы». Затем покажи 3-5 главных подкатегорий с названиями и точными кодами, их доли и вклад в динамику. Объясни, насколько рост сосредоточен в отдельных категориях и как изменилась структура. Лидеров определяй по данным: лидер по вкладу не обязательно лидер по доле или темпу роста. Причины вне данных (спрос, цены, политика) обозначай как гипотезы, только если они полезны вопросу и имеют основание; не придумывай их.\n\nПиши прямо: «Источник: таможенная статистика Китая». Не перечисляй исключенные источники («не Comtrade», «не nowcast») и не строй ответ на оборотах «это не X, а Y», если пользователь не просит разъяснить различия. Внутренние source/type, флаги и формулы не пересказывай как чек-лист. Проверки делай всегда, публикуй только выводы из них, нужные для понимания ответа.\n\nСущественное ограничение ставь рядом с затронутым показателем: отсутствующий месяц, неполное количество, оценка вместо наблюдения, несопоставимость периодов. Если оно делает основной вывод невозможным, сообщи об этом сразу. Иначе краткую справку об источнике, периоде и существенном остатке разложения оставь в конце. Не добавляй общие оговорки о пропусках и оценках без конкретного основания в выбранном срезе. Малый нераспределенный остаток укажи соразмерно его влиянию, без длинного методологического вступления. Не скрывай остаток и не считай пропуски нулями.\n\nНазвания в чате можно сократить для читаемости, сохранив смысл русского справочника и точный код в скобках. В Excel остаются исходные названия. Факт, оценки источника Comtrade и nowcast проекта учитывай раздельно; поясняй различие там, где оно влияет на рассматриваемый показатель. Сначала содержание ответа, затем краткая справка и ссылка на файл, если запрошен.\n'
+
+INSTRUCTIONS += "\nFor top product groups by value use rank_trade FIRST (HS2). For Turkey imports this year call rank_trade(strana='TR',napr='im',top_n=10), without dates. It resolves the latest period, calculates shares over all chapters and returns only requested leaders. ranking.complete_universe confirms the full denominator, not full source coverage. Do not treat shown_groups < total_groups as truncation. Describe fact_months/missing_months, not a full year by default. Ordinary trade has_more/_truncated still requires completing the result before totals.\n"
 
 mcp = FastMCP("mgimo-trade", instructions=INSTRUCTIONS, **_fastmcp_kwargs)
 
@@ -209,11 +270,162 @@ def _get(path: str, params: list[tuple[str, str]], ctx: Context | None) -> str:
         return f"Request failed for {path}: {e}"
     if resp.status_code >= 400:
         return f"HTTP {resp.status_code} for {path}: {resp.text[:800]}"
+    if path == "/v1/trade":
+        from trade_evidence import trade_evidence
+        obj = resp.json()
+        obj.update(trade_evidence(obj))
+        from coverage_evidence import coverage_evidence
+        filters = dict(pairs)
+        filters.setdefault('period_to', obj.get('meta',{}).get('period_max'))
+        if not obj.get('meta',{}).get('has_more') and not obj.get('_truncated'):
+            obj['coverage_evidence'] = coverage_evidence(obj.get('data',[]), filters)
+        return json.dumps(obj, ensure_ascii=False)
     return resp.text
 
 
 def _multi(name: str, values: list[str] | None) -> list[tuple[str, str]]:
     return [(name, v) for v in (values or [])]
+
+
+@mcp.tool()
+def rank_trade(strana: str, napr: str, top_n: int = 10,
+               period_from: str | None = None, period_to: str | None = None,
+               ctx: Context | None = None) -> str:
+    """FIRST for top product groups by value (HS2 chapters), e.g. Turkey imports this year.
+    Use strana='TR', napr='im', top_n=10. Without dates uses January through latest
+    available month of the database year. Fetches ALL factual chapters, computes
+    total and shares before selecting top-N. Intentional top-N is not truncation.
+    Returns actual/missing months. No preliminary meta call or Excel required.
+    """
+    from decomposition import rank_chapters
+    try:
+        with httpx.Client() as client:
+            result = rank_chapters(client, API_BASE, {"Authorization": f"Bearer {_resolve_token(ctx)}"},
+                                   strana, napr, top_n, period_from, period_to)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"error":"Ranking unavailable", "code":type(exc).__name__})
+
+
+@mcp.tool()
+def explain_trade(strana: str, napr: str, code: str, months: int = 12,
+                  period_to: str | None = None, source: str | None = None,
+                  ctx: Context | None = None) -> str:
+    """FIRST tool to explain year-on-year drivers for ONE country and HS2/HS4 code.
+    Example: strana="CN", napr="im", code="8703", months=12.
+    Computes matched parent totals, child shares, absolute changes and contribution
+    percentage points. No preliminary meta/trade needed. Missing child is not zero;
+    retain unmatched_codes and unallocated residual. Monetary decomposition only.
+    Does not create a file or claim a causal explanation of prices/tariffs.
+    """
+    from decomposition import explain
+    try:
+        with httpx.Client() as client:
+            result = explain(client, API_BASE, {"Authorization": f"Bearer {_resolve_token(ctx)}"},
+                             strana, napr, code, months, period_to, source)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"error":"Decomposition unavailable", "code":type(exc).__name__})
+
+
+@mcp.tool()
+def compare_trade(
+    strana: list[str], napr: str, months: int = 12,
+    period_from: str | None = None, period_to: str | None = None,
+    tnved2: list[str] | None = None, tnved4: list[str] | None = None,
+    tnved6: list[str] | None = None, tnved: list[str] | None = None,
+    include_fizob: bool = True, ctx: Context | None = None,
+) -> str:
+    """FIRST tool for comparing Russia's trade with countries, e.g. oil to India vs China.
+
+    Use strana=["IN","CN"], napr="ex", tnved4=["2709"], months=12.
+    Crude oil=2709, NOT 27. No preliminary meta, trade, or export call needed.
+    Anchors to latest database month, intersects factual months inside requested window,
+    computes totals, signed differences and percentages relative to FIRST country.
+    Returns excluded months and answer_ru with correctly rounded Russian figures.
+    Reuse computed numbers; do not recompute from rounded totals, show scratch work,
+    add unsolicited year-on-year comparisons or mix predictions into factual totals.
+    Automatically adds fizob dynamics for country totals or one HS2/4/6 code:
+    a ratio of smoothed index endpoints on the SAME common factual months.
+    It is NOT growth of summed period volumes or a comparison of index levels
+    across countries. Never sum indices. include_fizob=False disables this block.
+    Aggregation of different physical units in country totals is an intentional
+    feature of the project methodology, not by itself a defect or reason to
+    disclaim the index. Distinguish this from summing raw KOL across units.
+    Up to 10 countries and 60 months; rejects truncated data. Does not create a file.
+    """
+    body = {k: v for k, v in locals().items() if k != "ctx" and v is not None}
+    try:
+        response = httpx.post(f"{API_BASE}/v1/compare/trade", json=body,
+                              headers={"Authorization": f"Bearer {_resolve_token(ctx)}"}, timeout=90)
+        response.raise_for_status()
+        return json.dumps(response.json(), ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"error": "Comparison unavailable", "code": type(exc).__name__})
+
+
+@mcp.tool()
+def export_trade(
+    strana: list[str] | None = None, napr: list[str] | None = None,
+    tnved2: list[str] | None = None, tnved4: list[str] | None = None,
+    tnved6: list[str] | None = None, tnved: list[str] | None = None,
+    type: list[str] | None = None, source: list[str] | None = None,
+    edizm: list[str] | None = None, edizm_iso: list[str] | None = None,
+    period_from: str | None = None, period_to: str | None = None,
+    end_mode: str = "latest", group_by: str = "strana,period",
+    metrics: str = "stoim,netto", include: str | None = None,
+    ctx: Context | None = None,
+) -> str:
+    """Create a full monthly XLSX and computed summary. Use for broad monthly requests.
+
+    Default end_mode=latest uses the current database period, even if a stale
+    period_to is passed. Use fixed ONLY for a user-specified end date. Source and
+    fact/pred are separate. Summary totals are NOT matched-period comparisons.
+    Use result.comparison for common-fact totals and fizob dynamics; never compare mismatched summary totals. The XLSX includes the same comparison and methodology.
+    Petroleum products=2710, crude oil=2709.
+    Requires period_from and a country or product filter. At most 60 months, 1000 rows (also capped by plan), and 5 MB. Per user across all tokens and chat: 5000 rows, 20 MB, 10 new files per rolling 24h. On 429 stop and respect Retry-After; never split queries to bypass limits. A partial result is rejected.
+    Returns export_id, summary in USD/kg, metadata and an authenticated download
+    path. Files expire in 7 days. Use download_export to create a local attachment.
+    No API key is returned or embedded in the download URL.
+    """
+    body = {k: v for k, v in locals().items() if k != "ctx" and v is not None}
+    try:
+        token = _resolve_token(ctx)
+        response = httpx.post(f"{API_BASE}/v1/exports/trade", json=body,
+                              headers={"Authorization": f"Bearer {token}"}, timeout=90)
+        if response.status_code >= 400:
+            return f"HTTP {response.status_code}: {response.text[:800]}"
+        result = response.json()
+        result["download_url"] = DEFAULT_BASE + result["download_path"]
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"error": "Export request failed", "code": type(exc).__name__})
+
+
+@mcp.tool()
+def download_export(export_id: str, ctx: Context | None = None) -> str:
+    """Fetch an owned, unexpired XLSX by export_id using the current user's token.
+
+    Decode the returned base64 content to a binary file/artifact if supported.
+    Never paste base64 into chat or invent attachments. The workbook has data
+    plus a comparison sheet and a description sheet with sources, units, filters, formulas, and limitations.
+    """
+    try:
+        eid = UUID(export_id)
+    except ValueError:
+        return "Invalid export_id"
+    try:
+        response = httpx.get(f"{API_BASE}/v1/exports/{eid}",
+                            headers={"Authorization": f"Bearer {_resolve_token(ctx)}"}, timeout=90)
+        response.raise_for_status()
+        if len(response.content) > 5_000_000:
+            return json.dumps({"error": "Export exceeds size limit"})
+        is_xlsx = "spreadsheetml" in response.headers.get("content-type", "")
+        return json.dumps({"filename": f"trade-{eid}.{'xlsx' if is_xlsx else 'csv'}",
+                           "mime_type": response.headers.get("content-type"),
+                           "encoding": "base64", "content": base64.b64encode(response.content).decode("ascii")})
+    except Exception as exc:
+        return json.dumps({"error": "Export download failed", "code": type(exc).__name__})
 
 
 @mcp.tool()
@@ -268,7 +480,7 @@ def trade(
     ctx: Context | None = None,
 ) -> str:
     """Query Russian foreign-trade rows or server-side aggregates. This one tool
-    answers most questions in a SINGLE call - prefer one well-chosen call over
+    For explanations of change, obtain matched-period child aggregates with shares and contributions (see server instructions). It answers simple questions in a SINGLE call - prefer one well-chosen call over
     several narrow ones. Work from the general to the specific: aggregate at a
     high level first (a tnved2 chapter / strana / year), then drill into the
     significant part at a finer level - do not pull raw rows to total them.
@@ -278,7 +490,7 @@ def trade(
               are the detailed national sources; 138 more come from UN Comtrade).
       napr    direction: "ЭК" (export from Russia) or "ИМ" (import to Russia).
       tnved2 / tnved4 / tnved6 / tnved  HS / ТН ВЭД codes at 2, 4, 6 or full digits.
-      type    "fact" or "nowcast" (model estimate for the newest months).
+      type    "fact" or "pred" (model estimate for the newest months).
       source  "national", "comtrade" or "nowcast".
       edizm   unit of measure.
     Period (month start, YYYY-MM-DD): period_from, period_to.
@@ -298,7 +510,7 @@ def trade(
     "latest". Answer common questions in one call:
       - year-to-date total: period_from="<year>-01-01", no period in group_by.
       - monthly dynamics: add "period" to group_by.
-      - compare years: add "year" to group_by over the whole range (ONE call,
+      - compare years: first verify matching calendar-month coverage with monthly facts (ONE call,
         not one call per year).
       - product/country breakdown: group_by a tnved level or strana, order_by
         "-stoim", set limit for a top-N.

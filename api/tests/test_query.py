@@ -17,7 +17,7 @@ def _build(**kw):
 def test_aggregation_default_metrics():
     sql, params, meta = _build(group_by=["strana", "period"])
     assert "GROUP BY STRANA, PERIOD" in sql
-    assert "SUM(STOIM) AS stoim" in sql and "SUM(NETTO) AS netto" in sql
+    assert "SUM(STOIM) AS stoim" in sql and "THEN SUM(NETTO) END AS netto" in sql
     assert "SUM(KOL)" not in sql  # kol is opt-in
     assert meta["table"] == "unified_trade_data"
 
@@ -27,7 +27,7 @@ def test_kol_requires_edizm_in_group_by():
         _build(group_by=["strana"], metrics=["stoim", "kol"])
     # OK when edizm is grouped
     sql, _, _ = _build(group_by=["strana", "edizm"], metrics=["kol"])
-    assert "SUM(KOL) AS kol" in sql
+    assert "THEN SUM(KOL) END AS kol" in sql
 
 
 def test_napr_alias_mapping():

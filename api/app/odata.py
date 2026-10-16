@@ -17,6 +17,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from .quality import QUALITY_SQL
+
 DEFAULT_PAGE = 5000
 
 
@@ -46,7 +48,8 @@ _TRADE_ORDER = (
     "TNVED4", "TNVED4_NAME",
     "TNVED6", "TNVED8",
     "EDIZM", "EDIZM_ISO", "SOURCE", "TYPE",
-    "STOIM", "NETTO", "KOL",
+    "STOIM", "NETTO", "KOL", "QUALITY_FLAGS", "SOURCE_UNIT",
+    "SOURCE_QTY_ESTIMATED", "SOURCE_NETTO_ESTIMATED", "KOL_ESTIMATED", "NETTO_ESTIMATED",
 )
 
 TRADE = Entity(
@@ -54,8 +57,8 @@ TRADE = Entity(
     type_name="TradeRow",
     source="unified_trade_data_enriched",
     select_order=_TRADE_ORDER,
-    columns={name: name for name in _TRADE_ORDER},
-    edm={"PERIOD": "Edm.Date", "STOIM": "Edm.Double", "NETTO": "Edm.Double", "KOL": "Edm.Double"},
+    columns={**{name: name for name in _TRADE_ORDER}, "QUALITY_FLAGS": QUALITY_SQL},
+    edm={**{k: "Edm.Boolean" for k in ("SOURCE_QTY_ESTIMATED", "SOURCE_NETTO_ESTIMATED", "KOL_ESTIMATED", "NETTO_ESTIMATED")}, "PERIOD": "Edm.Date", "STOIM": "Edm.Double", "NETTO": "Edm.Double", "KOL": "Edm.Double"},
     default_order="PERIOD, STRANA, TNVED, NAPR",
     date_fields=frozenset({"PERIOD"}),
 )
@@ -217,11 +220,19 @@ class _Parser:
         raw = self._next()
         if raw is None:
             raise ODataError("Missing value in $filter")
+        if raw.lower() == 'null':
+            if op not in ('eq', 'ne'):
+                raise ODataError('null supports only eq/ne')
+            return f"{self.entity.columns[field]} IS {'NOT ' if op == 'ne' else ''}NULL", []
         value = _literal(self.entity, field, raw)
         return f"{self.entity.columns[field]} {_OPS[op]} ?", [value]
 
 
 def _literal(entity: Entity, field: str, raw: str):
+    if entity.edm.get(field) == 'Edm.Boolean':
+        if raw.lower() in ('true', 'false'):
+            return raw.lower() == 'true'
+        raise ODataError(f'Expected true/false for {field}')
     if raw.startswith("'") and raw.endswith("'"):
         s = raw[1:-1].replace("''", "'")
         return s[:10] if field in entity.date_fields else s
