@@ -5,6 +5,7 @@ import uuid
 import base64
 
 from . import db
+from .numeric_facts import numerical_facts
 from .analysis import monthly_evidence
 
 # Per-request state, isolated between concurrent users.
@@ -75,6 +76,7 @@ async def save_export(rows, meta, filters, prepared):
     ctx["download_link"] = f"[Скачать данные в Excel](/demo/exports/{export_id})"
     ctx["analysis_evidence"] = {'verified_summary':answer,'meta':meta,'filters':filters,
                                'data':rows[:40], 'preview_only':len(rows)>40,
+                               'numeric_facts':numerical_facts(rows,filters),
                                'coverage_evidence':coverage_evidence(rows,filters),
                                **(monthly_evidence(rows) if len(rows)<=40 else {})}
     return {"export_ready": True, "rows": len(rows), "period_max": meta.get("period_max"), "file_manifest": prepared.get("file_manifest"),

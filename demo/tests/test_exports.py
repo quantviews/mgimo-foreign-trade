@@ -70,13 +70,12 @@ class ExportTests(unittest.TestCase):
             response = asyncio.run(main.download_export(uuid4(), None))
         self.assertEqual(response.status_code, 401)
 
-    def test_partial_model_claim_suppressed(self):
-        token = exports.export_context.set({'partial': True})
-        try:
-            answer = deepseek._answer({'content': 'Данные полные'})
-            self.assertNotIn('Данные полные', answer['text'])
-        finally:
-            exports.export_context.reset(token)
+    def test_partial_rows_withheld_before_model(self):
+        from demo.app.query_contract import safe_result
+        result = safe_result({'data': [{'stoim': 123}], 'meta': {'has_more': True}})
+        self.assertNotIn('data', result)
+        self.assertEqual(result['result_status'], 'needs_refinement')
+
 
 
 def test_export_quota_message_and_no_file():

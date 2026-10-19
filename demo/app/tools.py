@@ -12,7 +12,9 @@ import logging
 
 import httpx
 
+from .query_contract import resolve_trade_route
 from .config import settings
+from .numeric_facts import numerical_facts
 from .analysis import monthly_evidence
 from .trade_evidence import trade_evidence
 from .exports import export_context, save_export, MAX_EXPORT_ROWS
@@ -20,6 +22,8 @@ from .exports import export_context, save_export, MAX_EXPORT_ROWS
 _STR_ARRAY = {"type": "array", "items": {"type": "string"}}
 
 TOOLS = [
+    {"type":"function","function":{"name":"search_products","description":"FIRST step for a product named in free text. Search official Russian reference at levels 2/4/6. Results are candidates, not confirmed classification. Choose 2 for a broad chapter, 4 for a product group, 6 for an explicit subtype. Ask clarification if material, use, gender or knit/woven makes competing codes possible. Do not query trade or create a file for an ambiguous choice.","parameters":{"type":"object","properties":{"query":{"type":"string"},"level":{"type":"integer","enum":[2,4,6]}},"required":["query"]}}},
+    {"type":"function","function":{"name":"product_overview","description":"Use FIRST for a general overview of one product code, especially requests like information on imports of code 6107. Returns official Russian name, leading partner shares and YoY on identical country/source/month coverage, with verified narrative facts. No need for additional trade calls for this overview.","parameters":{"type":"object","properties":{"code":{"type":"string"},"napr":{"type":"string","enum":["im","ex"]},"period_from":{"type":"string"},"period_to":{"type":"string"}},"required":["code","napr"]}}},
     {
         "type": "function",
         "function": {
@@ -59,7 +63,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "strana": {**_STR_ARRAY, "description": "ISO-2 partner, e.g. ['CN','IN','TR']"},
-                    "napr": {**_STR_ARRAY, "description": "'ЭК' export / 'ИМ' import"},
+                    "napr": {**_STR_ARRAY, "description": "Russia perspective: ex/ЭК FROM Russia; im/ИМ TO Russia. India importing from Russia = ex."},
                     "tnved2": _STR_ARRAY, "tnved4": _STR_ARRAY,
                     "tnved6": _STR_ARRAY, "tnved": _STR_ARRAY,
                     "type": {**_STR_ARRAY, "description": "'fact' or 'pred' (nowcast)"},
@@ -142,8 +146,8 @@ _LIST_FIELDS = {
 }
 _SCALAR_FIELDS = {"period_from", "period_to", "group_by", "metrics", "include",
                   "order_by", "limit"}
-_MAX_RESULT_CHARS = 6000
-_MAX_RESULT_ROWS = 40
+_MAX_RESULT_CHARS = 48000
+_MAX_RESULT_ROWS = 200
 
 
 def _build_params(args: dict) -> list[tuple[str, str]]:
@@ -189,8 +193,30 @@ def _trim(text: str) -> str:
 
 
 async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
+    if name == "resolve_trade_route":
+        return json.dumps(resolve_trade_route(**args), ensure_ascii=False)
     headers = {"Authorization": f"Bearer {settings.service_api_key}",
                "Accept": "application/json"}
+    if name == "search_products":
+        from .product_search import search_candidates
+        level = args.get('level')
+        if level is not None and level not in (2,4,6):
+            return json.dumps({'error':'level must be 2, 4 or 6'})
+        rows=[]
+        for n in ([level] if level else [2,4,6]):
+            response=await client.get(settings.api_base+'/v1/reference/tnved',params={'level':n},headers=headers,timeout=60)
+            response.raise_for_status()
+            rows.extend(response.json())
+        candidates = search_candidates(args['query'],rows)
+        ctx = export_context.get()
+        if ctx is not None:
+            ctx['product_search_codes'] = [r['code'] for r in candidates]
+        return json.dumps({'query':args['query'],'candidates':candidates,
+            'selection_rule':'Lexical matches are candidates, not confirmation. Choose a real code and level matching all requested attributes; explain the scope. If ambiguous, ask one concise clarification and do not request trade data yet. Never sum a parent and its children.'},ensure_ascii=False)
+    if name == "product_overview":
+        from .product_overview import fetch_overview
+        result = await fetch_overview(client, settings.api_base, headers, **args)
+        return json.dumps(result, ensure_ascii=False)
     if name == "explain_trade":
         return await _compare_trade(client, args, tool_name="explain_trade")
     if name == "compare_trade":
@@ -231,6 +257,15 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
                     dim = 'strana' if label=='country_name' else label.replace('_name','')
                     if dim in ('tnved','tnved2','tnved4','tnved6') and dim not in dims: dims.append(dim)
             args.update(group_by=','.join(dims),metrics=','.join(metrics))
+        if args.get("group_by") or name == "fizob":
+            args.setdefault("limit", 1000)
+            if args.get("group_by", "").strip() == "strana":
+                args["limit"] = 1000
+        if name == 'trade' and args.get('group_by'):
+            dims = args['group_by'].split(',')
+            for dim in ('type', 'source'):
+                if dim not in dims: dims.append(dim)
+            args['group_by'] = ','.join(dims)
         path, params = f"/v1/{name}", _build_params(args)
     else:
         return json.dumps({"error": f"unknown tool '{name}'"})
@@ -251,7 +286,14 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
         obj.update(await _monthly_analysis(client,args,obj.get('data',[]),headers))
         obj.update(trade_evidence(obj))
         enriched = json.dumps(obj,ensure_ascii=False)
-        if len(enriched)<=24000: return enriched
+        if len(enriched)<=48000: return enriched
+        if obj.get("numeric_facts"): return json.dumps({"meta":obj.get("meta",{}),"numeric_facts":obj["numeric_facts"]},ensure_ascii=False)
+    if name in ('trade','fizob') and not obj.get('meta',{}).get('has_more'):
+        filters=dict(args)
+        filters.setdefault('period_to',obj.get('meta',{}).get('period_max'))
+        obj['numeric_facts']=numerical_facts(obj.get('data',[]), filters)
+        if obj['numeric_facts']:
+            return json.dumps({'meta':obj.get('meta',{}),'numeric_facts':obj['numeric_facts']},ensure_ascii=False)
     return _trim(r.text)
 
 
@@ -300,6 +342,7 @@ async def _rank_chapters(client, args, headers):
 async def _monthly_analysis(client, args, rows, headers):
     """Fetch 12 baseline months privately; never expand displayed/exported rows."""
     evidence = monthly_evidence(rows)
+    evidence["numeric_facts"] = numerical_facts(rows, args)
     start = args.get('period_from')
     if not start or 'period' not in (args.get('group_by') or '').split(',') or not rows:
         return evidence
@@ -316,6 +359,7 @@ async def _monthly_analysis(client, args, rows, headers):
         if data.get('meta',{}).get('has_more') or not isinstance(data.get('data'),list):
             raise ValueError('Incomplete baseline')
         evidence = monthly_evidence(rows,data['data'])
+        evidence['numeric_facts'] = numerical_facts(rows, args, data['data'])
         evidence['baseline_period'] = {'from':previous['period_from'],'to':previous['period_to']}
         evidence['display_rule'] = 'Show only requested current rows. Baseline months are calculation inputs, not additional displayed months or current totals. Use stoim_yoy_pct and kol_yoy_pct; mass in netto_thousand_tonnes (thousand metric tonnes).'
     except (ValueError,httpx.HTTPError):
@@ -574,3 +618,7 @@ async def _compare_trade(client, args, tool_name="compare_trade"):
         if headers.get("mcp-session-id"):
             try: await client.delete(settings.mcp_url, headers=headers, timeout=10)
             except httpx.HTTPError: pass
+
+TOOLS.append({"type":"function","function":{
+    "name":"resolve_trade_route", "description":"Resolve origin and destination before queries expressed from a foreign importer perspective. Russia=RU; unknown=UNKNOWN; worldwide=WORLD. Returns Russia-perspective strana/napr or scope clarification.",
+    "parameters":{"type":"object","properties":{"origin":{"type":"string"},"destination":{"type":"string"},"question":{"type":"string","description":"Verbatim user question, required to validate perspective"}},"required":["origin","destination","question"],"additionalProperties":False}}})

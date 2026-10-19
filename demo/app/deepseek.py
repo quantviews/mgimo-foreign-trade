@@ -10,12 +10,15 @@ from typing import AsyncIterator
 
 import httpx
 
+from .query_contract import safe_result, explicit_direction
+from .numeric_facts import verify_answer, compact_text, INSTRUCTION
 from .config import settings
 from .prompts import SYSTEM_PROMPT
 from .tools import TOOLS, execute_tool, summarize_tool_result
 from .exports import export_context
 
 logger = logging.getLogger(__name__)
+CHAT_NUMERIC_INSTRUCTION = INSTRUCTION.split('Это формат черновика;')[0] + 'Каждую ссылку ставь отдельным абзацем, это целое предложение или таблица, не число для вставки в предложение. Верни черновик со ссылками {{fact:ID}}. Проверку и замену ссылок выполнит сервис автоматически. Не вызывай verify_trade_answer: в чате такого инструмента нет.'
 
 
 def _error_event(exc: Exception) -> dict:
@@ -68,6 +71,8 @@ async def run_agent(user_messages: list[dict], user_id: int | None = None) -> As
     ctx = {"user_id": user_id, "analytical": True}
     # Never silently treat a continent as one of the requested country codes.
     question = user_messages[-1].get("content", "").lower() if user_messages else ""
+    ctx['question'] = question
+    ctx['explicit_direction'] = explicit_direction(question)
     ctx['wants_ranking'] = bool(re.search(r'\bтоп\b|\btop\b|крупнейш|лидирующ', question))
     ctx['wants_export'] = bool(re.search(r'excel|xlsx|выгруз|скача|файл', question))
     if "африк" in question:
@@ -83,8 +88,6 @@ async def run_agent(user_messages: list[dict], user_id: int | None = None) -> As
 def _answer(msg):
     if msg.get("_finish_reason") == "length":
         return {"type": "error", "code": "answer_too_long", "text": "Ответ модели превысил допустимую длину и не показан целиком. Запросите XLSX-выгрузку или сузьте вопрос."}
-    if export_context.get().get("partial"):
-        return {"type": "error", "code": "partial_data", "text": "Получен неполный набор данных. Итоги по нему не рассчитаны. Сузьте запрос или запросите помесячную XLSX-выгрузку."}
     text = msg.get("content") or ""
     link = export_context.get().get('download_link')
     if link:
@@ -93,12 +96,53 @@ def _answer(msg):
     return {"type": "answer", "text": text}
 
 
+async def _checked_answer(client, messages, msg):
+    facts = export_context.get().get('numeric_facts', {})
+    overview_facts = {k:v for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_source')}
+    if overview_facts:
+        facts = overview_facts
+        msg = {**msg, 'content': re.sub(r'(?m)^#{1,6}[^\n]*\n?', '', msg.get('content') or '')}
+    if not facts:
+        return _answer(msg)
+    checked = verify_answer(msg.get('content') or '', facts)
+    if not checked['valid']:
+        repair = [*messages, {'role':'assistant','content':msg.get('content') or ''},
+                  {'role':'user','content':CHAT_NUMERIC_INSTRUCTION + '\nИсправь черновик. Ошибки проверки: '+str(checked['errors'])+
+                   '\nРазрешенные факты: '+json.dumps(facts,ensure_ascii=False)}]
+        try:
+            msg = await _completion(client, repair, use_tools=False)
+            checked = verify_answer(msg.get('content') or '', facts)
+        except (httpx.HTTPError, ValueError):
+            checked = {'valid':False}
+    if checked['valid']:
+        text = checked['answer']
+    else:
+        # A model failure must not suppress verified available data.
+        chosen = [(k,v) for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_source','total','yoy','extrema','coverage','index_change','aggregate','unit_value')]
+        question=export_context.get().get('question','')
+        priorities={'overview':-5,'suppliers':-4,'overview_dynamics':-3,'overview_drivers':-2,'overview_coverage':-1,'overview_source':0,'total':0,'yoy':1,'extrema':2,'coverage':3,'aggregate':4}
+        if 'физ' in question: priorities['index_change']=-2
+        if 'цен' in question: priorities['unit_value']=-1
+        chosen=[kv for kv in chosen if kv[1]['kind'] in priorities]
+        chosen.sort(key=lambda kv: priorities[kv[1]['kind']])
+        text = '\n\n'.join(v['text'] for k,v in chosen[:12])
+        if not text: text = '\n\n'.join(v['text'] for v in list(facts.values())[:4])
+        if 'месяц' in export_context.get().get('question',''):
+            tables=[v['text'] for v in facts.values() if v['kind']=='monthly_table']
+            text += '\n\n'+'\n\n'.join(tables[:4])
+        logger.warning('Numerical answer used verified fallback')
+    return _answer({'content':compact_text(text,facts)})
+
+
 async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
     """Yield events: {'type':'tool',...}, {'type':'answer','text'}, {'type':'error'}.
 
     user_messages: sanitized [{role:'user'|'assistant', content:str}, ...].
     """
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}, *user_messages]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n" + CHAT_NUMERIC_INSTRUCTION}, *user_messages]
+    direction = export_context.get().get('explicit_direction')
+    if direction:
+        messages[0]['content'] += f"\nМаршрут в последнем вопросе явно задан: napr={direction}, относительно России. Все торговые запросы должны использовать это направление."
     async with httpx.AsyncClient() as client:
         try:
             r = await client.get(f"{settings.api_base}/v1/meta",
@@ -108,7 +152,7 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
             export_context.get()["period_max"] = latest
             messages[0]["content"] += (f"\nПоследний доступный период базы: {latest}. "
                 "Если пользователь не указал конечный период, используй эту дату, включая текущий доступный год. "
-                "Для сравнения стран первым вызови compare_trade. Excel создавай только по явной просьбе в последней реплике. На уточнение о динамике используй trade, покажи до 12 месяцев и изменения. История задает срез, но не повторное согласие на создание файла.")
+                "Товар назван свободным текстом и код еще не подтвержден в диалоге: сначала search_products по описанию товара. Выбирай только реальный код из справочника, подходящий всем признакам. 2 знака - широкая глава, 4 - товарная группа, 6 - явно указанный подтип. Мужское трикотажное белье: проверь 6107 по названию. Просто белье неоднозначно: уточни постельное/нательное, пол и трикотажное/нетрикотажное исполнение; до уточнения не вызывай trade/product_overview/export_trade. Не расширяй конкретный товар до родителя молча и не складывай родителя с детьми. Ответ пользователя на уточнение соедини с исходным запросом из истории, затем повтори поиск при необходимости. Для общего обзора одного товарного кода первым вызови product_overview: название, основные партнеры, доли и динамика на сопоставимом составе. Используй его факты overview, suppliers, overview_dynamics, overview_drivers, overview_coverage и overview_source. Не дублируй заголовок, он уже в overview. Не добавляй своих утверждений об источниках. Покажи динамику и главный драйвер перед таблицами, не добавляй технические экстремумы и массу без запроса пользователя. Для сравнения стран первым вызови compare_trade. Excel создавай только по явной просьбе в последней реплике. На уточнение о динамике используй trade, покажи до 12 месяцев и изменения. История задает срез, но не повторное согласие на создание файла.")
         except Exception as exc:
             yield {"type": "error", "code": "data_period_unavailable",
                    "text": "Не удалось проверить актуальность базы. Повторите запрос позже."}
@@ -122,7 +166,19 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
 
             tool_calls = msg.get("tool_calls")
             if not tool_calls:
-                yield _answer(msg)
+                ctx = export_context.get()
+                # Even clarification questions must not invent classification codes.
+                if not ctx.get('numeric_facts'):
+                    codes = set(re.findall(r'\b(?:\d{4}|\d{6}|\d{8}|\d{10})\b', msg.get('content') or ''))
+                    codes = {c for c in codes if not (len(c)==4 and 1900 <= int(c) <= 2099)}
+                    allowed = set(ctx.get('product_search_codes', []))
+                    if codes - allowed:
+                        if not ctx.get('classification_repair'):
+                            ctx['classification_repair'] = True
+                            messages.append({'role':'user','content':'Не указывай неподтвержденные коды в ответе или уточняющем вопросе. Сначала вызови search_products по названию товара из моего запроса. Затем используй только подходящие коды из результатов либо задай уточняющий вопрос вообще без кодов.'})
+                            continue
+                        msg = {**msg, 'content':'Уточните, пожалуйста, вид и назначение товара, чтобы выбрать подходящую группу в справочнике.'}
+                yield await _checked_answer(client, messages, msg)
                 return
 
             # Echo the assistant turn (with tool_calls) before appending results.
@@ -141,6 +197,9 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
                 except Exception:
                     args = {}
                 if not isinstance(args, dict): args = {}
+                direction = export_context.get().get('explicit_direction')
+                if direction and name in ('trade','fizob','export_trade','compare_trade','explain_trade','product_overview'):
+                    args['napr'] = direction if name in ('compare_trade','explain_trade','product_overview') else [direction]
                 result = await execute_tool(client, name, args)
                 yield {"type": "tool", "name": name,
                        "summary": summarize_tool_result(name, args, result)}
@@ -152,10 +211,11 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
                     result = json.dumps(ctx.get('analysis_evidence') or {'verified_summary':ctx['answer']},ensure_ascii=False)
                 try:
                     obj = json.loads(result)
-                    if obj.get("_truncated") or obj.get("meta", {}).get("has_more"):
-                        ctx["partial"] = True
-                except (ValueError, AttributeError):
-                    ctx["partial"] = True
+                    if obj.get('numeric_facts') and not obj.get('meta',{}).get('has_more'):
+                        ctx.setdefault('numeric_facts',{}).update(obj['numeric_facts'])
+                    result = json.dumps(safe_result(obj), ensure_ascii=False)
+                except (ValueError, AttributeError, TypeError):
+                    result = json.dumps({"error": "Invalid tool response. Retry the affected query; other complete results remain usable."})
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc.get("id"),
@@ -165,7 +225,7 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
             if export_context.get().get('answer'):
                 try:
                     final = await _completion(client, messages, use_tools=False)
-                    yield _answer(final)
+                    yield await _checked_answer(client, messages, final)
                 except Exception as exc:
                     yield _error_event(exc)
                 return
@@ -173,6 +233,6 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
         # Tool budget exhausted: force a final answer with what we have.
         try:
             final = await _completion(client, messages, use_tools=False)
-            yield _answer(final)
+            yield await _checked_answer(client, messages, final)
         except Exception as e:  # noqa: BLE001
             yield _error_event(e)

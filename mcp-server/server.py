@@ -34,6 +34,33 @@ from pathlib import Path
 import httpx
 from mcp.server.fastmcp import Context, FastMCP
 
+from numeric_facts import numerical_facts, verify_answer, INSTRUCTION as NUMERIC_INSTRUCTION
+import hashlib
+import time
+import threading
+from collections import OrderedDict
+_numeric_cache = OrderedDict()
+_numeric_lock = threading.Lock()
+
+
+def _attach_numeric(obj, ctx, filters):
+    if obj.get('meta',{}).get('has_more') or obj.get('_truncated'): return obj
+    facts = obj.get('numeric_facts') or numerical_facts(obj.get('data',[]), filters)
+    if not facts: return obj
+    if obj.get('download_path'):
+        text='[Скачать Excel]('+DEFAULT_BASE+obj['download_path']+'). Для скачивания нужна авторизация тем же ключом. Используйте download_export для вложения файла.'
+        facts[hashlib.sha256(text.encode()).hexdigest()[:16]]={'kind':'file','text':text}
+    owner = hashlib.sha256(_resolve_token(ctx).encode()).hexdigest()
+    bundle = str(__import__('uuid').uuid4())
+    with _numeric_lock:
+        _numeric_cache[(owner,bundle)] = (time.monotonic(),facts)
+        while len(_numeric_cache)>32: _numeric_cache.popitem(last=False)
+    obj['numeric_facts'] = facts
+    obj['evidence_id'] = bundle
+    obj['numeric_instruction'] = NUMERIC_INSTRUCTION
+    return obj
+
+
 DEFAULT_BASE = "https://nts.mgimo.ru/api"
 
 API_BASE = os.environ.get("MGIMO_API_BASE", DEFAULT_BASE).rstrip("/")
@@ -147,7 +174,11 @@ if _OAUTH:
 
 INSTRUCTIONS += '\n## Аналитический ответ: суть и драйверы\n\nНачинай с результата для аналитика: изменение агрегата, величина и сопоставимый период. В первом абзаце назови также 1-2 главных драйвера, до таблицы. Источник достаточно кратко указать в конце. Для одного короткого ограничения используй примечание, без отдельного большого раздела «Оговорки». Пиши содержательно: «Динамика стоимости включает изменение количества и цен», без противопоставления «это не физические объемы». Затем покажи 3-5 главных подкатегорий с названиями и точными кодами, их доли и вклад в динамику. Объясни, насколько рост сосредоточен в отдельных категориях и как изменилась структура. Лидеров определяй по данным: лидер по вкладу не обязательно лидер по доле или темпу роста. Причины вне данных (спрос, цены, политика) обозначай как гипотезы, только если они полезны вопросу и имеют основание; не придумывай их.\n\nПиши прямо: «Источник: таможенная статистика Китая». Не перечисляй исключенные источники («не Comtrade», «не nowcast») и не строй ответ на оборотах «это не X, а Y», если пользователь не просит разъяснить различия. Внутренние source/type, флаги и формулы не пересказывай как чек-лист. Проверки делай всегда, публикуй только выводы из них, нужные для понимания ответа.\n\nСущественное ограничение ставь рядом с затронутым показателем: отсутствующий месяц, неполное количество, оценка вместо наблюдения, несопоставимость периодов. Если оно делает основной вывод невозможным, сообщи об этом сразу. Иначе краткую справку об источнике, периоде и существенном остатке разложения оставь в конце. Не добавляй общие оговорки о пропусках и оценках без конкретного основания в выбранном срезе. Малый нераспределенный остаток укажи соразмерно его влиянию, без длинного методологического вступления. Не скрывай остаток и не считай пропуски нулями.\n\nНазвания в чате можно сократить для читаемости, сохранив смысл русского справочника и точный код в скобках. В Excel остаются исходные названия. Факт, оценки источника Comtrade и nowcast проекта учитывай раздельно; поясняй различие там, где оно влияет на рассматриваемый показатель. Сначала содержание ответа, затем краткая справка и ссылка на файл, если запрошен.\n'
 
+INSTRUCTIONS += "\nFor a general overview of one product use product_overview FIRST, not repeated trade aggregations. Free-text product: search_products first, choose a real reference code and level matching the user's scope. Ask for clarification when competing meanings remain (knit/woven, male/female, material or use). Broad chapter=2 digits, general product group=4, explicit subtype=6. Do not mix a parent with children. product_overview supplies verified name, suppliers, matched-country/source/month YoY and contributions: publish via verify_trade_answer with its evidence_id. Do not recalculate, add unsupported causal claims, or turn available partners into all Russian trade.\n"
 INSTRUCTIONS += "\nFor top product groups by value use rank_trade FIRST (HS2). For Turkey imports this year call rank_trade(strana='TR',napr='im',top_n=10), without dates. It resolves the latest period, calculates shares over all chapters and returns only requested leaders. ranking.complete_universe confirms the full denominator, not full source coverage. Do not treat shown_groups < total_groups as truncation. Describe fact_months/missing_months, not a full year by default. Ordinary trade has_more/_truncated still requires completing the result before totals.\n"
+
+from query_contract import RULES, resolve_trade_route as _resolve_trade_route, safe_result
+INSTRUCTIONS = RULES + "\n" + INSTRUCTIONS + "\n" + RULES + "\n" + NUMERIC_INSTRUCTION
 
 mcp = FastMCP("mgimo-trade", instructions=INSTRUCTIONS, **_fastmcp_kwargs)
 
@@ -273,18 +304,76 @@ def _get(path: str, params: list[tuple[str, str]], ctx: Context | None) -> str:
     if path == "/v1/trade":
         from trade_evidence import trade_evidence
         obj = resp.json()
+        if obj.get("meta", {}).get("has_more"):
+            return json.dumps(safe_result(obj), ensure_ascii=False)
         obj.update(trade_evidence(obj))
         from coverage_evidence import coverage_evidence
-        filters = dict(pairs)
+        filters = {}
+        for k,v in pairs:
+            if k in ('strana','napr','type','source','tnved','tnved2','tnved4','tnved6','edizm'):
+                filters.setdefault(k,[]).append(v)
+            else: filters[k]=v
         filters.setdefault('period_to', obj.get('meta',{}).get('period_max'))
         if not obj.get('meta',{}).get('has_more') and not obj.get('_truncated'):
             obj['coverage_evidence'] = coverage_evidence(obj.get('data',[]), filters)
-        return json.dumps(obj, ensure_ascii=False)
+        return json.dumps(_attach_numeric(obj,ctx,filters), ensure_ascii=False)
+    if path == '/v1/fizob':
+        obj=resp.json()
+        return json.dumps(_attach_numeric(obj,ctx,dict(pairs)),ensure_ascii=False)
     return resp.text
 
 
 def _multi(name: str, values: list[str] | None) -> list[tuple[str, str]]:
     return [(name, v) for v in (values or [])]
+
+
+@mcp.tool()
+async def search_products(query: str, level: int | None = None, ctx: Context | None = None) -> str:
+    """Find real Russian HS/TNVED names/codes for a free-text product. Returns lexical candidates, not a definitive classification. Default searches levels 2/4/6. Select 4 for a general product group, 2 for a broad chapter, 6 only for an explicit subtype. If competing classifications remain, ask about material/use/knit/gender instead of guessing. Never add a parent and its children together."""
+    from product_search import search_candidates
+    if level is not None and level not in (2,4,6):
+        return json.dumps({'error':'level must be 2, 4 or 6'})
+    headers={'Authorization':'Bearer '+_resolve_token(ctx)}
+    rows=[]
+    async with httpx.AsyncClient() as client:
+        for n in ([level] if level else [2,4,6]):
+            r=await client.get(API_BASE+'/v1/reference/tnved',params={'level':n},headers=headers,timeout=60)
+            r.raise_for_status(); rows.extend(r.json())
+    return json.dumps({'query':query,'candidates':search_candidates(query,rows),
+        'selection_rule':'Choose a code whose official meaning covers the requested product. Lexical ranking is not confirmation. State the chosen name and level. Ask for missing distinguishing attributes if ambiguous; do not silently broaden to a parent. For several disjoint codes request separate overviews; never sum parent and children.'},ensure_ascii=False)
+
+
+@mcp.tool()
+async def product_overview(code: str, napr: str, period_from: str | None = None,
+                           period_to: str | None = None, ctx: Context | None = None) -> str:
+    """FIRST tool for an overview of a product code (2/4/6 digits): official name, top partners, shares of available value, YoY and partner contributions using identical country/source/month coverage. For a natural-language product call search_products first. Defaults to January through latest database month, up to 12 months. Returns numeric_facts and evidence_id: call verify_trade_answer before publishing. Use overview, dynamics and drivers first, then suppliers and concise coverage/source notes. Values concern available partners, not all Russian trade."""
+    from product_overview import fetch_overview
+    if napr not in ('im','ex','ИМ','ЭК'):
+        return json.dumps({'error':'napr must be im/ex (relative to Russia)'})
+    async with httpx.AsyncClient() as client:
+        result=await fetch_overview(client,API_BASE,{'Authorization':'Bearer '+_resolve_token(ctx)},code,napr,period_from,period_to)
+    return json.dumps(_attach_numeric(result,ctx,{}),ensure_ascii=False)
+
+
+@mcp.tool()
+def verify_trade_answer(draft: str, evidence_ids: list[str], ctx: Context | None = None) -> str:
+    """MANDATORY before publishing numerical analysis. Draft must use {{fact:ID}} references from numeric_facts; no freehand digits or directional claims. Supply evidence_id values from trade/fizob/export_trade/product_overview. Returns validated answer, or errors to repair. Never publish an invalid draft."""
+    owner=hashlib.sha256(_resolve_token(ctx).encode()).hexdigest()
+    facts={}
+    with _numeric_lock:
+        for bundle in evidence_ids:
+            entry=_numeric_cache.get((owner,bundle))
+            if not entry or time.monotonic()-entry[0]>1800:
+                return json.dumps({'valid':False,'errors':['Evidence expired or unavailable for this account. Repeat the data query.']})
+            facts.update(entry[1])
+    if not facts:return json.dumps({'valid':False,'errors':['No numeric evidence. Query monthly trade/fizob first.']})
+    return json.dumps(verify_answer(draft,facts),ensure_ascii=False)
+
+
+@mcp.tool()
+def resolve_trade_route(origin: str, destination: str, question: str) -> dict:
+    """Pass the verbatim user question. Resolve ISO-2 origin/destination (RU, CN, IN etc.) to Russia-perspective strana/napr. Use UNKNOWN for missing side, WORLD for all partners. Call before foreign-perspective import/export queries."""
+    return _resolve_trade_route(origin, destination, question)
 
 
 @mcp.tool()
@@ -355,6 +444,7 @@ def compare_trade(
     Up to 10 countries and 60 months; rejects truncated data. Does not create a file.
     """
     body = {k: v for k, v in locals().items() if k != "ctx" and v is not None}
+    body["inline"] = True
     try:
         response = httpx.post(f"{API_BASE}/v1/compare/trade", json=body,
                               headers={"Authorization": f"Bearer {_resolve_token(ctx)}"}, timeout=90)
@@ -396,6 +486,9 @@ def export_trade(
         if response.status_code >= 400:
             return f"HTTP {response.status_code}: {response.text[:800]}"
         result = response.json()
+        result.pop('xlsx_base64',None)
+        result = _attach_numeric(result, ctx, result.get('filters',body))
+        result.pop('data',None)
         result["download_url"] = DEFAULT_BASE + result["download_path"]
         return json.dumps(result, ensure_ascii=False)
     except Exception as exc:
@@ -516,6 +609,11 @@ def trade(
         "-stoim", set limit for a top-N.
     Only call reference() when you do not know a code. Returns JSON.
     """
+    if group_by:
+        dims = group_by.split(',')
+        for dim in ('type', 'source'):
+            if dim not in dims: dims.append(dim)
+        group_by = ','.join(dims)
     params: list[tuple[str, str]] = []
     for key, vals in (
         ("strana", strana), ("napr", napr), ("type", type), ("source", source),
