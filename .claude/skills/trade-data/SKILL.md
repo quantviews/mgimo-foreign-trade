@@ -5,9 +5,25 @@ description: Answer questions about Russia's foreign-trade statistics (imports/e
 
 # Trade data Q&A over the API
 
-Answer data questions by calling the project API with `query.py` (stdlib only, no
-install). Compose a filtered/aggregated request, run it, read the JSON, answer with
-the numbers. Do not invent figures; if a call fails, report the error.
+Prefer the connected MCP tools for data questions and follow the mandatory
+numerical verification workflow below before publishing. The REST helper `query.py`
+(stdlib only) remains available for direct API access; it does not perform MCP
+answer verification. Never invent figures or bypass a failed verification.
+
+## Обязательная проверка числового ответа через MCP
+
+Этот порядок имеет приоритет над рекомендациями ниже о пересказе результатов и самостоятельных расчетах. При работе через MCP перед публикацией числового анализа обязательно вызывай `verify_trade_answer`. Самостоятельно не пересчитывай суммы, проценты, доли, вклады, динамику или экстремумы и не считай их из округленных значений.
+
+1. Получи подходящие данные и готовые расчеты. `trade`, `fizob` и `export_trade` возвращают `numeric_facts` и `evidence_id`, если для результата доступны расчетные фрагменты. Сохрани идентификаторы всех использованных ответов. Выбирай факты с нужным направлением, периодом, источником, типом данных и единицами.
+2. Составь черновик: каждый `{{fact:ID}}` размещай отдельным абзацем, используя реальный ключ из `numeric_facts`. Ссылка подставляет готовый текст или таблицу целиком, а не одно число. Вне ссылок оставляй краткие заголовки и связки без чисел, утверждений о росте, снижении или экстремумах. Сначала выбирай суть и драйверы, затем подтверждающую таблицу и существенные ограничения.
+3. Вызови `verify_trade_answer(draft=черновик, evidence_ids=[идентификаторы ответов])`. При `valid=false` не публикуй черновик: исправь указанные в `errors` нарушения и повтори проверку. При истекшем или недоступном evidence повтори запрос данных. Не подменяй ссылки вручную скопированными числами.
+4. При `valid=true` опубликуй только возвращенное поле `answer` без изменений. Не добавляй после проверки новые числа, выводы о динамике или переписанные моделью таблицы. Для уточнения пользователя собери новый черновик и проверь его заново.
+
+Инструменты `compare_trade`, `explain_trade` и `rank_trade` по-прежнему выбираются по задаче; их готовые расчеты не пересчитывай. Наличие `answer_ru` или рассчитанной доли само по себе не означает прохождение `verify_trade_answer`. Если результат не содержит проверяемых фактов, запроси соответствующие `trade`/`fizob` срезы. Публикуй через проверку только поддержанные ими выводы; не придумывай ID и не называй неподдержанный расчет проверенным.
+
+При повторном отказе проверки или недоступности инструмента останови попытки и кратко сообщи, какую часть не удалось проверить. Это не означает отсутствия данных: сохрани уже проверенную полезную часть ответа. Прямой REST-помощник `query.py` не вызывает MCP-верификатор; не представляй такой ответ как прошедший `verify_trade_answer` и не переключайся на него для обхода отказа проверки.
+
+Для собственного MCP-клиента закрепи правило в коде: числовой ответ допускается к публикации только после `valid=true`; пользователю передается непосредственно `answer`. Сервер MCP не может заставить произвольный внешний клиент вызвать инструмент или запретить ему переписать результат.
 
 ## Token and base URL
 
@@ -66,7 +82,7 @@ repeatable: pass the flag again per value.
 
 ## Country comparison through MCP
 
-When MCP is connected, use `compare_trade` FIRST for country comparisons, instead of exploratory trade/export calls. Example: `strana=["IN","CN"], napr="ex", tnved4=["2709"], months=12`. It resolves the latest month, intersects factual months and computes exact differences/percentages against the first country. Present `answer_ru` or a concise faithful paraphrase; do not recompute from rounded figures or add unsolicited year-on-year analysis. No file is created. If using only query.py (which has no compare subcommand), follow the monthly-aggregate rules below.
+When MCP is connected, use `compare_trade` FIRST for country comparisons, instead of exploratory trade/export calls. Example: `strana=["IN","CN"], napr="ex", tnved4=["2709"], months=12`. It resolves the latest month, intersects factual months and computes exact differences/percentages against the first country. Use `answer_ru` to select the findings, then follow the mandatory verification workflow before publication; do not recompute from rounded figures or add unsolicited year-on-year analysis. No file is created. If using only query.py (which has no compare subcommand), follow the monthly-aggregate rules below.
 
 For country totals or one HS2/4/6 code, compare_trade also returns physical_volume by default. Preserve its method: change between common endpoint months of a 12-month-smoothed index, NOT growth of period totals or necessarily year-on-year growth. Start=100 is rebased independently per country; differences in growth are percentage points. Never sum indices. Aggregation of different physical units in country totals is an intentional feature of the project methodology for heterogeneous product baskets, not by itself an error or limitation. Do not confuse it with summing raw KOL across units. Preserve the distinctions between index dynamics, tonnage and exact price/volume decomposition, as well as explanations of smoothing and restored quantities. If physical_volume.available=false, state the reason without inventing an index or shifting the period.
 
