@@ -15,9 +15,17 @@ import base64
 import binascii
 import hashlib
 
-from fastapi import Header, HTTPException, Request, status
+from fastapi import HTTPException, Request, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .config import settings
+
+
+bearer_auth = HTTPBearer(
+    scheme_name="BearerAuth",
+    description="Вставьте персональный API-ключ без префикса Bearer.",
+    auto_error=False,
+)
 
 
 def _extract_token(authorization: str | None) -> str | None:
@@ -50,9 +58,12 @@ def _pilot_user(token_prefix: str) -> dict:
 
 
 async def authenticate(
-    request: Request, authorization: str | None = Header(default=None)
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_auth),
 ) -> dict:
-    token = _extract_token(authorization)
+    # Security declares Bearer in OpenAPI. Keep parsing the original header so
+    # Excel's HTTP Basic authentication continues to use the same validation.
+    token = _extract_token(request.headers.get("Authorization"))
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
