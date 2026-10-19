@@ -242,11 +242,14 @@ ul.task-list li input[type="checkbox"] {
       <button id="demo-send-btn" type="submit">Отправить</button>
     </form>
     <div id="demo-examples" class="demo-examples" aria-label="Примеры вопросов">
+      <button type="button" class="demo-ex" data-question="Дай обзор импорта мужского трикотажного белья: основные поставщики, их доли и динамика на сопоставимых данных.">Обзор товара по названию</button>
+      <button type="button" class="demo-ex" data-question="Дай информацию по импорту по коду 6107: основные поставщики, их доли и динамика на сопоставимых данных.">Обзор группы 6107</button>
       <button type="button" class="demo-ex" data-question="Сравни экспорт нефти в Индию и Китай за последние 12 месяцев и дай выгрузку в Excel.">Нефть: Индия и Китай + Excel</button>
       <button type="button" class="demo-ex" data-question="Покажи топ товарных групп импорта из Турции в этом году.">Импорт из Турции</button>
       <button type="button" class="demo-ex" data-question="Как менялся индекс физического объема экспорта в Китай за последние 12 месяцев?">Динамика физобъема</button>
       <button type="button" class="demo-ex" data-question="Выгрузи в Excel импорт легковых автомобилей (8703) из Китая в Россию по месяцам за последние 12 доступных месяцев, стоимость, количество в штуках и массу.">Автомобили из Китая + Excel</button>
     </div>
+    <p class="demo-note">Код знать необязательно: назовите товар своими словами. Если описание неоднозначно, например «белье», ассистент уточнит категорию перед расчетом. <a href="mcp.html#обзор-товара-по-названию-или-коду">Как устроен обзор товара</a></p>
     <p class="demo-disclaimer">Демо-режим. Ответы формирует простая ИИ-модель на основе
     нашей базы; тексты вопросов и подтянутые данные обрабатываются на стороне
     провайдера модели. Данные - только для чтения, оценки могут содержать
@@ -314,6 +317,7 @@ ul.task-list li input[type="checkbox"] {
 .demo-bubble.user { align-self: flex-end; background: #003d7a; color: #fff; border-bottom-right-radius: 4px; }
 .demo-bubble.ai { align-self: flex-start; background: #f2f5f9; color: #23303d; border-bottom-left-radius: 4px; }
 .demo-tool { align-self: flex-start; font-size: .8rem; color: #6b7a8d; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f8fafc; border: 1px dashed #d6dee8; border-radius: 8px; padding: 4px 8px; }
+.demo-note { font-size: .9rem; color: #526780; line-height: 1.5; margin: 0 0 16px; }
 .demo-examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0; }
 .demo-ex { font-size: .85rem; color: #003d7a; background: #eef4fb; border: 1px solid #d6e4f5; border-radius: 8px; padding: 10px 12px; cursor: pointer; text-align: left; }
 #demo-input { flex: 1 1 100%; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 8px; font-size: 1rem; resize: vertical; font-family: inherit; }

@@ -252,7 +252,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li><strong>Адрес удалённого сервера:</strong> <code>https://nts.mgimo.ru/mcp</code></li>
 <li><strong>Доступ:</strong> по персональному ключу (тот же, что для API); квоты и аудит считаются по каждому ключу отдельно.</li>
-<li><strong>Инструменты:</strong> <code>verify_trade_answer</code>, <code>rank_trade</code>, <code>explain_trade</code>, <code>compare_trade</code>, <code>export_trade</code>, <code>download_export</code>, <code>meta</code>, <code>reference</code>, <code>trade</code>, <code>fizob</code> (описаны ниже).</li>
+<li><strong>Инструменты:</strong> <code>search_products</code>, <code>product_overview</code>, <code>verify_trade_answer</code>, <code>rank_trade</code>, <code>explain_trade</code>, <code>compare_trade</code>, <code>export_trade</code>, <code>download_export</code>, <code>meta</code>, <code>reference</code>, <code>trade</code>, <code>fizob</code> (описаны ниже).</li>
 </ul>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -267,6 +267,43 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>На странице <a href="../site/demo.html">«Спросить ИИ»</a> можно поговорить с данными прямо в браузере: демо-доступ по корпоративной почте, ИИ сам обращается к базе и отвечает обычным языком. Это тот же движок, что и MCP, только без установки клиента и ключа.</p>
 </div>
 </div>
+<section id="обзор-товара-по-названию-или-коду" class="level2">
+<h2 class="anchored" data-anchor-id="обзор-товара-по-названию-или-коду">Обзор товара по названию или коду</h2>
+<p>Код ТН ВЭД знать необязательно. Например:</p>
+<blockquote class="blockquote">
+<p>Дай обзор импорта мужского трикотажного белья: основные поставщики, их доли и динамика на сопоставимых данных.</p>
+</blockquote>
+<p>Агент ищет товар через <code>search_products</code> в русском справочнике базы, проверяет название и выбирает уровень детализации. Для этого описания подходит группа <strong>6107</strong>. Если написать просто «белье», агент сначала уточнит назначение и исполнение: постельное или нательное, мужское или женское, трикотажное или нетрикотажное. Поисковые совпадения служат кандидатами, окончательный выбор зависит от смысла запроса.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Что вы хотите увидеть</th>
+<th>Уровень ТН ВЭД</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Широкая товарная глава</td>
+<td>2 знака</td>
+</tr>
+<tr class="even">
+<td>Обзор товарной группы</td>
+<td>4 знака</td>
+</tr>
+<tr class="odd">
+<td>Конкретная разновидность товара</td>
+<td>6 знаков</td>
+</tr>
+</tbody>
+</table>
+<p>Если код известен, можно сразу спросить:</p>
+<blockquote class="blockquote">
+<p>Дай информацию по импорту по коду 6107: основные поставщики, их доли и динамика на сопоставимых данных.</p>
+</blockquote>
+<p><code>product_overview</code> показывает название из справочника, стоимость по представленным в базе партнерам, ведущих поставщиков, доли и вклад стран в изменение стоимости. По умолчанию период - с января по последний доступный месяц года базы; можно указать свое окно до 12 месяцев.</p>
+<p>Годовая динамика сравнивает одинаковые месяцы двух лет по одному составу стран и источников. Партнеры с пропусками остаются в доступной сумме и таблице поставщиков, но не включаются в сопоставимый темп за все окно. Ответ показывает долю стоимости, охваченную сравнением. Доли поставщиков относятся к доступной сумме, а не ко всему импорту России. Nowcast в фактический обзор не включается.</p>
+<p>Расчеты возвращаются в <code>numeric_facts</code> вместе с <code>evidence_id</code>. Перед публикацией внешний агент вызывает <code>verify_trade_answer</code> и использует проверенный текст. В <a href="../site/demo.html">«Спросить ИИ»</a> поиск и проверка встроены в сервис. Одинаковые вопросы дают расчеты по одной методике.</p>
+</section>
 <section id="топ-товарных-групп" class="level2">
 <h2 class="anchored" data-anchor-id="топ-товарных-групп">Топ товарных групп</h2>
 <blockquote class="blockquote">
@@ -423,7 +460,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="проверка-числового-ответа" class="level2">
 <h2 class="anchored" data-anchor-id="проверка-числового-ответа">Проверка числового ответа</h2>
-<p>Перед публикацией числового анализа агент обязан вызвать <code>verify_trade_answer</code>. Инструменты <code>trade</code>, <code>fizob</code> и <code>export_trade</code> предоставляют готовые расчетные фрагменты <code>numeric_facts</code> и идентификатор <code>evidence_id</code>, когда такие фрагменты доступны. Агент выбирает нужные выводы и таблицы, сохраняя периоды, источники и единицы.</p>
+<p>Перед публикацией числового анализа агент обязан вызвать <code>verify_trade_answer</code>. Инструменты <code>trade</code>, <code>fizob</code>, <code>export_trade</code> и <code>product_overview</code> предоставляют готовые расчетные фрагменты <code>numeric_facts</code> и идентификатор <code>evidence_id</code>, когда такие фрагменты доступны. Агент выбирает нужные выводы и таблицы, сохраняя периоды, источники и единицы.</p>
 <p>Черновик использует ссылки <code>{fact:ID}</code> отдельными абзацами. Проверка возвращает <code>valid</code> и готовый <code>answer</code>: при отказе агент исправляет черновик, при успехе публикует <code>answer</code> без изменений и самостоятельного пересчета. Если evidence истек, нужно повторно получить данные. Ответы специализированных инструментов без этих полей сами по себе не считаются проверенными.</p>
 <p>В «Спросить ИИ» этот шаг выполняется сервисом. Во внешнем клиенте нужно настроить обязательный вызов проверки и передачу ее результата пользователю без последующей редакции моделью. Подробный протокол приведен в <a href="https://github.com/quantviews/mgimo-foreign-trade/blob/main/mcp-server/README.md#обязательная-проверка-числовых-выводов">документации MCP</a>.</p>
 </section>
@@ -441,6 +478,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </thead>
 <tbody>
+<tr class="odd">
+<td><code>search_products</code></td>
+<td>поиск реальных кодов и русских названий по свободному описанию товара; уровни 2/4/6</td>
+</tr>
+<tr class="even">
+<td><code>product_overview</code></td>
+<td>обзор товара: название, поставщики, доли и динамика на сопоставимых данных</td>
+</tr>
 <tr class="odd">
 <td><code>verify_trade_answer</code></td>
 <td>обязательная проверка числового черновика по готовым расчетным фрагментам; возвращает проверенный текст или ошибки</td>
