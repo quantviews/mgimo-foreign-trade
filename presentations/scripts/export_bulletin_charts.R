@@ -204,18 +204,22 @@ save_bulletin_plotly <- function(p, file, fix_legend = FALSE) {
     "</style>"
   )
 
-  html <- readLines(file, warn = FALSE, encoding = "UTF-8")
+  # Бинарно: в plotly.js есть сигнатура PNG ("\\n\\x1a"). readLines/writeLines
+  # на Windows обрезают файл по \\x1a и ломают бандл — график не стартует.
+  con <- file(file, open = "rb")
+  html <- rawToChar(readBin(con, "raw", file.info(file)$size))
+  close(con)
   html <- gsub(
     "<link[^>]*fonts\\.googleapis\\.com[^>]*>\\s*",
     "",
     html,
     perl = TRUE
   )
-  if (!any(grepl("SourceSans3-Variable", html, fixed = TRUE))) {
+  if (!grepl("SourceSans3-Variable", html, fixed = TRUE)) {
     html <- sub("</head>", paste0(font_style, "\n</head>"), html, fixed = TRUE)
   }
   html <- gsub("background-color:\\s*white", "background-color:transparent", html, ignore.case = TRUE)
-  writeLines(html, file, useBytes = TRUE)
+  writeBin(charToRaw(html), file)
 
   files_dir <- sub("\\.html$", "_files", file)
   if (dir.exists(files_dir)) {
