@@ -1,0 +1,39 @@
+name: MCP and AI chat overview parity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'demo/**'
+      - 'mcp-server/**'
+      - '.github/workflows/overview-parity.yml'
+  pull_request:
+    paths:
+      - 'demo/**'
+      - 'mcp-server/**'
+      - '.github/workflows/overview-parity.yml'
+  workflow_dispatch:
+
+jobs:
+  overview-6107:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            demo/requirements.txt
+            mcp-server/requirements.txt
+      - name: Install service and test dependencies
+        run: python -m pip install -r demo/requirements.txt -r mcp-server/requirements.txt pytest
+      - name: Verify matched-period overview and comparison contracts offline
+        env:
+          MCP_TRANSPORT: stdio
+        run: >-
+          python -m pytest -c /dev/null -q
+          mcp-server/tests/test_overview_6107_parity.py
+          mcp-server/tests/test_product_overview.py
+          mcp-server/tests/test_comparison_contract.py
+          demo/tests/test_comparison_answer_contract.py
