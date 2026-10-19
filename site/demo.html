@@ -220,7 +220,7 @@ ul.task-list li input[type="checkbox"] {
   <section id="demo-gate" class="demo-card" hidden="">
     <p class="demo-lead">Демо-доступ выдаётся по <strong>корпоративной почте</strong>.
     Укажите рабочий адрес - мы пришлём ссылку для подтверждения, и откроется чат
-    с ограниченным числом вопросов.</p>
+    с 30 бесплатными вопросами для новых пользователей.</p>
     <form id="demo-register">
       <input id="demo-email" type="email" placeholder="you@company.ru" autocomplete="email" required="">
       <input id="demo-org" type="text" placeholder="Организация (необязательно)" autocomplete="organization">
@@ -236,31 +236,71 @@ ul.task-list li input[type="checkbox"] {
       <span id="demo-quota" class="demo-quota"></span>
     </div>
     <div id="demo-thread" class="demo-thread"></div>
-    <div id="demo-examples" class="demo-examples">
-      <button class="demo-ex">сравни экспорт нефти в Индию и Китай за последние 12 месяцев</button>
-      <button class="demo-ex">топ товарных групп импорта из Турции в этом году</button>
-      <button class="demo-ex">как менялся физический объём экспорта в Китай</button>
-      <button class="demo-ex">сколько Россия импортировала легковых автомобилей из Китая в этом году</button>
-      <button class="demo-ex">структура экспорта в Индию по товарным группам за последние 12 месяцев</button>
-    </div>
     <form id="demo-send">
+      <label for="demo-input" class="demo-input-label">Что вы хотите узнать?</label>
       <textarea id="demo-input" rows="2" placeholder="Спросите о внешней торговле..."></textarea>
       <button id="demo-send-btn" type="submit">Отправить</button>
     </form>
+    <div id="demo-examples" class="demo-examples" aria-label="Примеры вопросов">
+      <button type="button" class="demo-ex" data-question="Сравни экспорт нефти в Индию и Китай за последние 12 месяцев и дай выгрузку в Excel.">Нефть: Индия и Китай + Excel</button>
+      <button type="button" class="demo-ex" data-question="Покажи топ товарных групп импорта из Турции в этом году.">Импорт из Турции</button>
+      <button type="button" class="demo-ex" data-question="Как менялся индекс физического объема экспорта в Китай за последние 12 месяцев?">Динамика физобъема</button>
+      <button type="button" class="demo-ex" data-question="Выгрузи в Excel импорт легковых автомобилей (8703) из Китая в Россию по месяцам за последние 12 доступных месяцев, стоимость, количество в штуках и массу.">Автомобили из Китая + Excel</button>
+    </div>
     <p class="demo-disclaimer">Демо-режим. Ответы формирует простая ИИ-модель на основе
     нашей базы; тексты вопросов и подтянутые данные обрабатываются на стороне
     провайдера модели. Данные - только для чтения, оценки могут содержать
     неточности. Для полного доступа <a href="mailto:m_salihov@fief.ru">напишите нам</a>.</p>
   </section>
+  <details class="demo-export-info">
+    <summary>Из вопроса в Excel: что будет в файле</summary>
+    <p><strong>Попробуйте:</strong> «Сравни экспорт нефти в Индию и Китай за последние 12 месяцев и дай выгрузку в Excel.»</p>
+    <p>Нужен помесячный ряд для своей работы? Попросите «выгрузи в Excel» и укажите
+    страны, товары и период. В чате получите краткую сводку и ссылку на файл XLSX.</p>
+    <p>Для сравнения стран в файле три листа: <strong>«Данные»</strong> с помесячным рядом,
+    <strong>«Сравнение»</strong> и <strong>«Описание»</strong> с источниками, единицами, фильтрами и методологией.
+    Если конечный месяц не указан, используем последний доступный период базы.</p>
+    <p>Ответ и лист «Сравнение» используют одинаковые месяцы факта: стоимость, массу и динамику fizob.
+    Если общий факт доступен не за все 12 месяцев, назовём исключённые месяцы.
+    Fizob показывает изменение сглаженного индекса между началом и концом общего периода,
+    а не рост суммы тоннажа. Если индекс недоступен для выбранного среза, объясним почему.</p>
+    <p><strong>Выгрузка с объяснением:</strong> «Выгрузи в Excel импорт автомобилей (8703) из Китая за последние 12 доступных месяцев. Покажи доли подкатегорий и их вклады в изменение стоимости».</p>
+    <p>Для одной страны и товарного кода уровня 2 или 4 знаков за период до 12 месяцев выгрузка дополняется разбором структуры, если фильтры поддерживаются. В ответе - главные подкатегории, их названия, коды, доли и вклады в процентных пунктах. Обычная выгрузка сохраняет запрошенный ряд; прошлогодние данные и подкатегории не добавляются в файл только из-за наличия анализа в чате.</p>
+    <p><strong>Для разбора год к году:</strong> «Как изменился импорт автомобилей (8703) из Индии за последние 12 доступных месяцев? Объясни вклад подкатегорий и дай исходные данные обоих периодов в Excel».</p>
+    <p>В таком файле лист <strong>«Факт»</strong> содержит текущий и прошлогодний периоды,
+    <strong>«Nowcast»</strong> - оценки проекта отдельно, <strong>«Описание»</strong> - источники, единицы и фильтры.
+    Доли и вклады приводятся в ответе, в файле остаются исходные данные для проверки.</p>
+    <p>Если месяцев факта не хватает, назовем пропуски и не выдадим частичный ряд за полный годовой итог.
+    Неизвестные масса и количество не равны нулю. Оценки физических показателей Comtrade отмечены отдельно от нашего nowcast.</p>
+    <p><strong>Пропуски и нули различаются.</strong> Если фактического месяца нет, полный итог запрошенного окна не установлен. Существующая строка со стоимостью 0 остаётся нулевой записью; без подтверждения источника её нельзя трактовать как отсутствие торговли или округление. Неизвестные значения в Excel остаются пустыми, известная часть количества или массы не выдаётся за полный итог.</p>
+    <p>Доли и вклады год к году рассчитываются только за сопоставимые периоды. Если проверка выявила пропуски, разложение не строится, но доступные записи можно скачать. Nowcast показывается отдельно и не закрывает пробелы факта в сравнении.</p>
+      <ul>
+        <li>Один файл: до 1 000 строк, 60 месяцев и 5 МБ; по тарифу лимит может быть ниже.</li>
+        <li>За последние 24 часа на аккаунт: до 10 новых файлов, суммарно 5 000 строк и 20 МБ.
+        Это общий лимит для чата, API и MCP.</li>
+        <li>Ссылка работает 7 дней после создания файла и доступна только вам после входа.
+        Повторное скачивание готового файла не расходует квоту выгрузок.</li>
+      </ul>
+      <p>Слишком большой запрос попросим сузить, а не обрежем незаметно.
+      Полнота выбранного среза не означает отсутствия пропусков в исходной статистике.</p>
+  </details>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
 
 <style>
-.demo-app { max-width: 760px; margin: 0 auto; }
-.demo-card { border: 1px solid #e3e8ee; border-radius: 12px; padding: 20px; background: #fff; }
+.demo-app { max-width: 800px; margin: 0 auto; }
+.demo-card { box-shadow: 0 4px 20px rgba(18,49,79,.04); border: 1px solid #e3e8ee; border-radius: 12px; padding: 20px; background: #fff; }
 .demo-lead { color: #4a5568; }
+.demo-export-info { margin-top: 16px; padding: 14px 20px; border: 1px solid #d6e4f5; border-radius: 12px; background: #f3f7fc; color: #23303d; }
+.demo-export-info h2 { margin: 0 0 8px; font-size: 1.15rem; color: #003d7a; border: 0; padding: 0; }
+.demo-export-info p { margin: 0 0 10px; font-size: .95rem; }
+.demo-export-info summary { cursor: pointer; color: #003d7a; font-weight: 600; }
+.demo-export-info[open] > summary { margin-bottom: 10px; }
+.demo-export-info li { margin-bottom: 6px; font-size: .9rem; }
+.demo-export-info details p:last-child { margin-bottom: 0; }
 #demo-register, #demo-send { display: flex; gap: 8px; flex-wrap: wrap; }
 #demo-register input { flex: 1 1 220px; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 8px; font-size: 1rem; }
 #demo-register button, #demo-send button { padding: 10px 18px; background: #003d7a; color: #fff; border: 0; border-radius: 8px; font-size: 1rem; cursor: pointer; }
@@ -269,15 +309,28 @@ ul.task-list li input[type="checkbox"] {
 .demo-msg.err { background: #fdecea; color: #c0392b; }
 .demo-chat-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: #4a5568; font-size: .9rem; }
 .demo-quota { font-weight: 600; color: #003d7a; }
-.demo-thread { min-height: 120px; max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px; }
+.demo-thread { min-height: 0; max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px; }
 .demo-bubble { padding: 10px 14px; border-radius: 12px; max-width: 88%; white-space: pre-wrap; line-height: 1.45; }
 .demo-bubble.user { align-self: flex-end; background: #003d7a; color: #fff; border-bottom-right-radius: 4px; }
 .demo-bubble.ai { align-self: flex-start; background: #f2f5f9; color: #23303d; border-bottom-left-radius: 4px; }
 .demo-tool { align-self: flex-start; font-size: .8rem; color: #6b7a8d; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #f8fafc; border: 1px dashed #d6dee8; border-radius: 8px; padding: 4px 8px; }
-.demo-examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
-.demo-ex { font-size: .85rem; color: #003d7a; background: #eef4fb; border: 1px solid #d6e4f5; border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.demo-examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 18px 0; }
+.demo-ex { font-size: .85rem; color: #003d7a; background: #eef4fb; border: 1px solid #d6e4f5; border-radius: 8px; padding: 10px 12px; cursor: pointer; text-align: left; }
 #demo-input { flex: 1 1 100%; padding: 10px 12px; border: 1px solid #cbd5e0; border-radius: 8px; font-size: 1rem; resize: vertical; font-family: inherit; }
-.demo-disclaimer { margin-top: 14px; font-size: .8rem; color: #8494a5; }
+.demo-disclaimer { border-top: 1px solid #edf0f4; padding-top: 14px; margin: 18px 0 0; font-size: .8rem; color: #8494a5; }
+.demo-thread:empty { display: none; }
+.demo-thread:not(:empty) { margin-bottom: 18px; }
+.demo-input-label { flex-basis: 100%; font-size: 1.15rem; font-weight: 600; color: #16324f; margin: 8px 0; }
+.demo-chat-head { padding-bottom: 16px; border-bottom: 1px solid #edf0f4; gap: 12px; flex-wrap: wrap; }
+.demo-user { overflow-wrap: anywhere; }
+.demo-ex:hover { background: #e1edf9; border-color: #a6c6e6; }
+.demo-ex:focus-visible, #demo-input:focus-visible { outline: 2px solid #2466a7; outline-offset: 2px; }
+#demo-input { background: #fafcfe; min-height: 96px; }
+@media(max-width: 480px) {
+  .demo-card { padding: 16px; }
+  .demo-examples { grid-template-columns: 1fr; }
+  .demo-quota { font-size: .8rem; }
+}
 /* Rendered Markdown inside an AI answer */
 .demo-bubble.ai { max-width: 100%; white-space: normal; }
 .demo-bubble.ai > :first-child { margin-top: 0; }
@@ -289,6 +342,12 @@ ul.task-list li input[type="checkbox"] {
 .demo-bubble.ai code { background: #e7ecf2; padding: 1px 5px; border-radius: 4px; font-size: .9em; }
 .demo-bubble.ai table { border-collapse: collapse; margin: .5em 0; font-size: .88rem; display: block; overflow-x: auto; max-width: 100%; }
 .demo-bubble.ai th, .demo-bubble.ai td { border: 1px solid #d6dee8; padding: 4px 9px; text-align: right; white-space: nowrap; }
+.demo-bubble.ai a[href^="/demo/exports/"] { display: inline-block; padding: 10px 16px; background: #003d7a; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 4px 0; }
+.demo-bubble.ai a[href^="/demo/exports/"]:hover { background: #002b57; }
+.demo-bubble.ai td { font-variant-numeric: tabular-nums; }
+.demo-bubble.ai td:nth-child(2), .demo-bubble.ai td:nth-child(3) { text-align: left; }
+.demo-tool summary { cursor: pointer; font-family: system-ui, sans-serif; }
+.demo-tool pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; font-size: .75rem; }
 .demo-bubble.ai th { background: #eef4fb; color: #003d7a; }
 .demo-bubble.ai td:first-child, .demo-bubble.ai th:first-child { text-align: left; }
 </style>
@@ -312,9 +371,13 @@ ul.task-list li input[type="checkbox"] {
     return d;
   }
   function toolLine(text) {
-    const d = document.createElement("div");
+    const d = document.createElement("details");
     d.className = "demo-tool";
-    d.textContent = "→ " + text;
+    const summary = document.createElement("summary");
+    summary.textContent = "Какие данные использованы";
+    const code = document.createElement("pre");
+    code.textContent = text;
+    d.append(summary, code);
     thread.appendChild(d);
     thread.scrollTop = thread.scrollHeight;
   }
@@ -364,7 +427,7 @@ ul.task-list li input[type="checkbox"] {
   // Chat
   $("demo-examples").addEventListener("click", (e) => {
     if (e.target.classList.contains("demo-ex")) {
-      $("demo-input").value = e.target.textContent;
+      $("demo-input").value = e.target.dataset.question || e.target.textContent;
       $("demo-input").focus();
     }
   });
