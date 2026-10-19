@@ -1,0 +1,25 @@
+/* Client presentation: separate text blocks with spacing, without card borders. */
+.reveal .cols-2 > .c,
+.reveal .cols-3 > .c,
+.reveal .agenda-row > div,
+.reveal .change-list > div,
+.reveal .feature-list > div,
+.reveal .cmp-col,
+.reveal .facts > div,
+.reveal .concl,
+.reveal .nowcast-point,
+.reveal .nowcast-stage img {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.reveal .cmp-ours strong,
+.reveal .cmp-ours li::marker {
+  color: #003d7a;
+}
+
+.reveal .cmp-ours ul {
+  color: #46525f;
+}

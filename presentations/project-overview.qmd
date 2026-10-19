@@ -9,7 +9,7 @@ params:
   inline_charts: false
 format:
   revealjs:
-    css: [slides.css, styles/typographic.css]
+    css: [slides.css, styles/typographic.css, styles/project-overview.css]
     title-slide-attributes:
       data-background-color: "#f8f9fb"
 ---
@@ -551,8 +551,8 @@ API доступен по HTTPS с личным ключом. Доступ и о
 :::
 
 ::: {.c}
-[Без неожиданностей]{.ch}
-Лимиты не наступают внезапно: текущий план и остаток месячной квоты видны в самом API. При исчерпании сервис отвечает понятной ошибкой с указанием, когда можно повторить запрос.
+[Контроль использования]{.ch}
+Текущий план и остаток месячной квоты можно посмотреть через API. Если лимит исчерпан, запрос возвращает сообщение об ограничении.
 :::
 
 ::::
