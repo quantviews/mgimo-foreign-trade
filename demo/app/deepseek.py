@@ -102,10 +102,16 @@ async def _checked_answer(client, messages, msg):
         # Export summaries cover a wider window; preserve matched-period results.
         return _answer({'content': comparison})
     facts = export_context.get().get('numeric_facts', {})
-    overview_facts = {k:v for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_source')}
+    overview_facts = {k:v for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_partial','overview_source')}
     if overview_facts:
+        # Render this bounded analytical overview in a stable order. The model
+        # selects the slice; all findings and tables remain server-verified.
+        order = ('overview','overview_dynamics','overview_drivers','suppliers','overview_coverage','overview_partial','overview_source')
+        draft = '\n\n'.join('{{fact:'+key+'}}' for kind in order for key,value in overview_facts.items() if value['kind']==kind)
+        checked = verify_answer(draft, overview_facts)
+        if checked['valid']:
+            return _answer({'content':checked['answer']})
         facts = overview_facts
-        msg = {**msg, 'content': re.sub(r'(?m)^#{1,6}[^\n]*\n?', '', msg.get('content') or '')}
     if not facts:
         return _answer(msg)
     checked = verify_answer(msg.get('content') or '', facts)
@@ -122,9 +128,9 @@ async def _checked_answer(client, messages, msg):
         text = checked['answer']
     else:
         # A model failure must not suppress verified available data.
-        chosen = [(k,v) for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_source','total','yoy','extrema','coverage','index_change','aggregate','unit_value')]
+        chosen = [(k,v) for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_partial','overview_source','total','yoy','extrema','coverage','index_change','aggregate','unit_value')]
         question=export_context.get().get('question','')
-        priorities={'overview':-5,'suppliers':-4,'overview_dynamics':-3,'overview_drivers':-2,'overview_coverage':-1,'overview_source':0,'total':0,'yoy':1,'extrema':2,'coverage':3,'aggregate':4}
+        priorities={'overview':-7,'overview_dynamics':-6,'overview_drivers':-5,'suppliers':-4,'overview_coverage':-3,'overview_partial':-2,'overview_source':-1,'total':0,'yoy':1,'extrema':2,'coverage':3,'aggregate':4}
         if 'физ' in question: priorities['index_change']=-2
         if 'цен' in question: priorities['unit_value']=-1
         chosen=[kv for kv in chosen if kv[1]['kind'] in priorities]
@@ -156,7 +162,7 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
             export_context.get()["period_max"] = latest
             messages[0]["content"] += (f"\nПоследний доступный период базы: {latest}. "
                 "Если пользователь не указал конечный период, используй эту дату, включая текущий доступный год. "
-                "Товар назван свободным текстом и код еще не подтвержден в диалоге: сначала search_products по описанию товара. Выбирай только реальный код из справочника, подходящий всем признакам. 2 знака - широкая глава, 4 - товарная группа, 6 - явно указанный подтип. Мужское трикотажное белье: проверь 6107 по названию. Просто белье неоднозначно: уточни постельное/нательное, пол и трикотажное/нетрикотажное исполнение; до уточнения не вызывай trade/product_overview/export_trade. Не расширяй конкретный товар до родителя молча и не складывай родителя с детьми. Ответ пользователя на уточнение соедини с исходным запросом из истории, затем повтори поиск при необходимости. Для общего обзора одного товарного кода первым вызови product_overview: название, основные партнеры, доли и динамика на сопоставимом составе. Используй его факты overview, suppliers, overview_dynamics, overview_drivers, overview_coverage и overview_source. Не дублируй заголовок, он уже в overview. Не добавляй своих утверждений об источниках. Покажи динамику и главный драйвер перед таблицами, не добавляй технические экстремумы и массу без запроса пользователя. Для сравнения стран первым вызови compare_trade. Excel создавай только по явной просьбе в последней реплике. На уточнение о динамике используй trade, покажи до 12 месяцев и изменения. История задает срез, но не повторное согласие на создание файла.")
+                "Товар назван свободным текстом и код еще не подтвержден в диалоге: сначала search_products по описанию товара. Выбирай только реальный код из справочника, подходящий всем признакам. 2 знака - широкая глава, 4 - товарная группа, 6 - явно указанный подтип. Мужское трикотажное белье: проверь 6107 по названию. Просто белье неоднозначно: уточни постельное/нательное, пол и трикотажное/нетрикотажное исполнение; до уточнения не вызывай trade/product_overview/export_trade. Не расширяй конкретный товар до родителя молча и не складывай родителя с детьми. Ответ пользователя на уточнение соедини с исходным запросом из истории, затем повтори поиск при необходимости. Для общего обзора одного товарного кода первым вызови product_overview: название, основные партнеры, доли и динамика на сопоставимом составе. Используй его факты overview, suppliers, overview_dynamics, overview_drivers, overview_coverage, overview_partial и overview_source. Если есть overview_partial, обязательно покажи отдельные темпы стран за их общие месяцы; не смешивай их с общим темпом. Не дублируй заголовок, он уже в overview. Не добавляй своих утверждений об источниках. Покажи динамику и главный драйвер перед таблицами, не добавляй технические экстремумы и массу без запроса пользователя. Для сравнения стран первым вызови compare_trade. Excel создавай только по явной просьбе в последней реплике. На уточнение о динамике используй trade, покажи до 12 месяцев и изменения. История задает срез, но не повторное согласие на создание файла.")
         except Exception as exc:
             yield {"type": "error", "code": "data_period_unavailable",
                    "text": "Не удалось проверить актуальность базы. Повторите запрос позже."}

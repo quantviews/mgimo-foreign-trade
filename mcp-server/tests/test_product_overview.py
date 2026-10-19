@@ -45,5 +45,5 @@ def test_mcp_overview_evidence_and_verification(monkeypatch):
     result=json.loads(asyncio.run(server.product_overview('6107','im')))
     draft='\n\n'.join('{{fact:'+k+'}}' for k in result['numeric_facts'])
     checked=json.loads(server.verify_trade_answer(draft,[result['evidence_id']]))
-    assert checked['valid'] and '20,00% г/г' in checked['answer']
+    assert checked['valid'] and '20,0% г/г' in checked['answer']
     assert not json.loads(server.verify_trade_answer(draft+' Итого 999.',[result['evidence_id']]))['valid']

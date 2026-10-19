@@ -2,6 +2,7 @@
 from collections import defaultdict
 from decimal import Decimal
 import hashlib
+from html import escape
 
 from numeric_facts import number, fmt, mid, month
 
@@ -11,12 +12,33 @@ def money(value):
     return f'{fmt(value / scale)} {unit}'
 
 
+MONTH_NAMES = ('янв.', 'февр.', 'март', 'апр.', 'май', 'июнь', 'июль', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.')
+
+def period_label(months):
+    months = sorted(set(months))
+    if not months: return 'нет общих месяцев'
+    runs=[]; first=last=months[0]
+    for m in months[1:]:
+        if m==last+1: last=m
+        else: runs.append((first,last)); first=last=m
+    runs.append((first,last))
+    def label(m): return f'{MONTH_NAMES[m%12]} {m//12}'
+    return '; '.join(label(a) if a==b else f'{label(a)} - {label(b)}' for a,b in runs)
+
+
+def table_value(value, scale):
+    scaled=value/scale
+    if scaled and abs(scaled)<Decimal('0.01'):
+        return ('-' if scaled<0 else '')+'<0,01'
+    return fmt(scaled)
+
+
 def overview(rows, code, name, countries, start, end, direction):
     facts = {}
     name = name.capitalize() if name.isupper() else name
     countries = {k: v.title() if v.isupper() else v for k,v in countries.items()}
     def add(kind, text):
-        text = text.replace('долл..', 'долл.')
+        text = text.replace('долл..', 'долл.').replace('п.п..', 'п.п.')
         facts[hashlib.sha256(text.encode()).hexdigest()[:16]] = {'kind': kind, 'text': text}
     lo, hi = mid(start), mid(end)
     if lo is None or hi is None or not 1 <= hi-lo+1 <= 12:
@@ -39,14 +61,18 @@ def overview(rows, code, name, countries, start, end, direction):
     for (c, s, m), v in current.items(): totals[c] += v
     total = sum(totals.values(), Decimal(0))
     route = 'Импорт России' if direction in ('im', 'ИМ') else 'Экспорт России'
-    add('overview', f'### {route}: {name} (код {code})\n\nЗа {month(lo)} - {month(hi)} в доступных фактических записях отражено **{money(total)}** по представленным в базе партнерам.')
+    short_name = name if len(name)<=90 else name[:87].rsplit(' ',1)[0]+'…'
+    leader=max(totals,key=totals.get)
+    lead=f'**{countries.get(leader,leader)}**: {fmt(totals[leader]/total*100,1)}% доступной стоимости.' if total>0 else ''
+    add('overview', f'### {route}: {short_name} (код {code})\n\n**{period_label(range(lo,hi+1))}**\n\nПо представленным странам-партнерам: **{money(total)}**. '+lead)
+    scale, unit = (Decimal('1000000'),'млн долл.') if abs(total)>=10**6 else (Decimal('1000'),'тыс. долл.') if abs(total)>=1000 else (Decimal(1),'долл.')
     leaders = sorted(totals, key=totals.get, reverse=True)[:5]
-    table = ['| Партнер | Стоимость | Доля доступной суммы | Месяцев с данными |', '|---|---:|---:|---:|']
+    table = [f'| Страна-партнер | {unit} | Доля, % | Месяцев |', '|---|---:|---:|---:|']
     for c in leaders:
         n = len({m for cc, s, m in current if cc == c})
-        share = fmt(totals[c]/total*100)+'%' if total > 0 else 'не рассчитана'
-        table.append(f'| {countries.get(c,c)} | {money(totals[c])} | {share} | {n} из {hi-lo+1} |')
-    add('suppliers', 'Основные партнеры по стоимости:\n\n'+'\n'.join(table))
+        share = fmt(totals[c]/total*100,1) if total > 0 else 'не рассчитана'
+        table.append(f'| {countries.get(c,c)} | {table_value(totals[c],scale)} | {share} | {n} из {hi-lo+1} |')
+    add('suppliers', '**Основные страны-партнеры**\n\n'+'\n'.join(table))
     # Use the full requested calendar window and the identical country/source set.
     eligible = []
     for c, s in {(c,s) for c,s,m in current}:
@@ -59,29 +85,48 @@ def overview(rows, code, name, countries, start, end, direction):
         pairs.append((c,a,b))
     if pairs:
         a = sum((p[1] for p in pairs),Decimal(0)); b = sum((p[2] for p in pairs),Decimal(0))
-        change = f'{fmt((a/b-1)*100)}% г/г' if b > 0 else 'темп не рассчитан: база неположительна'
+        change = f'{fmt((a/b-1)*100,1)}% г/г' if b > 0 else 'темп не рассчитан: база неположительна'
         names = ', '.join(countries.get(c,c) for c,_,_ in sorted(pairs))
-        add('overview_dynamics', f'На сопоставимом составе партнеров ({names}) стоимость за {month(lo)} - {month(hi)} составила **{money(a)}** против {money(b)} за {month(lo-12)} - {month(hi-12)}: **{change}**. Для каждого партнера сохранены источник и все месяцы обоих окон.')
+        add('overview_dynamics', f'**На сопоставимом составе стран: {change}** ({money(b)} → {money(a)}). Сравниваются {period_label(range(lo,hi+1))} и те же месяцы годом ранее: {names}.')
         drivers = sorted(pairs, key=lambda p: abs(p[1]-p[2]), reverse=True)[:3]
-        table = ['| Партнер | Изменение стоимости | Вклад в общий темп |','|---|---:|---:|']
-        for c, x, y in drivers:
-            contribution = fmt((x-y)/b*100)+' п.п.' if b > 0 else 'не рассчитан'
-            table.append(f'| {countries.get(c,c)} | {money(x-y)} | {contribution} |')
-        main=drivers[0]
-        verb='увеличение' if main[1]>=main[2] else 'сокращение'
-        lead=f'Главный вклад в изменение сопоставимого итога: {countries.get(main[0],main[0])}, {verb} стоимости поставок на {money(abs(main[1]-main[2]))}. '
-        add('overview_drivers', lead+'Вклад партнеров в общий темп:\n\n'+'\n'.join(table))
+        items=[]
+        for c,x,y in drivers:
+            delta=x-y
+            sign='+' if delta>0 else ''
+            contribution= f', {fmt(delta/b*100,1)} п.п.' if b>0 else ''
+            items.append(f'{countries.get(c,c)}: {sign}{table_value(delta,scale)} {unit}{contribution}')
+        add('overview_drivers', '**Вклад стран в изменение:** '+ '; '.join(items)+'.')
     else:
         add('overview_dynamics', 'Годовой темп за выбранное окно не рассчитан: нет партнеров с однозначной стоимостью за все одинаковые месяцы обоих лет. Доступные суммы и партнеры показаны выше.')
     excluded = set(totals)-{p[0] for p in pairs}
     if excluded:
-        coverage = fmt(sum((p[1] for p in pairs),Decimal(0))/total*100) if total>0 else None
+        coverage = fmt(sum((p[1] for p in pairs),Decimal(0))/total*100,1) if total>0 else None
         note = f'Сопоставимый состав охватывает {coverage}% доступной стоимости текущего окна. ' if coverage is not None else ''
-        add('overview_coverage', note+'Остальные партнеры учитываются в доступной сумме и таблице поставщиков; их годовая динамика за все окно не установлена из-за пропусков или различий источников.')
+        add('overview_coverage', note+'Темп относится только к этому составу стран.')
+    partial=[]
+    for c in sorted(excluded,key=lambda c:(-totals[c],c)):
+        matches=[(m,src,known[c,src,m],known[c,src,m-12]) for cc,src,m in current if cc==c and (c,src,m-12) in known]
+        # A country series must retain the same source throughout its matched window.
+        if not matches or len({src for m,src,x,y in matches})!=1: continue
+        months=sorted(m for m,src,x,y in matches)
+        x=sum((x for m,src,x,y in matches),Decimal(0)); y=sum((y for m,src,x,y in matches),Decimal(0))
+        pct=(x/y-1)*100 if y>0 else None
+        partial.append({'strana':c,'source':matches[0][1],'current_months':[month(m) for m in months],
+                        'baseline_months':[month(m-12) for m in months],'current_value':str(x),'baseline_value':str(y),
+                        'change_pct':str(pct) if pct is not None else None})
+    if partial:
+        table=[f'| Страна-партнер | Общие месяцы текущего окна | Сейчас / годом ранее, {unit} | Г/г, % |','|---|---|---:|---:|']
+        for row in partial[:5]:
+            pct=number(row['change_pct']); months=[mid(m) for m in row['current_months']]
+            rate=fmt(pct,1) if pct is not None else 'не рассчитан'
+            table.append(f"| {countries.get(row['strana'],row['strana'])} | {period_label(months)} | {table_value(number(row['current_value']),scale)} / {table_value(number(row['baseline_value']),scale)} | {rate} |")
+        note='Каждая страна сравнивается с теми же месяцами годом ранее. Эти темпы не входят в общий темп выше; пропуски не заменены нулями.'
+        if len(partial)>5: note+=f' Показаны 5 из {len(partial)} стран с отдельным сопоставлением, по доступной стоимости текущего окна.'
+        add('overview_partial', '**Отдельная динамика стран с неполным периодом**\n\n'+'\n'.join(table)+'\n\n'+note)
     sources = sorted({s for c,s,m in current})
     labels={'national':'национальная статистика стран-партнеров','comtrade':'UN Comtrade'}
-    add('overview_source','Источники: '+', '.join(labels.get(s,s) for s in sources)+'. В обзоре использованы фактические записи базы.')
-    return {'numeric_facts':facts, 'period_from':month(lo), 'period_to':month(hi), 'total_usd':str(total), 'comparable_countries':[p[0] for p in pairs]}
+    add('overview_source','<details><summary>Товар и источники</summary><p>'+escape(name)+f' (код {code}).</p><p>Источники: '+escape(', '.join(labels.get(s,s) for s in sources))+'. Фактические записи базы; доли относятся к доступной стоимости по странам-партнерам.</p></details>')
+    return {'numeric_facts':facts, 'period_from':month(lo), 'period_to':month(hi), 'total_usd':str(total), 'comparable_countries':sorted(p[0] for p in pairs), 'partial_country_comparisons':partial}
 
 
 async def fetch_overview(client, base, headers, code, napr, period_from=None, period_to=None):
