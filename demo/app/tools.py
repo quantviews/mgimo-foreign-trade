@@ -591,6 +591,7 @@ async def _compare_trade(client, args, tool_name="compare_trade"):
         if ctx is not None:
             ctx["answer"] = obj["answer_ru"]
             ctx["analysis_evidence"] = obj
+            ctx["verified_comparison_answer"] = obj["answer_ru"]
         if ctx is not None and ctx.get('wants_export'):
             # Reuse the resolved requested window and filters, not rounded totals
             # or a second interpretation by the model. File calculation is authoritative.
@@ -606,13 +607,15 @@ async def _compare_trade(client, args, tool_name="compare_trade"):
                 if failure == obj['answer_ru']:
                     failure = 'Excel не удалось создать. Повторите запрос выгрузки позже.'
                 ctx['answer'] = obj['answer_ru'] + '\n\n' + failure
+                ctx['verified_comparison_answer'] = ctx['answer']
             return json.dumps(exported)
         return json.dumps({"comparison_ready":True,"common_month_count":obj.get("common_month_count"),
                            "fizob_available":obj.get("physical_volume",{}).get("available",False)})
     except Exception as exc:
+        logging.getLogger(__name__).exception("MCP comparison failed (tool=%s)", tool_name)
         if ctx is not None:
             ctx["error_code"]="comparison_failed"
-            ctx["answer"]="Не удалось получить проверенное сравнение. Повторите запрос позже; итоги по неполным данным не рассчитаны."
+            ctx["answer"]="Произошла техническая ошибка при подготовке сравнения. Повторите запрос позже."
         return json.dumps({"error":"Comparison unavailable","code":type(exc).__name__})
     finally:
         if headers.get("mcp-session-id"):

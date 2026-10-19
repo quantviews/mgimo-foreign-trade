@@ -97,6 +97,10 @@ def _answer(msg):
 
 
 async def _checked_answer(client, messages, msg):
+    comparison = export_context.get().get('verified_comparison_answer')
+    if comparison:
+        # Export summaries cover a wider window; preserve matched-period results.
+        return _answer({'content': comparison})
     facts = export_context.get().get('numeric_facts', {})
     overview_facts = {k:v for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_source')}
     if overview_facts:

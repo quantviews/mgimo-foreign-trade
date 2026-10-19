@@ -444,7 +444,6 @@ def compare_trade(
     Up to 10 countries and 60 months; rejects truncated data. Does not create a file.
     """
     body = {k: v for k, v in locals().items() if k != "ctx" and v is not None}
-    body["inline"] = True
     try:
         response = httpx.post(f"{API_BASE}/v1/compare/trade", json=body,
                               headers={"Authorization": f"Bearer {_resolve_token(ctx)}"}, timeout=90)
