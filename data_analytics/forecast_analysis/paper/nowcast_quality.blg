@@ -1,0 +1,15 @@
+[1] Config.pm:308> INFO - This is Biber 2.20
+[1] Config.pm:311> INFO - Logfile is 'nowcast_quality.blg'
+[522] biber-MSWIN64:340> INFO - === 
+[650] Biber.pm:420> INFO - Reading 'nowcast_quality.bcf'
+[1028] Biber.pm:994> INFO - Found 34 citekeys in bib section 0
+[1072] Biber.pm:4463> INFO - Processing section 0
+[1108] Biber.pm:4654> INFO - Looking for bibtex file 'sources.bib' for section 0
+[1282] bibtex.pm:1713> INFO - LaTeX decoding ...
+[1407] bibtex.pm:1519> INFO - Found BibTeX data source 'sources.bib'
+[2007] UCollate.pm:68> INFO - Overriding locale 'ru-RU' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[2009] UCollate.pm:68> INFO - Overriding locale 'ru-RU' defaults 'variable = shifted' with 'variable = non-ignorable'
+[2009] Biber.pm:4283> INFO - Sorting list 'nyt/global//global/global/global' of type 'entry' with template 'nyt' and locale 'ru-RU'
+[2009] Biber.pm:4289> INFO - No sort tailoring available for locale 'ru-RU'
+[2096] bbl.pm:676> INFO - Writing 'nowcast_quality.bbl' with encoding 'UTF-8'
+[2152] bbl.pm:779> INFO - Output to nowcast_quality.bbl
