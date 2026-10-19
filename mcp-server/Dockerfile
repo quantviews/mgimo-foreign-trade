@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py oauth.py ./
+COPY server.py oauth.py decomposition.py trade_evidence.py coverage_evidence.py ./
 
 # Remote transport. No MGIMO_API_TOKEN here on purpose: each request must carry
 # the client's own key in Authorization: Bearer <key> (forwarded to the API).
