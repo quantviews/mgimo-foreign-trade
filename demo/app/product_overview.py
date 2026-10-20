@@ -4,7 +4,7 @@ from decimal import Decimal
 import hashlib
 from html import escape
 
-from .numeric_facts import number, fmt, mid, month
+from .numeric_facts import number, fmt, mid, month, short_product_name
 
 
 def money(value):
@@ -61,7 +61,7 @@ def overview(rows, code, name, countries, start, end, direction):
     for (c, s, m), v in current.items(): totals[c] += v
     total = sum(totals.values(), Decimal(0))
     route = 'Импорт России' if direction in ('im', 'ИМ') else 'Экспорт России'
-    short_name = name if len(name)<=90 else name[:87].rsplit(' ',1)[0]+'…'
+    short_name = short_product_name(code,name)
     leader=max(totals,key=totals.get)
     lead=f'**{countries.get(leader,leader)}**: {fmt(totals[leader]/total*100,1)}% доступной стоимости.' if total>0 else ''
     add('overview', f'### {route}: {short_name} (код {code})\n\n**{period_label(range(lo,hi+1))}**\n\nПо представленным странам-партнерам: **{money(total)}**. '+lead)
@@ -95,14 +95,19 @@ def overview(rows, code, name, countries, start, end, direction):
             sign='+' if delta>0 else ''
             contribution= f', {fmt(delta/b*100,1)} п.п.' if b>0 else ''
             items.append(f'{countries.get(c,c)}: {sign}{table_value(delta,scale)} {unit}{contribution}')
-        add('overview_drivers', '**Вклад стран в изменение:** '+ '; '.join(items)+'.')
+        dominant=drivers[0]
+        finding=(f"Главное изменение на сопоставимом составе связано со страной {countries.get(dominant[0],dominant[0])}: "
+                 f"поставки {'увеличились' if dominant[1]>dominant[2] else 'сократились' if dominant[1]<dominant[2] else 'не изменились'}"
+                 +(f" на {money(abs(dominant[1]-dominant[2]))}. " if dominant[1]!=dominant[2] else '. '))
+        add('overview_drivers', finding+'**Вклад стран в изменение:** '+ '; '.join(items)+'.')
     else:
         add('overview_dynamics', 'Годовой темп за выбранное окно не рассчитан: нет партнеров с однозначной стоимостью за все одинаковые месяцы обоих лет. Доступные суммы и партнеры показаны выше.')
     excluded = set(totals)-{p[0] for p in pairs}
     if excluded:
         coverage = fmt(sum((p[1] for p in pairs),Decimal(0))/total*100,1) if total>0 else None
-        note = f'Сопоставимый состав охватывает {coverage}% доступной стоимости текущего окна. ' if coverage is not None else ''
-        add('overview_coverage', note+'Темп относится только к этому составу стран.')
+        note = f'Сопоставимый состав охватывает {coverage}% доступной стоимости текущего окна. ' if coverage is not None and pairs else ''
+        add('overview_coverage', note+('Темп относится только к этому составу стран.' if pairs else
+            'Полный итог за выбранное окно не установлен. Сумма выше относится к доступным записям; пропуски не означают отсутствие торговли.'))
     partial=[]
     for c in sorted(excluded,key=lambda c:(-totals[c],c)):
         matches=[(m,src,known[c,src,m],known[c,src,m-12]) for cc,src,m in current if cc==c and (c,src,m-12) in known]
@@ -120,7 +125,11 @@ def overview(rows, code, name, countries, start, end, direction):
             pct=number(row['change_pct']); months=[mid(m) for m in row['current_months']]
             rate=fmt(pct,1) if pct is not None else 'не рассчитан'
             table.append(f"| {countries.get(row['strana'],row['strana'])} | {period_label(months)} | {table_value(number(row['current_value']),scale)} / {table_value(number(row['baseline_value']),scale)} | {rate} |")
-        note='Каждая страна сравнивается с теми же месяцами годом ранее. Эти темпы не входят в общий темп выше; пропуски не заменены нулями.'
+        note='Каждая страна сравнивается с теми же месяцами годом ранее. '+(
+            'Эти темпы не входят в общий темп выше; ' if pairs else
+            'Это динамика только за указанные месяцы, а не за все окно; ')+'пропуски не заменены нулями.'
+        if any(0<number(r['baseline_value'])<1000 for r in partial[:5]):
+            note+=' У части стран прошлогодняя база меньше тысячи долларов: большой процент может соответствовать небольшому изменению стоимости.'
         if len(partial)>5: note+=f' Показаны 5 из {len(partial)} стран с отдельным сопоставлением, по доступной стоимости текущего окна.'
         add('overview_partial', '**Отдельная динамика стран с неполным периодом**\n\n'+'\n'.join(table)+'\n\n'+note)
     sources = sorted({s for c,s,m in current})

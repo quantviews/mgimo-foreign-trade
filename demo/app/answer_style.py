@@ -3,7 +3,7 @@ import hashlib
 import re
 from decimal import Decimal
 
-from .numeric_facts import fmt, number, COUNTRIES
+from .numeric_facts import fmt, number, COUNTRIES, short_product_name
 
 
 def request_mode(question):
@@ -95,29 +95,31 @@ def explanation_facts(obj):
         return fmt(number(v) / Decimal(10**6)) if number(v) is not None else 'нет данных'
     parent = obj['parent']
     route = 'Импорт России' if obj.get('direction') in ('im', 'ИМ') else 'Экспорт России'
+    growth=number(parent.get('growth_pct'))
+    change=(f"Стоимость {'выросла' if growth>0 else 'снизилась'} на **{fmt(abs(growth),1)}%**"
+            if growth is not None and growth!=0 else 'Стоимость не изменилась' if growth==0
+            else 'Темп стоимости не рассчитан')
     out = fact('analysis_headline',
         f"**{route}, {COUNTRIES.get(obj['country'], obj['country'])}, код {obj['parent_code']}: {current}.**\n\n"
-        f"Стоимость: **{money(parent['current_usd'])} млн долл.**, "
-        f"годом ранее ({previous}) - {money(parent['previous_usd'])} млн долл. "
-        f"Изменение: **{fmt(parent['growth_pct'], 1)}%**.")
+        f"{change} на сопоставимом периоде. "
+        f"Сейчас: **{money(parent['current_usd'])} млн долл.**, "
+        f"годом ранее ({previous}) - {money(parent['previous_usd'])} млн долл.")
     rows = [r for r in obj['children'] if r.get('comparable')]
     rows.sort(key=lambda r: abs(number(r['change_usd'])), reverse=True)
     if rows:
         main = rows[0]
         out.update(fact('analysis_leader',
-            f"Главный вклад в изменение стоимости дала подкатегория {main['code']}: "
+            f"Главный вклад в изменение стоимости: {short_product_name(main['code'],main.get('name'))} ({main['code']}): "
             f"{money(main['change_usd'])} млн долл., {fmt(main['contribution_pp'], 1)} п.п. "
             "Детализация по кодам приведена ниже."))
     table = ['**Главные вклады подкатегорий в изменение стоимости**', '',
              '| Подкатегория | Доля сейчас, % | Изменение, млн долл. | Вклад, п.п. |',
              '|---|---:|---:|---:|']
     for row in rows[:3]:
-        name = re.sub(r'[|\r\n]', ' ', row.get('name') or 'Название отсутствует')
+        name = re.sub(r'[|\r\n]', ' ', short_product_name(row['code'], row.get('name')))
         name = ' '.join(name.split())
         if name.isupper():
             name = name.capitalize()
-        if len(name) > 100:
-            name = name[:97].rsplit(' ', 1)[0] + '…'
         table.append(f"| {name} ({row['code']}) | {fmt(row['current_share_pct'], 1)} | "
                      f"{money(row['change_usd'])} | {fmt(row['contribution_pp'], 1)} |")
     if rows:

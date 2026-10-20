@@ -21,7 +21,7 @@ def test_compact_fallback_preserves_missing_and_does_not_dump_extrema():
         {'period_from':'2026-01','period_to':'2026-02'})
     result=verify_answer(fallback_draft(f,'Дай обзор импорта'),f)
     assert result['valid']
-    assert '1,00' not in result['answer']  # units remain billions, not fabricated millions
+    assert '1,00 млн долл.' in result['answer']
     assert 'Полный итог окна не установлен' in result['answer']
     assert 'максимум' not in result['answer']
 
@@ -144,3 +144,21 @@ def test_analysis_contains_driver_codes_shares_contributions_and_same_periods():
     unavailable = explanation_facts(dict(available=False, current_period=['2026-01','2026-08'],
                                          missing_months=['2026-08']))
     assert all(v['kind']=='analysis_caveat' for v in unavailable.values())
+
+def test_small_flow_units_and_float_tails():
+    from app.numeric_facts import numerical_facts, fmt
+    facts=numerical_facts([dict(strana='KZ',napr='ex',tnved6='280410',source='comtrade',type='fact',period='2026-01',stoim=14936.47,netto=85.24000000000001)],{'period_from':'2026-01','period_to':'2026-02'})
+    text='\n'.join(v['text'] for v in facts.values())
+    assert '14,94 тыс. долл.' in text and '85,24 кг' in text
+    assert 'Казахстан' in text and 'Полный итог окна не установлен' in text
+    assert '000000000001' not in text
+    assert fmt(0.00008524000000000001)=='0,00008524'
+
+
+def test_short_names_keep_distinguishing_characteristics():
+    from app.numeric_facts import short_product_name
+    assert '1,5 до 3' in short_product_name('870323','official')
+    assert 'свыше 1 до 1,5' in short_product_name('870322','official')
+    assert 'Подзаряжаемые' in short_product_name('870360','official')
+    assert 'без внешней' in short_product_name('870340','official')
+    assert short_product_name('999999','НЕИЗВЕСТНАЯ ГРУППА')=='Неизвестная группа'

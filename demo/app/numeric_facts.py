@@ -6,7 +6,21 @@ import re
 
 INSTRUCTION = '''Числовые выводы оформляй ссылками {{fact:ID}} из numeric_facts. Каждая ссылка заменяется готовым проверенным предложением или таблицей. Не переписывай цифры, даты, проценты, экстремумы и направления изменения своими словами. Вне ссылок допустимы краткие вводные фразы и заголовки без чисел и утверждений о росте/снижении. Выбирай итоги, динамику и экстремумы по вопросу, затем таблицу при запросе помесячного ряда. Показывай отдельно nowcast и пропуски. Для недоступного расчета используй соответствующий факт-оговорку. Не выводи все факты подряд. Не добавляй собственные ссылки скачивания: они передаются сервисом отдельно. Это формат черновика; перед публикацией вызови verify_trade_answer, используй его answer без изменений.'''
 DIMS = ('strana','napr','type','source','edizm','edizm_iso','tnved','tnved2','tnved4','tnved6','tn_level','tn_code')
-COUNTRIES={'CN':'Китай','IN':'Индия','TR':'Турция','SK':'Словакия','HU':'Венгрия','US':'США'}
+COUNTRIES={'CN':'Китай','IN':'Индия','TR':'Турция','SK':'Словакия','HU':'Венгрия','US':'США',
+           'KZ':'Казахстан','UZ':'Узбекистан','AM':'Армения','AZ':'Азербайджан'}
+
+def short_product_name(code, name):
+    """Editorial labels for known codes; preserve official names in source exports."""
+    labels={'6107':'Мужское трикотажное белье, одежда для сна и домашние халаты',
+            '8703':'Легковые автомобили',
+            '870322':'Бензиновые автомобили, двигатель свыше 1 до 1,5 л',
+            '870323':'Бензиновые автомобили, двигатель свыше 1,5 до 3 л',
+            '870360':'Подзаряжаемые гибриды с бензиновым двигателем',
+            '870340':'Гибриды с бензиновым двигателем без внешней зарядки',
+            '870370':'Подзаряжаемые гибриды с дизельным двигателем',
+            '870380':'Электромобили'}
+    return labels.get(str(code), ' '.join((name or 'Название отсутствует').split()).capitalize()
+                      if (name or '').isupper() else ' '.join((name or 'Название отсутствует').split()))
 
 def number(v):
     try:
@@ -19,7 +33,8 @@ def fmt(v, places=2):
     d=number(v)
     rounded=d.quantize(Decimal(10)**-places,rounding=ROUND_HALF_UP)
     if d and not rounded:
-        return format(d.normalize(),'f').replace('.',',')
+        # Retain small nonzero values without leaking binary floating-point tails.
+        return format(d.quantize(Decimal(10)**(d.adjusted()-3),rounding=ROUND_HALF_UP).normalize(),'f').replace('.',',')
     return format(rounded,',f').replace(',',' ').replace('.',',')
 
 def mid(p):
@@ -29,6 +44,15 @@ def mid(p):
     except (ValueError,TypeError):return None
 
 def month(m):return f'{m//12:04d}-{m%12+1:02d}'
+
+def display_scale(metric, values):
+    magnitude=max((abs(number(v)) for v in values if number(v) is not None),default=Decimal(0))
+    if metric=='stoim':
+        return (Decimal(10)**9,'млрд долл.') if magnitude>=10**9 else (
+            (Decimal(10)**6,'млн долл.') if magnitude>=10**6 else (
+                (Decimal(1000),'тыс. долл.') if magnitude>=1000 else (Decimal(1),'долл.')))
+    return (Decimal(10)**6,'тыс. т') if magnitude>=10**6 else (
+        (Decimal(1000),'т') if magnitude>=1000 else (Decimal(1),'кг'))
 
 def index_baseline_filters(filters, rows):
     """Same slice, twelve preceding calendar months, never inferred offsets."""
@@ -111,6 +135,7 @@ def numerical_facts(rows, filters=None, baseline=()):
                 vals=[]
                 for metric,title,scale,unit in [('stoim','стоимость',Decimal(10)**9,'млрд долл.'),('netto','масса',Decimal(10)**6,'тыс. т')]:
                     value=number(r.get(metric))
+                    scale,unit=display_scale(metric,[value])
                     if value is not None:vals.append(title+' '+fmt(value/scale)+' '+unit)
                 if vals:add('aggregate',label+period+': '+', '.join(vals)+'. Покрытие месяцев по этой группировке не установлено; для сопоставления периодов нужен месячный ряд.')
             continue
@@ -127,6 +152,8 @@ def numerical_facts(rows, filters=None, baseline=()):
             add('limitation',label+': несколько строк на один месяц внутри выбранных измерений; для итогов нужна однозначная помесячная группировка.');continue
         selected={m:rs[0] for m,rs in selected.items()}
         metrics=[('stoim','Стоимость','млрд долл.',Decimal(10)**9),('netto','Масса','тыс. т',Decimal(10)**6)]
+        metrics=[(k,t,unit,scale) for k,t,_,_ in metrics
+                 for scale,unit in [display_scale(k,[r.get(k) for r in selected.values()])]]
         if info['edizm'] or info['edizm_iso']:
             metrics.append(('kol','Количество',info['edizm'] or info['edizm_iso'],Decimal(1)))
         if any('idx' in r for r in items):metrics=[('idx','Уровень индекса физобъема','ед. индекса',Decimal(1))]
