@@ -98,6 +98,20 @@ For country totals or one HS2/4/6 code, compare_trade also returns physical_volu
 
 ## Comparable periods and analyst-facing answers
 
+For standalone fizob dynamics use `index_change`, `index_yoy`, `monthly_table`
+and `index_methodology` from numeric_facts, including `index_caveat` when present.
+The tool loads the preceding twelve months for calendar YoY and displays the
+first available requested month as 100. Internal tiny `idx` values are not
+user-facing levels. Window-endpoint change is distinct from YoY; never substitute
+one for the other or invent missing baselines. Validate the selected fact references.
+
+Adapt presentation to intent: export means a concise summary and file; dynamics
+means comparable changes; explanation means verified category contributions.
+An attribution of structural contribution is not proof of an economic cause.
+Follow-ups retain the slice from history unless changed, but create another file
+only on a new explicit request. Coverage caveats apply to the affected metric;
+missing mass does not invalidate value. Keep source estimates separate from nowcast.
+
 - For country comparisons, fetch monthly aggregates by country, period, type and source (not raw records). Compare the intersection of months with factual observations for every requested country within the requested interval. Missing countries or months are not zero. If no common months exist, say a factual comparison is unavailable.
 - For "latest 12 months", anchor the requested window to meta.period_max. If only 11 common fact months exist, label the comparison as 11 months and list the excluded months; do not silently shift the window backwards. For year-on-year comparisons, align the same calendar months in both years before summing. Enumerate gaps rather than presenting a discontinuous set as a continuous period.
 - Show absolute differences and percentages with an explicit denominator (comparison baseline). Do not compute percentages against a zero baseline; flag small bases. Verify comparable direction, product scope and units. Matching months alone does not guarantee equal source/product coverage. A null metric is not zero and cannot establish comparable coverage for that metric.

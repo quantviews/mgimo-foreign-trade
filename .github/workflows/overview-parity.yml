@@ -32,9 +32,8 @@ jobs:
         env:
           MCP_TRANSPORT: stdio
         run: >-
-          python -m pytest -c /dev/null -q
+          python -m pytest -c /dev/null -q --import-mode=importlib
           mcp-server/tests/test_overview_6107_parity.py
           mcp-server/tests/test_product_overview.py
           mcp-server/tests/test_comparison_contract.py
-          demo/tests/test_comparison_answer_contract.py
-          demo/tests/test_answer_style.py
+          demo/tests

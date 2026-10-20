@@ -6,6 +6,43 @@ from decimal import Decimal
 from .numeric_facts import fmt, number, COUNTRIES
 
 
+def request_mode(question):
+    """Intent controls presentation, never restricts the country/product domain."""
+    if export_only(question):return 'export'
+    if re.search(r'физоб|физическ.*объем|индекс',question,re.I):return 'index'
+    if re.search(r'почему|объясн|драйвер|вклад|разбор|за счет',question,re.I):return 'explain'
+    if re.search(r'сравн|сопостав',question,re.I):return 'compare'
+    if re.search(r'динамик|менял|измен|по месяц|помесяч|год к году|г/г',question,re.I):return 'dynamics'
+    return 'overview'
+
+
+def fallback_draft(facts, question):
+    """Bounded selection of verified facts; always keep material coverage notes."""
+    mode=request_mode(question)
+    if any(v['kind']=='index_change' for v in facts.values()):
+        order=('index_change','index_yoy','monthly_table','index_caveat','index_methodology')
+    elif mode=='export':
+        order=('total','limitation','coverage')
+    elif mode=='explain':
+        order=('analysis_headline','analysis_leader','analysis_drivers','analysis_caveat',
+               'overview_dynamics','overview_drivers','total','yoy','limitation','coverage')
+    elif mode=='dynamics':
+        order=('yoy','total','monthly_changes','monthly_table','limitation','coverage')
+    else:
+        order=('overview','overview_dynamics','overview_drivers','suppliers',
+               'overview_partial','overview_coverage','total','yoy','aggregate','limitation','coverage')
+    chosen=[]
+    for kind in order:
+        matches=[(k,v) for k,v in facts.items() if v['kind']==kind]
+        if kind=='coverage':
+            matches=[(k,v) for k,v in matches if 'Отсутствуют месяцы' in v['text']]
+        if kind in ('monthly_changes','monthly_table'):
+            matches=matches[:2]
+        chosen.extend(k for k,v in matches)
+    if not chosen:chosen=list(facts)[:3]
+    return '\n\n'.join('{{fact:'+key+'}}' for key in dict.fromkeys(chosen))
+
+
 def export_only(question):
     return bool(re.search(r'excel|xlsx|выгруз|скача|файл', question, re.I)) and not re.search(
         r'сравн|динамик|объясн|разбор|проанализ|анализ|драйвер|вклад|причин|дол[яию]', question, re.I)

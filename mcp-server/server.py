@@ -34,7 +34,7 @@ from pathlib import Path
 import httpx
 from mcp.server.fastmcp import Context, FastMCP
 
-from numeric_facts import numerical_facts, verify_answer, INSTRUCTION as NUMERIC_INSTRUCTION
+from numeric_facts import numerical_facts, verify_answer, index_baseline_filters, INSTRUCTION as NUMERIC_INSTRUCTION
 import hashlib
 import time
 import threading
@@ -319,7 +319,24 @@ def _get(path: str, params: list[tuple[str, str]], ctx: Context | None) -> str:
         return json.dumps(_attach_numeric(obj,ctx,filters), ensure_ascii=False)
     if path == '/v1/fizob':
         obj=resp.json()
-        return json.dumps(_attach_numeric(obj,ctx,dict(pairs)),ensure_ascii=False)
+        filters={}
+        for k,v in pairs:
+            if k in ('strana','napr','tn_level','tn_code'):
+                filters.setdefault(k,[]).append(v)
+            else:filters[k]=v
+        baseline=[]
+        previous=index_baseline_filters(filters,obj.get('data',[]))
+        if previous and not obj.get('meta',{}).get('has_more'):
+            try:
+                response=httpx.get(API_BASE+path,params=previous,
+                    headers={"Authorization":f"Bearer {token}"},timeout=90)
+                response.raise_for_status()
+                data=response.json()
+                if not data.get('meta',{}).get('has_more'):baseline=data.get('data',[])
+            except (httpx.HTTPError,ValueError):
+                pass
+        obj['numeric_facts']=numerical_facts(obj.get('data',[]),filters,baseline)
+        return json.dumps(_attach_numeric(obj,ctx,filters),ensure_ascii=False)
     return resp.text
 
 
@@ -651,7 +668,11 @@ def fizob(
       tn_code   specific HS / ТН ВЭД code at the chosen level.
     Period (YYYY-MM-DD): period_from, period_to.
     order_by  one of: period, strana, napr, tn_level, tn_code, idx (ascending).
-    limit: max rows. Returns JSON (idx is the index; fact-only, no nowcast).
+    limit: max rows. Returns JSON (idx is internal scale; fact-only, no nowcast).
+    Numeric facts display first available requested month = 100 and calendar YoY,
+    automatically loading the preceding twelve months. Select index_change,
+    index_yoy, monthly_table, index_caveat and index_methodology, then validate
+    with verify_trade_answer. Never publish tiny idx levels as user-facing units.
     """
     params: list[tuple[str, str]] = []
     for key, vals in (("strana", strana), ("napr", napr), ("tn_level", tn_level), ("tn_code", tn_code)):

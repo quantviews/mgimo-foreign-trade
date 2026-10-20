@@ -16,7 +16,7 @@ from .config import settings
 from .prompts import SYSTEM_PROMPT
 from .tools import TOOLS, execute_tool, summarize_tool_result
 from .exports import export_context
-from .answer_style import export_only, export_facts
+from .answer_style import export_only, export_facts, request_mode, fallback_draft
 
 logger = logging.getLogger(__name__)
 CHAT_NUMERIC_INSTRUCTION = INSTRUCTION.split('Это формат черновика;')[0] + 'Каждую ссылку ставь отдельным абзацем, это целое предложение или таблица, не число для вставки в предложение. Верни черновик со ссылками {{fact:ID}}. Проверку и замену ссылок выполнит сервис автоматически. Не вызывай verify_trade_answer: в чате такого инструмента нет.'
@@ -73,6 +73,7 @@ async def run_agent(user_messages: list[dict], user_id: int | None = None) -> As
     # Never silently treat a continent as one of the requested country codes.
     question = user_messages[-1].get("content", "").lower() if user_messages else ""
     ctx['question'] = question
+    ctx['request_mode'] = request_mode(question)
     ctx['explicit_direction'] = explicit_direction(question)
     ctx['wants_ranking'] = bool(re.search(r'\bтоп\b|\btop\b|крупнейш|лидирующ', question))
     ctx['wants_export'] = bool(re.search(r'excel|xlsx|выгруз|скача|файл', question))
@@ -130,6 +131,8 @@ async def _checked_answer(client, messages, msg):
     if not facts:
         return _answer(msg)
     checked = verify_answer(msg.get('content') or '', facts)
+    if msg.get('_finish_reason')=='length':
+        checked={'valid':False,'errors':['Incomplete model generation']}
     if not checked['valid']:
         repair = [*messages, {'role':'assistant','content':msg.get('content') or ''},
                   {'role':'user','content':CHAT_NUMERIC_INSTRUCTION + '\nИсправь черновик. Ошибки проверки: '+str(checked['errors'])+
@@ -137,24 +140,15 @@ async def _checked_answer(client, messages, msg):
         try:
             msg = await _completion(client, repair, use_tools=False)
             checked = verify_answer(msg.get('content') or '', facts)
+            if msg.get('_finish_reason')=='length':checked={'valid':False}
         except (httpx.HTTPError, ValueError):
             checked = {'valid':False}
     if checked['valid']:
         text = checked['answer']
     else:
         # A model failure must not suppress verified available data.
-        chosen = [(k,v) for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_partial','overview_source','total','yoy','extrema','coverage','index_change','aggregate','unit_value')]
-        question=export_context.get().get('question','')
-        priorities={'overview':-7,'overview_dynamics':-6,'overview_drivers':-5,'suppliers':-4,'overview_coverage':-3,'overview_partial':-2,'overview_source':-1,'total':0,'yoy':1,'extrema':2,'coverage':3,'aggregate':4}
-        if 'физ' in question: priorities['index_change']=-2
-        if 'цен' in question: priorities['unit_value']=-1
-        chosen=[kv for kv in chosen if kv[1]['kind'] in priorities]
-        chosen.sort(key=lambda kv: priorities[kv[1]['kind']])
-        text = '\n\n'.join(v['text'] for k,v in chosen[:4])
-        if not text: text = '\n\n'.join(v['text'] for v in list(facts.values())[:4])
-        if not ctx.get('wants_export') and re.search(r'помесяч|по месяц|кажд.*месяц', ctx.get('question','')):
-            tables=[v['text'] for v in facts.values() if v['kind']=='monthly_table']
-            text += '\n\n'+'\n\n'.join(tables[:4])
+        fallback=verify_answer(fallback_draft(facts,ctx.get('question','')),facts)
+        text=fallback['answer'] if fallback['valid'] else 'Не удалось проверить ответ. Попробуйте повторить вопрос.'
         logger.warning('Numerical answer used verified fallback')
     return _answer({'content':compact_text(text,facts)})
 
@@ -165,9 +159,23 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
     user_messages: sanitized [{role:'user'|'assistant', content:str}, ...].
     """
     messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n" + CHAT_NUMERIC_INSTRUCTION}, *user_messages]
+    messages[0]['content'] += (
+        '\nСначала суть ответа, затем подтверждающие факты. Режим текущего запроса: '
+        +export_context.get().get('request_mode','overview')+
+        '. Для индекса выбирай index_change, index_yoy, monthly_table и index_methodology. '
+        'index_caveat показывай при наличии. Не выводи внутренние idx и технические экстремумы. '
+        'Не подменяй динамику физобъема денежным разбором explain_trade. '
+        'Уточнение наследует страну, товар и период из истории, если пользователь их не изменил. '
+        'Новый файл создавай только по явной просьбе в последней реплике. '
+        'Для объяснения отличай вклад подкатегории от экономической причины: данные о структуре '
+        'не доказывают влияние санкций, спроса или тарифов. '
+        'Оговорки относись к конкретному показателю: неизвестная масса не ограничивает стоимость. '
+        'Сохраняй доступные данные при неполном покрытии; не называй частичный итог полным. '
+        'Оценки UN Comtrade относятся к источнику; nowcast является отдельной моделью проекта.'
+    )
     if export_context.get().get('export_only'):
         messages[0]['content'] += '\nПользователь просит только выгрузку: вызови export_trade, без explain_trade и дополнительных расчетов динамики. Ответ: краткие итоги и Excel; помесячная таблица уже в файле.'
-    else:
+    elif export_context.get().get('request_mode') == 'explain':
         messages[0]['content'] += '\nДля анализа динамики одного товара сначала explain_trade: нужны вывод о сопоставимом периоде и вклады подкатегорий. Не заменяй драйверы перечислением экстремумов.'
     direction = export_context.get().get('explicit_direction')
     if direction:

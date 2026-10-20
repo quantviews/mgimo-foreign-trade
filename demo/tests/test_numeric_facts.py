@@ -35,10 +35,34 @@ def test_monthly_growth_requires_calendar_baseline():
     t=next(v['text'] for v in f.values() if v['kind']=='monthly_changes')
     assert '| 2026-03 | нет данных | 100,00 |' in t
 
-def test_index_not_summed_or_rebased():
+def test_index_not_summed_display_rebased():
     f=numerical_facts([{'strana':'CN','period':'2025-01-01','idx':1.41},{'strana':'CN','period':'2026-08-01','idx':1.49}])
     assert not any(v['kind']=='total' for v in f.values())
-    assert any('5,67%' in v['text'] for v in f.values())
+    assert any('5,7%' in v['text'] for v in f.values())
+
+def test_tiny_index_rebased_with_calendar_yoy_and_missing():
+    rows=[dict(strana='CN',napr='ex',tn_code='0',period='2026-01',idx='0.0000000002'),
+          dict(strana='CN',napr='ex',tn_code='0',period='2026-02',idx='0.00000000022')]
+    baseline=[dict(rows[0],period='2025-01',idx='0.0000000001')]
+    f=numerical_facts(rows,baseline=baseline)
+    text='\n'.join(v['text'] for v in f.values())
+    assert '0,000000000' not in text and 'тип данных не указан' not in text and 'код 0' not in text
+    assert '| 2026-01 | 100,0 | 100,0 |' in text
+    assert '| 2026-02 | 110,0 | нет данных |' in text
+    assert '10,0%' in text
+    assert any(v['kind']=='index_caveat' for v in f.values())
+    assert verify_answer('\n\n'.join('{{fact:'+k+'}}' for k in f),f)['valid']
+
+def test_index_missing_first_month_does_not_claim_full_window():
+    rows=[dict(strana='IN',period='2026-02',idx=1),dict(strana='IN',period='2026-03',idx=2)]
+    f=numerical_facts(rows,{'period_from':'2026-01','period_to':'2026-03'})
+    assert any('2026-02 = 100' in v['text'] for v in f.values())
+    assert any('есть пропуски' in v['text'] for v in f.values())
+
+def test_index_zero_base_is_not_rebased():
+    f=numerical_facts([dict(period='2026-01',idx=0),dict(period='2026-02',idx=2)])
+    assert not any(v['kind']=='index_change' for v in f.values())
+    assert any('неположительное' in v['text'] for v in f.values())
 
 def test_duplicate_months_not_summed():
     f=numerical_facts([row('2025-01-01',10),row('2025-01-01',20)])

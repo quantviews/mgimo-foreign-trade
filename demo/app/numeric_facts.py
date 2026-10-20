@@ -30,6 +30,51 @@ def mid(p):
 
 def month(m):return f'{m//12:04d}-{m%12+1:02d}'
 
+def index_baseline_filters(filters, rows):
+    """Same slice, twelve preceding calendar months, never inferred offsets."""
+    months=[mid(r.get('period',r.get('PERIOD'))) for r in rows]
+    months=[m for m in months if m is not None]
+    start=mid(filters.get('period_from'))
+    if start is None:
+        if not months:return None
+        start=min(months)
+    return {**filters, 'period_from':month(start-12)+'-01',
+            'period_to':month(start-1)+'-01', 'offset':0, 'limit':10000}
+
+def index_facts(selected, lookup, label, start, end, add):
+    values={m:number(r.get('idx')) for m,r in selected.items()}
+    valid={m:v for m,v in values.items() if v is not None}
+    if not valid:
+        add('index_caveat',label+': значения индекса отсутствуют.')
+        return
+    first,last=min(valid),max(valid)
+    base=valid[first]
+    if base<=0:
+        add('index_caveat',label+': начальное значение неположительное; индекс с базой начала периода и изменение за окно не рассчитаны.')
+    else:
+        change=(valid[last]/base-1)*100
+        verb='вырос' if change>0 else 'снизился' if change<0 else 'не изменился'
+        add('index_change',f'**{label}.**\n\nЗа {month(first)} - {month(last)} индекс физического объема {verb}'
+            +(f' на **{fmt(abs(change),1)}%**' if change else '')+
+            f'. При {month(first)} = 100 значение в {month(last)} составляет **{fmt(valid[last]/base*100,1)}**.')
+    def yoy(m):
+        previous=lookup.get(m-12,[])
+        old=number(previous[0].get('idx')) if len(previous)==1 else None
+        return (valid[m]/old-1)*100 if m in valid and old is not None and old>0 else None
+    latest_yoy=yoy(last)
+    if latest_yoy is not None:
+        add('index_yoy',f'{label}: Изменение за {month(last)} к {month(last-12)} составляет **{fmt(latest_yoy,1)}% г/г**.')
+    table=['| Месяц | Индекс ('+month(first)+' = 100) | Изменение г/г, % |','|---|---:|---:|']
+    for m in range(start,end+1):
+        value=valid.get(m)
+        table.append('| '+month(m)+' | '+(fmt(value/base*100,1) if value is not None and base>0 else 'нет данных')+' | '+fmt(yoy(m),1)+' |')
+    add('monthly_table',label+'\n\n'+'\n'.join(table))
+    if len(valid)!=end-start+1:
+        add('index_caveat',f'{label}: в окне {month(start)} - {month(end)} есть пропуски; сравнение концов относится к указанным доступным месяцам.')
+    if any(yoy(m) is None for m in valid):
+        add('index_caveat',label+': для части месяцев нет сопоставимой положительной базы прошлого года; соответствующие темпы г/г не рассчитаны.')
+    add('index_methodology','Индекс сглажен за 12 месяцев. Начальный доступный месяц принят за 100 для удобства чтения. Изменение за выбранное окно и изменение год к году показаны отдельно.')
+
 def numerical_facts(rows, filters=None, baseline=()):
     filters=filters or {};groups=defaultdict(list);facts={}
     def add(kind,text):
@@ -51,6 +96,9 @@ def numerical_facts(rows, filters=None, baseline=()):
         code=next((info[k] for k in ('tnved','tnved6','tnved4','tnved2','tn_code') if info[k]),'')
         route={'ex':'экспорт России','ЭК':'экспорт России','im':'импорт России','ИМ':'импорт России'}.get(info['napr'],'выбранное направление')
         label=f'{country}, {route}'+(f', код {code}' if code else '')+f', {status}'+(f' ({source})' if source else '')
+        is_index=any('idx' in r for r in items)
+        if is_index:
+            label=f'{country}, {route}, '+('все товары' if code in ('','0') else f'код {code}')
         indexed=defaultdict(list)
         for r in items:
             if mid(r.get('period')) is not None:indexed[mid(r['period'])].append(r)
@@ -73,7 +121,8 @@ def numerical_facts(rows, filters=None, baseline=()):
         if not selected:continue
         label+=f'; окно {month(start)} - {month(end)}'
         missing=sorted(set(range(start,end+1))-set(selected))
-        add('coverage',label+f': записи за {len(selected)} мес.'+(' Отсутствуют месяцы: '+', '.join(map(month,missing))+'. Полный итог окна не установлен.' if missing else ' Все месяцы окна представлены записями.')+'')
+        if not is_index:
+            add('coverage',label+f': записи за {len(selected)} мес.'+(' Отсутствуют месяцы: '+', '.join(map(month,missing))+'. Полный итог окна не установлен.' if missing else ' Все месяцы окна представлены записями.')+'')
         if any(len(rs)!=1 for rs in selected.values()):
             add('limitation',label+': несколько строк на один месяц внутри выбранных измерений; для итогов нужна однозначная помесячная группировка.');continue
         selected={m:rs[0] for m,rs in selected.items()}
@@ -85,6 +134,9 @@ def numerical_facts(rows, filters=None, baseline=()):
         for r in base+items:
             if tuple(str(r.get(k,'')) for k in DIMS)==key and mid(r.get('period')) is not None:
                 lookup[mid(r['period'])].append(r)
+        if is_index:
+            index_facts(selected,lookup,label,start,end,add)
+            continue
         for metric,title,unit,scale in metrics:
             values={m:number(r.get(metric)) for m,r in selected.items()}
             valid={m:v for m,v in values.items() if v is not None}

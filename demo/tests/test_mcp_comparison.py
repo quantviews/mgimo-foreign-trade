@@ -31,7 +31,8 @@ def test_mcp_failure_does_not_invent_comparison():
         try:
             async with httpx.AsyncClient(transport=httpx.MockTransport(lambda req:httpx.Response(503))) as client:
                 result=json.loads(await tools.execute_tool(client,'compare_trade',{'strana':['IN','CN'],'napr':'ex'}))
-            assert 'error' in result and 'не рассчитаны' in state['answer']
+            assert 'error' in result and 'техническая ошибка' in state['answer']
+            assert state['error_code']=='comparison_failed'
         finally:exports.export_context.reset(tok)
     asyncio.run(go())
 
@@ -84,6 +85,10 @@ def test_explanation_export_uses_calculator_periods_and_manifest(available):
         state={'user_id':42,'wants_export':True,'period_max':'2026-08-01'};tok=exports.export_context.set(state)
         obj={'available':available,'country':'CN','source':'national','current_period':['2025-09-01','2026-08-01'],
              'previous_period':['2024-09-01','2025-08-01']}
+        if available:
+            obj.update(parent_code='8703',direction='im',
+                       parent={'current_usd':120,'previous_usd':100,'growth_pct':20},
+                       children=[],unmatched_codes=[],residual_change_usd=0)
         def handler(req):
             if req.method=='DELETE': return httpx.Response(200)
             body=json.loads(req.content)

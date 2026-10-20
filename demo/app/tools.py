@@ -14,7 +14,7 @@ import httpx
 
 from .query_contract import resolve_trade_route
 from .config import settings
-from .numeric_facts import numerical_facts
+from .numeric_facts import numerical_facts, index_baseline_filters
 from .analysis import monthly_evidence
 from .trade_evidence import trade_evidence
 from .exports import export_context, save_export, MAX_EXPORT_ROWS
@@ -278,6 +278,21 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
     if r.status_code >= 400:
         return json.dumps({"error": f"HTTP {r.status_code}", "detail": r.text[:400]})
     obj = r.json()
+    if name == 'fizob' and not obj.get('meta',{}).get('has_more'):
+        baseline=[]
+        previous=index_baseline_filters(args,obj.get('data',[]))
+        if previous:
+            try:
+                response=await client.get(f"{settings.api_base}/v1/fizob",
+                    params=_build_params(previous),headers=headers,timeout=60)
+                response.raise_for_status()
+                previous_data=response.json()
+                if not previous_data.get('meta',{}).get('has_more'):
+                    baseline=previous_data.get('data',[])
+            except (httpx.HTTPError,ValueError):
+                pass  # Current observations remain usable; facts disclose absent YoY.
+        obj['numeric_facts']=numerical_facts(obj.get('data',[]),args,baseline)
+        return json.dumps({'meta':obj.get('meta',{}),'numeric_facts':obj['numeric_facts']},ensure_ascii=False)
     if name == "trade" and export_context.get() is not None:
         dims = (args.get("group_by") or "").split(",")
         if export_context.get().get("wants_export") and "period" in dims and (len(obj.get("data", [])) > 40 or obj.get("meta", {}).get("has_more")):

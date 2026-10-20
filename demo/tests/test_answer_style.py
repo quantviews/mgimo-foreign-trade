@@ -5,6 +5,46 @@ from app.exports import export_context
 from app.deepseek import _checked_answer
 
 
+def test_intent_is_not_country_or_product_specific():
+    from app.answer_style import request_mode
+    assert request_mode('Как менялся индекс физического объема по Бразилии?')=='index'
+    assert request_mode('Сравни поставки ткани в две страны')=='compare'
+    assert request_mode('Объясни вклад подкатегорий зерна')=='explain'
+    assert request_mode('Покажи по месяцам и год к году')=='dynamics'
+    assert request_mode('Выгрузи в Excel данные по меди')=='export'
+
+
+def test_compact_fallback_preserves_missing_and_does_not_dump_extrema():
+    from app.answer_style import fallback_draft
+    f=numerical_facts([dict(period='2026-01',strana='TR',napr='im',
+        type='fact',source='national',stoim=1000000,netto=None)],
+        {'period_from':'2026-01','period_to':'2026-02'})
+    result=verify_answer(fallback_draft(f,'Дай обзор импорта'),f)
+    assert result['valid']
+    assert '1,00' not in result['answer']  # units remain billions, not fabricated millions
+    assert 'Полный итог окна не установлен' in result['answer']
+    assert 'максимум' not in result['answer']
+
+
+def test_truncated_generation_uses_validated_fallback():
+    from unittest.mock import AsyncMock,patch
+    import app.deepseek as agent
+    f=numerical_facts([dict(period='2026-01',idx='0.0000000002'),
+                      dict(period='2026-02',idx='0.00000000022')])
+    key=next(k for k,v in f.items() if v['kind']=='index_change')
+    message={'content':'{{fact:'+key+'}}\nНезаконченное предложение','_finish_reason':'length'}
+    async def run():
+        token=export_context.set({'question':'Как менялся физобъем?', 'numeric_facts':f})
+        try:
+            with patch.object(agent,'_completion',AsyncMock(return_value=message)):
+                result=await agent._checked_answer(None,[],message)
+            assert result['type']=='answer'
+            assert 'Незаконченное' not in result['text']
+            assert '110,0' in result['text']
+        finally:export_context.reset(token)
+    asyncio.run(run())
+
+
 def test_export_intent_does_not_confuse_months_with_analysis():
     assert export_only('Выгрузи в Excel автомобили по месяцам за последние 12 месяцев')
     for text in ['Выгрузи Excel и объясни динамику', 'Сравни Индию и Китай с Excel',
