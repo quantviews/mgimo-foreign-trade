@@ -37,3 +37,4 @@ jobs:
           mcp-server/tests/test_product_overview.py
           mcp-server/tests/test_comparison_contract.py
           demo/tests/test_comparison_answer_contract.py
+          demo/tests/test_answer_style.py

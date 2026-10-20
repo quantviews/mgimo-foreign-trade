@@ -16,6 +16,7 @@ from .config import settings
 from .prompts import SYSTEM_PROMPT
 from .tools import TOOLS, execute_tool, summarize_tool_result
 from .exports import export_context
+from .answer_style import export_only, export_facts
 
 logger = logging.getLogger(__name__)
 CHAT_NUMERIC_INSTRUCTION = INSTRUCTION.split('Это формат черновика;')[0] + 'Каждую ссылку ставь отдельным абзацем, это целое предложение или таблица, не число для вставки в предложение. Верни черновик со ссылками {{fact:ID}}. Проверку и замену ссылок выполнит сервис автоматически. Не вызывай verify_trade_answer: в чате такого инструмента нет.'
@@ -75,6 +76,7 @@ async def run_agent(user_messages: list[dict], user_id: int | None = None) -> As
     ctx['explicit_direction'] = explicit_direction(question)
     ctx['wants_ranking'] = bool(re.search(r'\bтоп\b|\btop\b|крупнейш|лидирующ', question))
     ctx['wants_export'] = bool(re.search(r'excel|xlsx|выгруз|скача|файл', question))
+    ctx['export_only'] = export_only(question)
     if "африк" in question:
         ctx["region_note"] = "Африка в эту выгрузку не включена: для неё нужно отдельно согласовать список стран."
     token = export_context.set(ctx)
@@ -102,6 +104,19 @@ async def _checked_answer(client, messages, msg):
         # Export summaries cover a wider window; preserve matched-period results.
         return _answer({'content': comparison})
     facts = export_context.get().get('numeric_facts', {})
+    ctx = export_context.get()
+    if ctx.get('export_only') and ctx.get('download_link'):
+        brief = export_facts(facts)
+        brief.update(ctx.get('export_caveats', {}))
+        if brief:
+            checked = verify_answer('\n\n'.join('{{fact:'+k+'}}' for k in brief), brief)
+            if checked['valid']:
+                return _answer({'content': 'Excel готов.\n\n' + checked['answer']})
+    analytical = {k:v for k,v in facts.items() if v['kind'].startswith('analysis_')}
+    if analytical:
+        checked = verify_answer('\n\n'.join('{{fact:'+k+'}}' for k in analytical), analytical)
+        if checked['valid']:
+            return _answer({'content': checked['answer']})
     overview_facts = {k:v for k,v in facts.items() if v['kind'] in ('overview','suppliers','overview_dynamics','overview_drivers','overview_coverage','overview_partial','overview_source')}
     if overview_facts:
         # Render this bounded analytical overview in a stable order. The model
@@ -135,9 +150,9 @@ async def _checked_answer(client, messages, msg):
         if 'цен' in question: priorities['unit_value']=-1
         chosen=[kv for kv in chosen if kv[1]['kind'] in priorities]
         chosen.sort(key=lambda kv: priorities[kv[1]['kind']])
-        text = '\n\n'.join(v['text'] for k,v in chosen[:12])
+        text = '\n\n'.join(v['text'] for k,v in chosen[:4])
         if not text: text = '\n\n'.join(v['text'] for v in list(facts.values())[:4])
-        if 'месяц' in export_context.get().get('question',''):
+        if not ctx.get('wants_export') and re.search(r'помесяч|по месяц|кажд.*месяц', ctx.get('question','')):
             tables=[v['text'] for v in facts.values() if v['kind']=='monthly_table']
             text += '\n\n'+'\n\n'.join(tables[:4])
         logger.warning('Numerical answer used verified fallback')
@@ -150,6 +165,10 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
     user_messages: sanitized [{role:'user'|'assistant', content:str}, ...].
     """
     messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n" + CHAT_NUMERIC_INSTRUCTION}, *user_messages]
+    if export_context.get().get('export_only'):
+        messages[0]['content'] += '\nПользователь просит только выгрузку: вызови export_trade, без explain_trade и дополнительных расчетов динамики. Ответ: краткие итоги и Excel; помесячная таблица уже в файле.'
+    else:
+        messages[0]['content'] += '\nДля анализа динамики одного товара сначала explain_trade: нужны вывод о сопоставимом периоде и вклады подкатегорий. Не заменяй драйверы перечислением экстремумов.'
     direction = export_context.get().get('explicit_direction')
     if direction:
         messages[0]['content'] += f"\nМаршрут в последнем вопросе явно задан: napr={direction}, относительно России. Все торговые запросы должны использовать это направление."

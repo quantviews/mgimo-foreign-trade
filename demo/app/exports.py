@@ -70,6 +70,8 @@ async def save_export(rows, meta, filters, prepared):
     flags = sorted({r.get('quality_flags') for r in rows if r.get('quality_flags')})
     if flags:
         answer += '\n\n**Качество данных:** ' + '; '.join(flags) + '. Неизвестная масса не считается нулем.'
+        from .answer_style import fact
+        ctx['export_caveats'] = fact('export_caveat', '**Качество данных:** ' + '; '.join(flags) + '.')
     if ctx.get("region_note"):
         answer += "\n\n" + ctx["region_note"]
     ctx["answer"] = answer

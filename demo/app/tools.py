@@ -390,6 +390,8 @@ def _export_explanation_args(filters):
 
 
 async def _attach_export_explanation(client, filters, ctx):
+    if ctx.get('export_only'):
+        return
     args=_export_explanation_args(filters)
     if not args or ctx.get('export_explanation_in_progress'): return
     previous=ctx.get('wants_export')
@@ -485,7 +487,7 @@ async def _export_trade(client, args, headers):
         if not obj["meta"].get("complete") or obj["meta"].get("has_more"):
             raise ValueError("Incomplete export")
         saved = await save_export(obj["data"], obj["meta"], obj["filters"], prepared=obj)
-        if len(obj["data"])<=40:
+        if len(obj["data"])<=40 and not ctx.get('export_only'):
             ctx.setdefault('analysis_evidence', {}).update(await _monthly_analysis(client,obj['filters'],obj['data'],headers))
         ctx["completed_export"] = saved
         await _attach_export_explanation(client, obj["filters"], ctx)
@@ -554,6 +556,10 @@ async def _compare_trade(client, args, tool_name="compare_trade"):
         obj=json.loads(next(item["text"] for item in result["content"] if item.get("type")=="text"))
         if tool_name == "explain_trade":
             if obj.get("error"): raise ValueError("Decomposition unavailable")
+            from .answer_style import explanation_facts
+            obj['numeric_facts'] = explanation_facts(obj)
+            if ctx is not None:
+                ctx.setdefault('numeric_facts', {}).update(obj['numeric_facts'])
             if ctx is not None and ctx.get("wants_export"):
                 if not obj.get("available"):
                     # Export the requested windows as partial observations, without inventing a complete YoY result.
