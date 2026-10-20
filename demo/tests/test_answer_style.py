@@ -45,6 +45,50 @@ def test_truncated_generation_uses_validated_fallback():
     asyncio.run(run())
 
 
+def test_repair_selects_facts_without_replaying_invalid_prose():
+    from unittest.mock import AsyncMock, patch
+    import app.deepseek as agent
+    f=numerical_facts([dict(period='2026-01',idx=1),dict(period='2026-02',idx=2)])
+    key=next(k for k,v in f.items() if v['kind']=='index_change')
+    async def run():
+        token=export_context.set({'question':'Как менялся физобъем?', 'numeric_facts':f})
+        try:
+            completion=AsyncMock(return_value={'content':'{{fact:'+key+'}}'})
+            with patch.object(agent,'_completion',completion):
+                result=await agent._checked_answer(None,[{'role':'tool','content':'raw transcript'}],
+                    {'content':'За последние 12 месяцев рост составил 999%'})
+            assert '999' not in result['text'] and result['type']=='answer'
+            repair=completion.call_args.args[1]
+            assert len(repair)==2
+            assert 'raw transcript' not in str(repair) and '999%' not in str(repair)
+            assert 'ТОЛЬКО ссылки' in repair[0]['content']
+        finally:export_context.reset(token)
+    asyncio.run(run())
+
+
+def test_model_connection_timeout_and_retry_preserve_fact_contract():
+    import httpx
+    from unittest.mock import AsyncMock, patch
+    import app.deepseek as agent
+    async def run():
+        token=export_context.set({'numeric_facts':{'test':{'kind':'total','text':'test'}}})
+        try:
+            request=httpx.Request('POST','https://example.test')
+            response=httpx.Response(200,request=request,json={'choices':[
+                {'message':{'content':'{{fact:test}}'},'finish_reason':'stop'}]})
+            client=AsyncMock()
+            client.post.side_effect=[httpx.ConnectTimeout('test',request=request),response]
+            with patch.object(agent.asyncio,'sleep',AsyncMock()):
+                result=await agent._completion(client,[{'role':'user','content':'test'}],False)
+            assert result['content']=='{{fact:test}}' and client.post.call_count==2
+            for call in client.post.call_args_list:
+                assert call.kwargs['timeout'].connect==10
+                assert call.kwargs['timeout'].read==120
+                assert 'ТОЛЬКО ссылки' in call.kwargs['json']['messages'][-1]['content']
+        finally:export_context.reset(token)
+    asyncio.run(run())
+
+
 def test_export_intent_does_not_confuse_months_with_analysis():
     assert export_only('Выгрузи в Excel автомобили по месяцам за последние 12 месяцев')
     for text in ['Выгрузи Excel и объясни динамику', 'Сравни Индию и Китай с Excel',

@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from typing import AsyncIterator
 
 import httpx
@@ -20,6 +21,14 @@ from .answer_style import export_only, export_facts, request_mode, fallback_draf
 
 logger = logging.getLogger(__name__)
 CHAT_NUMERIC_INSTRUCTION = INSTRUCTION.split('Это формат черновика;')[0] + 'Каждую ссылку ставь отдельным абзацем, это целое предложение или таблица, не число для вставки в предложение. Верни черновик со ссылками {{fact:ID}}. Проверку и замену ссылок выполнит сервис автоматически. Не вызывай verify_trade_answer: в чате такого инструмента нет.'
+FACT_SELECTION_INSTRUCTION = (
+    "Финальный числовой ответ: выбери подходящие numeric_facts и верни ТОЛЬКО ссылки "
+    "{{fact:ID}}, каждую отдельным абзацем. Не добавляй заголовок, вступление, "
+    "пересказ, даты или фразу о числе месяцев: все это уже есть внутри фактов. "
+    "Сначала вывод, затем подтверждение и относящиеся к ответу оговорки. "
+    "Для fizob выбери index_change, index_yoy, monthly_table, index_methodology "
+    "и все index_caveat. Если нужны дополнительные данные, сначала вызови инструмент."
+)
 
 
 def _error_event(exc: Exception) -> dict:
@@ -42,12 +51,15 @@ async def _completion(client: httpx.AsyncClient, messages: list[dict],
     if use_tools:
         payload["tools"] = [t for t in TOOLS if t["function"]["name"] != "export_trade" or (export_context.get() or {}).get("wants_export", True)]
         payload["tool_choice"] = "auto"
+    if (export_context.get() or {}).get("numeric_facts"):
+        payload["messages"] = [*messages, {"role": "system", "content": FACT_SELECTION_INSTRUCTION}]
     for attempt in range(2):
+        started = time.monotonic()
         try:
             r = await client.post(
                 f"{settings.deepseek_base_url}/chat/completions",
                 headers={"Authorization": f"Bearer {settings.deepseek_api_key}"},
-                json=payload, timeout=120,
+                json=payload, timeout=httpx.Timeout(120, connect=10, pool=10),
             )
             r.raise_for_status()
             choice = r.json()["choices"][0]
@@ -58,13 +70,16 @@ async def _completion(client: httpx.AsyncClient, messages: list[dict],
                 payload["messages"] = [*messages, {"role": "user", "content":
                     "Файл уже подготовлен, если инструмент вернул export_ready. Дай обычный аналитический ответ по полученным данным. Не выводи служебную разметку DSML и не имитируй вызовы инструментов."}]
                 continue
+            logger.info("Model completion tools=%s attempt=%s elapsed=%.1fs finish=%s",
+                        use_tools, attempt + 1, time.monotonic() - started, choice.get("finish_reason"))
             return {**message, "_finish_reason": choice.get("finish_reason")}
         except (httpx.TransportError, httpx.HTTPStatusError) as exc:
             retryable = (isinstance(exc, httpx.TransportError) or
                          exc.response.status_code in (429, 500, 502, 503, 504))
             if attempt or not retryable:
                 raise
-            logger.warning("Retrying model request: %s", type(exc).__name__)
+            logger.warning("Retrying model request: %s tools=%s elapsed=%.1fs",
+                           type(exc).__name__, use_tools, time.monotonic() - started)
             await asyncio.sleep(2)
 
 
@@ -134,8 +149,11 @@ async def _checked_answer(client, messages, msg):
     if msg.get('_finish_reason')=='length':
         checked={'valid':False,'errors':['Incomplete model generation']}
     if not checked['valid']:
-        repair = [*messages, {'role':'assistant','content':msg.get('content') or ''},
-                  {'role':'user','content':CHAT_NUMERIC_INSTRUCTION + '\nИсправь черновик. Ошибки проверки: '+str(checked['errors'])+
+        logger.warning("Numerical draft rejected: %s", checked.get('errors'))
+        # Do not repeat a long tool transcript or the invalid draft: ask for a
+        # selection from the verified evidence, without inviting another paraphrase.
+        repair = [{'role':'system','content':CHAT_NUMERIC_INSTRUCTION + '\n' + FACT_SELECTION_INSTRUCTION},
+                  {'role':'user','content':'Вопрос: '+ctx.get('question','')+
                    '\nРазрешенные факты: '+json.dumps(facts,ensure_ascii=False)}]
         try:
             msg = await _completion(client, repair, use_tools=False)
@@ -143,6 +161,8 @@ async def _checked_answer(client, messages, msg):
             if msg.get('_finish_reason')=='length':checked={'valid':False}
         except (httpx.HTTPError, ValueError):
             checked = {'valid':False}
+        if not checked['valid']:
+            logger.warning("Numerical repair rejected: %s", checked.get('errors', ['incomplete or unavailable']))
     if checked['valid']:
         text = checked['answer']
     else:
