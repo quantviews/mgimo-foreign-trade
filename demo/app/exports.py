@@ -30,7 +30,53 @@ def export_file_facts(rows, filters):
     missing=sorted(set(requested)-set(months))
     if missing:
         text+=' В запрошенном периоде нет строк за: '+', '.join(month_label(m) for m in missing)+'.'
+    predicted=[r for r in rows if r.get('type')=='pred' or r.get('source')=='nowcast']
+    if predicted:
+        observed={str(r['period'])[:7] for r in rows if r.get('period') and r.get('type')=='fact' and r.get('source')!='nowcast'}
+        forecast={str(r['period'])[:7] for r in predicted if r.get('period')}
+        text+=f' Статистика источников: {len(observed)} мес.; nowcast проекта: {len(forecast)} мес. ('+', '.join(month_label(m) for m in sorted(forecast))+').'
+        absent=sorted(set(requested)-observed)
+        if absent:
+            text+=' Месяцы без строк статистики источников: '+', '.join(month_label(m) for m in absent)+'.'
     return fact('export_file',text)
+
+
+def export_monthly_facts(rows):
+    """Present the exact workbook rows, preserving units, nulls and source status."""
+    from .answer_style import fact
+    from .numeric_facts import fmt, display_scale, number
+    groups={}
+    for row in rows:
+        if not row.get('period'):
+            return {}
+        key=(row.get('country_name') or COUNTRIES.get(row.get('strana'),row.get('strana','')),row.get('type'),row.get('source'),row.get('comparison_period'))
+        groups.setdefault(key,[]).append(row)
+    result={}
+    if len(rows)>60:
+        return fact('export_monthly','Полный помесячный ряд находится в Excel. В файле больше 60 строк; таблица в чате не показана.')
+    for (country,kind,source,comparison_period),part in groups.items():
+        predicted=kind=='pred' or source=='nowcast'
+        label='Nowcast проекта' if predicted else {'national':'Национальная статистика','comtrade':'UN Comtrade'}.get(source,source or 'Источник не указан')
+        title=f'**{country}. {label}**'
+        if comparison_period:
+            title+=' ('+{'current':'текущий период','previous':'предыдущий период'}.get(comparison_period,comparison_period)+')'
+        scales={m:display_scale(m,[r.get(m) for r in part]) for m in ('stoim','netto')}
+        lines=[title,'',f'| Месяц | Стоимость, {scales["stoim"][1]} | Количество | Единица | Масса, {scales["netto"][1]} |','|---|---:|---:|---|---:|']
+        for row in sorted(part,key=lambda r:(str(r['period']),str(r.get('edizm') or ''))):
+            def value(metric):
+                v=number(row.get(metric))
+                return fmt(v/scales[metric][0]) if v is not None else 'нет данных'
+            unit=str(row.get('edizm') or 'не указана').replace('|','/').replace('\n',' ')
+            if unit=='?':unit='не указана'
+            if unit.upper()=='ШТУКА':unit='шт.'
+            quantity=quantity_number(row['kol']) if row.get('kol') is not None else 'нет данных'
+            lines.append(f'| {month_label(row["period"])} | {value("stoim")} | {quantity} | {unit} | {value("netto")} |')
+        if any(r.get('netto') is None or r.get('kol') is None for r in part):
+            lines+=['','Пустые значения в Excel обозначены здесь как «нет данных».']
+        if any(r.get('stoim')==0 for r in part):
+            lines+=['','Нули стоимости сохранены из исходных строк; они не заполняют отсутствующие месяцы.']
+        result.update(fact('export_monthly','\n'.join(lines)))
+    return result
 
 
 def coverage_evidence(rows, filters):
@@ -97,6 +143,7 @@ async def save_export(rows, meta, filters, prepared):
     ctx["answer"] = answer
     ctx["download_link"] = f"[Скачать данные в Excel](/demo/exports/{export_id})"
     ctx['export_file_facts'] = export_file_facts(rows, filters)
+    ctx['export_monthly_facts'] = export_monthly_facts(rows)
     ctx["analysis_evidence"] = {'verified_summary':answer,'meta':meta,'filters':filters,
                                'data':rows[:40], 'preview_only':len(rows)>40,
                                'numeric_facts':numerical_facts(rows,filters),

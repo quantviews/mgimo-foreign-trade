@@ -123,7 +123,8 @@ async def _checked_answer(client, messages, msg):
     ctx = export_context.get()
     if ctx.get('export_only') and ctx.get('download_link'):
         brief = dict(ctx.get('export_file_facts', {}))
-        brief.update(export_facts(facts))
+        monthly=ctx.get('export_monthly_facts',{}) if re.search(r'по месяц|помесяч',ctx.get('question','')) else {}
+        brief.update(monthly or export_facts(facts))
         brief.update(ctx.get('export_caveats', {}))
         if brief:
             checked = verify_answer('\n\n'.join('{{fact:'+k+'}}' for k in brief), brief)
