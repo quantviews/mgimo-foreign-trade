@@ -13,6 +13,26 @@ export_context = ContextVar("export_context", default=None)
 MAX_EXPORT_ROWS = 1000
 
 
+def export_file_facts(rows, filters):
+    """Describe the exported rows, not the database date or requested row count."""
+    from .answer_style import fact
+    months=sorted({str(r['period'])[:7] for r in rows if r.get('period')})
+    if not months:
+        return fact('export_file','В файле нет помесячной разбивки.')
+    start,end=months[0],months[-1]
+    first=int(start[:4])*12+int(start[5:7])-1
+    last=int(end[:4])*12+int(end[5:7])-1
+    expected={f'{n//12:04d}-{n%12+1:02d}' for n in range(first,last+1)}
+    text=f'**В Excel: {period_label(months)}; месяцев с данными: {len(months)}.**'
+    if expected-set(months):
+        text+=' Месяцы с данными: '+', '.join(month_label(m) for m in months)+'.'
+    requested=coverage_evidence(rows,filters).get('requested_months',[])
+    missing=sorted(set(requested)-set(months))
+    if missing:
+        text+=' В запрошенном периоде нет строк за: '+', '.join(month_label(m) for m in missing)+'.'
+    return fact('export_file',text)
+
+
 def coverage_evidence(rows, filters):
     def mid(v):
         y,m=map(int,str(v)[:7].split('-'));return y*12+m-1
@@ -76,6 +96,7 @@ async def save_export(rows, meta, filters, prepared):
         answer += "\n\n" + ctx["region_note"]
     ctx["answer"] = answer
     ctx["download_link"] = f"[Скачать данные в Excel](/demo/exports/{export_id})"
+    ctx['export_file_facts'] = export_file_facts(rows, filters)
     ctx["analysis_evidence"] = {'verified_summary':answer,'meta':meta,'filters':filters,
                                'data':rows[:40], 'preview_only':len(rows)>40,
                                'numeric_facts':numerical_facts(rows,filters),

@@ -122,7 +122,8 @@ async def _checked_answer(client, messages, msg):
     facts = export_context.get().get('numeric_facts', {})
     ctx = export_context.get()
     if ctx.get('export_only') and ctx.get('download_link'):
-        brief = export_facts(facts)
+        brief = dict(ctx.get('export_file_facts', {}))
+        brief.update(export_facts(facts))
         brief.update(ctx.get('export_caveats', {}))
         if brief:
             checked = verify_answer('\n\n'.join('{{fact:'+k+'}}' for k in brief), brief)
