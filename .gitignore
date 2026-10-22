@@ -1,9 +1,11 @@
 metadata/*
 !metadata/hs4_labels.json
+!metadata/national_release_coverage.json
 # выверенные вручную наименования ТН ВЭД — их не пересоздать, храним в git
 !metadata/translations/
 metadata/translations/*
 !metadata/translations/name_overrides.json
+!metadata/translations/country_chapters.json
 reports/
 org/
 data_raw/
@@ -118,6 +120,7 @@ __pycache__/
 *.py[cod]
 
 # Temporary files
+/tmp/
 *.tmp
 *.temp
 *.log
@@ -135,6 +138,10 @@ dist/
 # Local test data / generated artifacts
 *.parquet
 !site/data/*.parquet
+# Large reproducible fizob snapshots are deployed separately, not stored in Git.
+/site/data/fizob_bulletin*.parquet
+/site/data/fizob_bulletin_all.validation.json
+/site/data/fizob_bulletin_total.validation.json
 # кэш среза для презентации по визуализации (53 КБ, см. presentations/scripts/dataviz_cache.R)
 !presentations/figures/dataviz/*.parquet
 Rplots.pdf
