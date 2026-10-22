@@ -1,7 +1,7 @@
 ---
 title: "Динамика и структура внешней торговли"
 subtitle: "Ежемесячный выпуск"
-date: last-modified
+date: today
 format:
   html:
     toc: true

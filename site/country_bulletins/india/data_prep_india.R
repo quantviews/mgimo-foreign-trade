@@ -106,12 +106,10 @@ headline <- dbGetQuery(
     .by = NAPR
   )
 
-fo_india <- dbGetQuery(
-  con, "SELECT NAPR, PERIOD, fizob FROM fizob_index WHERE STRANA = 'IN' AND tn_level = 0"
-) %>%
-  arrange(NAPR, PERIOD) %>%
-  mutate(fo_yoy = fizob / lag(fizob, 12) - 1, .by = NAPR) %>%
-  select(NAPR, PERIOD, fo_yoy)
+source(file.path(repo_root, "site", "read_fizob_bulletin.R"))
+fo_india <- read_fizob_bulletin(con, repo_root) %>%
+  filter(STRANA == "IN", tn_level == 0) %>%
+  transmute(NAPR, PERIOD, fo_yoy = yoy)
 
 headline <- headline %>% left_join(fo_india, by = c("NAPR", "PERIOD"))
 write_parquet(headline, file.path(out_dir, "headline_india.parquet"))

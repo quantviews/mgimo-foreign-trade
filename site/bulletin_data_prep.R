@@ -177,13 +177,16 @@ hs4_labels <- fromJSON(hs4_json, flatten = TRUE) %>% as_tibble()
 # Показатели fizob несопоставимы между странами по масштабу, поэтому берём
 # YoY по каждой стране отдельно и усредняем с весом по товарообороту (STOIM):
 # так вклад страны отражает её долю в торговле, а не масштаб её ряда fizob.
-fo_index_headline <- dbGetQuery(
-  con,
-  "SELECT STRANA, NAPR, PERIOD, fizob FROM fizob_index WHERE tn_level = 0"
-) %>%
-  filter(STRANA %in% c("CN", "IN", "TR")) %>%
-  arrange(STRANA, NAPR, PERIOD) %>%
-  mutate(fo_yoy_c = fizob / lag(fizob, 12) - 1, .by = c(STRANA, NAPR)) %>%
+source(file.path(repo_root, "site", "read_fizob_bulletin.R"))
+fizob_shared <- read_fizob_bulletin(con, repo_root)
+# Keep the legacy OTHER series; the three national series share one contract.
+bulletin_fo <- bulletin_fo %>%
+  filter(!STRANA %in% c("CN", "IN", "TR")) %>%
+  bind_rows(fizob_shared %>% filter(tn_level == 0, PERIOD >= as.Date("2020-01-01")) %>%
+              transmute(STRANA, NAPR, PERIOD, fizob = yoy))
+fo_index_headline <- fizob_shared %>%
+  filter(tn_level == 0) %>%
+  transmute(STRANA, NAPR, PERIOD, fo_yoy_c = yoy) %>%
   left_join(tab_stoim, by = c("STRANA", "NAPR", "PERIOD")) %>%
   filter(!is.na(fo_yoy_c), !is.na(STOIM), STOIM > 0) %>%
   reframe(fo_yoy = sum(fo_yoy_c * STOIM) / sum(STOIM), .by = c(NAPR, PERIOD)) %>%

@@ -62,8 +62,8 @@ subtitle: "Совместный проект МГИМО и [Института �
 
 <div class="db-stats">
 <div class="db-stat db-stat-main">
-<span class="db-stat-value">7,1 млн</span>
-<span class="db-stat-label">строк · январь 2019 - июль 2026</span>
+<span class="db-stat-value">7,4 млн</span>
+<span class="db-stat-label">строк · январь 2019 - август 2026</span>
 </div>
 <div class="db-stat">
 <span class="db-stat-value">138</span>
@@ -74,9 +74,9 @@ subtitle: "Совместный проект МГИМО и [Института �
 <div class="db-stats-national">
 <span class="db-stats-title">Национальные источники - статистика стран-партнёров</span>
 <div class="db-stats-row">
-<span><strong>Индия</strong> - 562 тыс.</span>
-<span><strong>Китай</strong> - 489 тыс.</span>
-<span><strong>Турция</strong> - 334 тыс.</span>
+<span><strong>Индия</strong> - 569 тыс.</span>
+<span><strong>Китай</strong> - 495 тыс.</span>
+<span><strong>Турция</strong> - 337 тыс.</span>
 </div>
 </div>
 
