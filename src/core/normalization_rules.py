@@ -36,6 +36,11 @@ COUNTRY_UNIT_ALIAS_RECORDS = {
     "?": {"KOD": None, "NAME": "?"},
     "-": {"KOD": None, "NAME": "?"},
 
+    "SQM": {"KOD": "055", "NAME": "КВАДРАТНЫЙ МЕТР"},
+    "PRS": {"KOD": "715", "NAME": "ПАРА"},
+    "MTR": {"KOD": "006", "NAME": "МЕТР"},
+    "CBM": {"KOD": "113", "NAME": "КУБИЧЕСКИЙ МЕТР"},
+
     # China unit descriptions
     "NUMBER OF ITEM": {"KOD": "796", "NAME": "ШТУКА"},
     "NUMBER OF ITEMS": {"KOD": "796", "NAME": "ШТУКА"},
@@ -51,6 +56,12 @@ COUNTRY_UNIT_ALIAS_RECORDS = {
     "IN THOUSANDS": {"KOD": "798", "NAME": "ТЫСЯЧА ШТУК"},
 
     # Turkey raw units
+    "KG/METRE": {"KOD": "006", "NAME": "МЕТР"},
+    "KG/1000ADET": {"KOD": "798", "NAME": "ТЫСЯЧА ШТУК"},
+    "KG/100ADET": {"KOD": "797", "NAME": "СТО ШТУК"},
+    "KG/1000LITRE": {"KOD": "130", "NAME": "1000 ЛИТРОВ"},
+    "KG/KARAT": {"KOD": "162", "NAME": "МЕТРИЧЕСКИЙ КАРАТ(1КАРАТ=2*10(-4)КГ"},
+    "KG/LT-ALK%100": {"KOD": "831", "NAME": "ЛИТР ЧИСТОГО (100%) СПИРТА"},
     "KG/ÇİFT": {"KOD": "715", "NAME": "ПАРА"},
     "KG/METR E": {"KOD": "006", "NAME": "МЕТР"},
     "KG/1000A DET": {"KOD": "798", "NAME": "ТЫСЯЧА ШТУК"},
@@ -148,7 +159,32 @@ def standardize_edizm_columns(
         return df_processed
 
     df_processed["EDIZM_upper"] = df_processed["EDIZM"].apply(normalize_edizm_value)
-    mapped_values = df_processed["EDIZM_upper"].map(common_edizm_map)
+    mapping = dict(COUNTRY_UNIT_ALIAS_RECORDS)
+    mapping.update(common_edizm_map)
+    mapped_values = df_processed["EDIZM_upper"].map(mapping).astype(object)
+    # Keep source labels even when no verified canonical conversion exists.
+    if "SOURCE_UNIT" not in df_processed:
+        df_processed["SOURCE_UNIT"] = df_processed["EDIZM"]
+    else:
+        df_processed["SOURCE_UNIT"] = df_processed["SOURCE_UNIT"].fillna(df_processed["EDIZM"])
+    preserve = mapped_values.isna() & df_processed["EDIZM"].notna()
+    if "STRANA" in df_processed and "SOURCE" in df_processed:
+        preserve &= df_processed["STRANA"].eq("IN") | df_processed["SOURCE"].eq("comtrade")
+    else:
+        preserve &= False
+    for label in df_processed.loc[preserve, "EDIZM"].unique():
+        mask = preserve & df_processed["EDIZM"].eq(label)
+        record = {"NAME": label, "KOD": None}
+        mapped_values.loc[mask] = pd.Series([record] * int(mask.sum()), index=df_processed.index[mask], dtype=object)
+    # Country processors already resolve Turkish supplementary units. Preserve
+    # their labels/codes, including specialized units without an ISO code.
+    if "STRANA" in df_processed:
+        turkey = df_processed["STRANA"].eq("TR") & df_processed["EDIZM"].notna()
+        for name in df_processed.loc[turkey, "EDIZM"].unique():
+            indices = turkey & df_processed["EDIZM"].eq(name)
+            code = df_processed.loc[indices, "EDIZM_ISO"].iloc[0] if "EDIZM_ISO" in df_processed else None
+            record = {"NAME": name, "KOD": code if pd.notna(code) else None}
+            mapped_values.loc[indices] = pd.Series([record] * int(indices.sum()), index=df_processed.index[indices], dtype=object)
 
     df_processed["EDIZM"] = mapped_values.map(
         lambda value: value.get("NAME") if isinstance(value, dict) else None
@@ -254,7 +290,7 @@ def apply_special_edizm_cases(
     if logger:
         logger.info(f"Found {num_tonne_rows:,} rows with supplementary unit in Tonnes.")
 
-    netto_missing_mask = tonne_mask & (
+    netto_missing_mask = tonne_mask & df_processed["KOL"].gt(0) & (
         (df_processed["NETTO"].isnull()) | (df_processed["NETTO"] == 0)
     )
     num_to_convert = netto_missing_mask.sum()
@@ -264,6 +300,10 @@ def apply_special_edizm_cases(
         df_processed.loc[netto_missing_mask, "NETTO"] = (
             df_processed.loc[netto_missing_mask, "KOL"] * 1000
         )
+        if "NETTO_ESTIMATED" in df_processed and "KOL_ESTIMATED" in df_processed:
+            df_processed.loc[netto_missing_mask, "NETTO_ESTIMATED"] = df_processed.loc[netto_missing_mask, "KOL_ESTIMATED"]
+        if "PHYSICAL_QUALITY" in df_processed:
+            df_processed.loc[netto_missing_mask, "PHYSICAL_QUALITY"] = df_processed.loc[netto_missing_mask, "PHYSICAL_QUALITY"].fillna('') + '; Масса восстановлена из тонн источника'
         df_processed.loc[netto_missing_mask, "KOL"] = None
         df_processed.loc[netto_missing_mask, "EDIZM"] = None
         df_processed.loc[netto_missing_mask, "EDIZM_ISO"] = None

@@ -10,7 +10,8 @@ import pandas as pd
 from core.edizm import load_edizm_mapping
 from core.normalization_rules import add_tnved_columns
 from core.reference_tables import load_partner_mapping
-from core.schema import EXPECTED_SCHEMA
+from core.schema import EXPECTED_SCHEMA, PHYSICAL_COLUMNS
+from core.physical_units import select_comtrade_quantity
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,12 @@ def load_and_transform_comtrade(
         query_parts.append("    primaryValue AS STOIM,")
         query_parts.append("    netWgt AS NETTO,")
         query_parts.append("    qty,")
-        query_parts.append("    altQty")
+        query_parts.append("    altQty,")
+        available = set(table_info['column_name'])
+        for raw, target in [('isQtyEstimated', 'SOURCE_QTY_ESTIMATED'), ('isNetWgtEstimated', 'SOURCE_NETTO_ESTIMATED')]:
+            expression = raw if raw in available else 'NULL::BOOLEAN'
+            query_parts.append(f"    {expression} AS {target},")
+        query_parts[-1] = query_parts[-1].rstrip(',')
         query_parts.append("FROM comtrade_data")
 
         where_clauses = []
@@ -137,109 +143,7 @@ def load_and_transform_comtrade(
     # Post-processing transformations
     logger.info("Transforming Comtrade data...")
 
-    # Choose the supplementary quantity (KOL) and its unit code (EDIZM_CODE).
-    # IMPORTANT:
-    # - qtyUnitCode is the PRIMARY unit CODE (usually weight in kg, code 8)
-    # - qty is the PRIMARY quantity VALUES (weight values)
-    # - altQtyUnitCode is the ALTERNATIVE/SUPPLEMENTARY unit CODE (what we need for EDIZM_CODE)
-    # - altQty is the ALTERNATIVE/SUPPLEMENTARY quantity VALUES (what we need for KOL)
-    # - qtyCode may exist as an additional source of unit CODE information
-    #
-    # Logic priority:
-    # 1. Use altQtyUnitCode (CODE) and altQty (VALUES) if available - this is the supplementary unit we want
-    # 2. If altQtyUnitCode is missing, check qtyCode (if it exists and is not kg/code 8) - use qtyCode for CODE and qty for VALUES
-    # 3. Fallback to qtyUnitCode (CODE) and qty (VALUES) only if no alternative is available (but this is weight, not ideal)
-
-    # Initialize EDIZM_CODE and KOL columns
-    comtrade_df['EDIZM_CODE'] = None
-    comtrade_df['KOL'] = None
-
-    # Check if qtyCode column exists (may contain unit CODE information)
-    has_qty_code = 'qtyCode' in comtrade_df.columns
-
-    if 'altQtyUnitCode' in comtrade_df.columns and 'altQty' in comtrade_df.columns:
-        # Priority 1: Use altQtyUnitCode (CODE) and altQty (VALUES) - this is the supplementary unit
-        # altQtyUnitCode is the CODE of the supplementary unit
-        # altQty is the VALUES in that supplementary unit
-        # They can be independent - if we have the code, use it even if values are missing
-        has_alt_code = comtrade_df['altQtyUnitCode'].notna()
-        has_alt_values = comtrade_df['altQty'].notna()
-
-        # Use altQtyUnitCode for EDIZM_CODE (unit code) if available
-        comtrade_df.loc[has_alt_code, 'EDIZM_CODE'] = comtrade_df.loc[has_alt_code, 'altQtyUnitCode']
-        # Use altQty for KOL (values) if available
-        comtrade_df.loc[has_alt_values, 'KOL'] = comtrade_df.loc[has_alt_values, 'altQty']
-
-        # Priority 2: If altQtyUnitCode is missing, check qtyCode (if available and not kg)
-        # Use qtyCode for EDIZM_CODE (unit code) and qty for KOL (values)
-        missing_alt_code = ~has_alt_code
-        if has_qty_code:
-            # Use qtyCode (CODE) if it exists, is not NULL, and is not 8 (kg)
-            # Only use if EDIZM_CODE is still missing (altQtyUnitCode was not available)
-            # Use qty (VALUES) for KOL if KOL is still missing
-            qty_code_available = (
-                missing_alt_code &
-                comtrade_df['qtyCode'].notna() &
-                (comtrade_df['qtyCode'] != 8)
-            )
-            comtrade_df.loc[qty_code_available, 'EDIZM_CODE'] = comtrade_df.loc[qty_code_available, 'qtyCode']
-
-            # Use qty for KOL if KOL is still missing
-            missing_kol = comtrade_df['KOL'].isna() & comtrade_df['qty'].notna()
-            comtrade_df.loc[missing_kol, 'KOL'] = comtrade_df.loc[missing_kol, 'qty']
-            missing_alt_code = missing_alt_code & ~qty_code_available
-
-        # Priority 3: Fallback to qtyUnitCode (CODE) and qty (VALUES) - but this is weight, not ideal
-        # Only use if EDIZM_CODE is still missing
-        missing_edizm_code = comtrade_df['EDIZM_CODE'].isna()
-        fallback_mask = missing_edizm_code & comtrade_df['qtyUnitCode'].notna()
-        comtrade_df.loc[fallback_mask, 'EDIZM_CODE'] = comtrade_df.loc[fallback_mask, 'qtyUnitCode']
-
-        # Use qty for KOL if KOL is still missing
-        missing_kol = comtrade_df['KOL'].isna() & comtrade_df['qty'].notna()
-        comtrade_df.loc[missing_kol, 'KOL'] = comtrade_df.loc[missing_kol, 'qty']
-
-        # Log statistics
-        logger.info(f"Unit mapping statistics:")
-        logger.info(f"  - Using altQtyUnitCode (CODE): {has_alt_code.sum()}")
-        logger.info(f"  - Using altQty (VALUES): {has_alt_values.sum()}")
-        if has_qty_code:
-            qty_code_used = missing_alt_code & comtrade_df['qtyCode'].notna() & (comtrade_df['qtyCode'] != 8)
-            logger.info(f"  - Using qtyCode (CODE) where altQtyUnitCode missing: {qty_code_used.sum()}")
-        logger.info(f"  - Using qtyUnitCode (CODE) as fallback: {fallback_mask.sum()}")
-        logger.info(f"  - Using qty (VALUES) where altQty missing: {missing_kol.sum()}")
-        logger.info(f"  - Missing EDIZM_CODE: {comtrade_df['EDIZM_CODE'].isna().sum()}")
-        logger.info(f"  - Missing KOL: {comtrade_df['KOL'].isna().sum()}")
-
-        # Diagnostic: Check for code 37 (Becquerels)
-        code_37_mask = comtrade_df['altQtyUnitCode'] == 37
-        if code_37_mask.any():
-            logger.info(f"  - Found {code_37_mask.sum()} rows with altQtyUnitCode = 37 (Becquerels)")
-            logger.info(f"  - Of these, {comtrade_df.loc[code_37_mask, 'EDIZM_CODE'].notna().sum()} have EDIZM_CODE set")
-    else:
-        logger.warning("altQtyUnitCode or altQty not found in Comtrade data.")
-        # If altQtyUnitCode is not available, try qtyCode first
-        if has_qty_code:
-            # Use qtyCode (CODE) if it exists and is not 8 (kg)
-            # Use qty (VALUES) for KOL
-            qty_code_available = (
-                comtrade_df['qtyCode'].notna() &
-                (comtrade_df['qtyCode'] != 8) &
-                comtrade_df['qty'].notna()
-            )
-            comtrade_df.loc[qty_code_available, 'EDIZM_CODE'] = comtrade_df.loc[qty_code_available, 'qtyCode']
-            comtrade_df.loc[qty_code_available, 'KOL'] = comtrade_df.loc[qty_code_available, 'qty']
-            # For remaining rows, use qtyUnitCode (CODE) and qty (VALUES) as fallback
-            remaining_mask = ~qty_code_available & comtrade_df['qty'].notna()
-            comtrade_df.loc[remaining_mask, 'EDIZM_CODE'] = comtrade_df.loc[remaining_mask, 'qtyUnitCode']
-            comtrade_df.loc[remaining_mask, 'KOL'] = comtrade_df.loc[remaining_mask, 'qty']
-            logger.info(f"  - Using qtyCode (CODE) + qty (VALUES): {qty_code_available.sum()}")
-            logger.info(f"  - Using qtyUnitCode (CODE) + qty (VALUES) as fallback: {remaining_mask.sum()}")
-        else:
-            # Last resort: use qtyUnitCode (CODE) and qty (VALUES) - but this is weight
-            comtrade_df['EDIZM_CODE'] = comtrade_df['qtyUnitCode']
-            comtrade_df['KOL'] = comtrade_df['qty']
-            logger.warning("  - Using qtyUnitCode (CODE) + qty (VALUES) as last resort (this is weight, not ideal)")
+    comtrade_df = select_comtrade_quantity(comtrade_df, edizm_mapping)
 
     comtrade_df['STRANA'] = comtrade_df['STRANA_CODE'].map(partner_mapping)
 
@@ -306,7 +210,7 @@ def load_and_transform_comtrade(
                 logger.warning(f"Could not convert Comtrade column '{col}' to {expected_type}: {e}")
 
     # Reorder columns to match the main schema
-    final_cols = [col for col in EXPECTED_SCHEMA.keys() if col in comtrade_df.columns]
+    final_cols = [col for col in list(EXPECTED_SCHEMA) + PHYSICAL_COLUMNS if col in comtrade_df.columns]
     return comtrade_df[final_cols]
 
 

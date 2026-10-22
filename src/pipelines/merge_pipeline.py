@@ -155,6 +155,9 @@ def load_national_datasets(
 
         df = load_and_validate_file(file_path, start_year=start_year)
         if df is not None:
+            if country_code == "TR":
+                from core.turkey_units import normalize_turkey_missing
+                df = normalize_turkey_missing(df)
             df_processed = generate_derived_columns(df)
             if 'STRANA' in df_processed.columns:
                 df_processed['STRANA'] = df_processed['STRANA'].str.upper()
@@ -284,6 +287,8 @@ def build_merged_dataframe(
         logger.info(f"Removed {null_napr_rows:,} rows with NULL NAPR values")
 
     merged_df = drop_nowcast_rows_superseded_by_facts(merged_df, logger)
+    from pipelines.national_coverage import drop_confirmed_national_nowcast
+    merged_df = drop_confirmed_national_nowcast(merged_df, project_root, logger)
 
     logger.info("Standardizing EDIZM column...")
     common_edizm_map = load_common_edizm_mapping(project_root)
@@ -293,7 +298,15 @@ def build_merged_dataframe(
         logger.error("Could not standardize EDIZM values due to mapping load failure.")
 
     merged_df = add_tnved_columns(merged_df)
+    from core.physical_units import ensure_physical_provenance
+    merged_df = ensure_physical_provenance(merged_df)
     merged_df = apply_special_edizm_cases(merged_df, logger)
+    # Positive trade with zero mass is not evidence of a zero physical flow.
+    affected = (merged_df['STRANA'].eq('IN') | merged_df['SOURCE'].eq('comtrade')) & merged_df['STOIM'].gt(0) & merged_df['NETTO'].eq(0)
+    merged_df.loc[affected, 'NETTO'] = float('nan')
+    merged_df.loc[affected, 'PHYSICAL_QUALITY'] = 'Нулевая масса при положительной стоимости: масса неизвестна'
+    merged_df.loc[merged_df['KOL'].isna(), 'KOL_ESTIMATED'] = pd.NA
+    merged_df.loc[merged_df['NETTO'].isna(), 'NETTO_ESTIMATED'] = pd.NA
 
     # Drop any country-specific columns that slipped through per-file validation
     # (validate_schema only warns about them), e.g. Turkey's ISTPOZ / ISTPOZ_ADI /

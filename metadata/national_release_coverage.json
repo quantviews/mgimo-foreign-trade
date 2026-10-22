@@ -1,0 +1,52 @@
+{
+  "releases": [
+    {
+      "country": "CN",
+      "month": "2026-07",
+      "direction": "ИМ",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/china/IMPORT/data202607.csv",
+      "raw_sha256": "0b6e1bc6ada0c8c378f5573bf0783b1ce4a0b9457965e96025a2e04d95f53c10",
+      "rows": 5030,
+      "stoim_usd": 12250755162.0,
+      "confirmed_on": "2026-10-15",
+      "basis": "Full monthly all-commodity Russia-partner release confirmed by project owner; raw rows and value reconciled with national facts."
+    },
+    {
+      "country": "CN",
+      "month": "2026-08",
+      "direction": "ИМ",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/china/IMPORT/data202608.csv",
+      "raw_sha256": "f15e3bd03b9eeb672ebd07189ba5f37fcfa900d88cbcb55e71fd98e833335605",
+      "rows": 5089,
+      "stoim_usd": 11847563250.0,
+      "confirmed_on": "2026-10-15",
+      "basis": "Full monthly all-commodity Russia-partner release confirmed by project owner; raw rows and value reconciled with national facts."
+    },
+    {
+      "country": "CN",
+      "month": "2026-07",
+      "direction": "ЭК",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/china/EXPORT/data202607.csv",
+      "raw_sha256": "e90041e2a78ff38fbd4f2e9977afb17ea2f175838615cc2ac6a7d9b6f12a60dc",
+      "rows": 825,
+      "stoim_usd": 12777425935.0,
+      "confirmed_on": "2026-10-15",
+      "basis": "Full monthly all-commodity Russia-partner release confirmed by project owner; raw rows and value reconciled with national facts."
+    },
+    {
+      "country": "CN",
+      "month": "2026-08",
+      "direction": "ЭК",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/china/EXPORT/data202608.csv",
+      "raw_sha256": "46db90d20f990356e680631fa24bb73842294feb95a3c9e84dbbef048517314a",
+      "rows": 789,
+      "stoim_usd": 13752049959.0,
+      "confirmed_on": "2026-10-15",
+      "basis": "Full monthly all-commodity Russia-partner release confirmed by project owner; raw rows and value reconciled with national facts."
+    }
+  ]
+}

@@ -97,7 +97,7 @@ def automate_download(year: str, month: str, flow: str, partner_code: str, autof
     """
     download_dir = get_download_path()
     source_file = download_dir / 'downloadData.csv'
-    
+
     # Clean up old file if it exists
     if source_file.exists():
         os.remove(source_file)
@@ -154,7 +154,7 @@ def automate_download(year: str, month: str, flow: str, partner_code: str, autof
         print("Checking for downloaded file...")
         wait = WebDriverWait(driver, 300) # 5-minute timeout for manual process
         wait.until(lambda d: source_file.exists())
-        
+
         print("Download complete.")
         return True
 
@@ -179,7 +179,7 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
     """
     downloads_path = get_download_path()
     source_file = downloads_path / 'downloadData.csv'
-    
+
     if not source_file.exists():
         print(f"Error: '{source_file}' not found. Please download the file first.")
         return
@@ -188,17 +188,17 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
     export_path = output_dir / 'EXPORT'
     import_path.mkdir(parents=True, exist_ok=True)
     export_path.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         df = pd.read_csv(source_file, encoding='ISO-8859-1', on_bad_lines='skip')
-        
+
         # Validate that all expected columns are present
         expected_cols = {
-            'Date of data', 'Trading partner code', 'Trading partner', 
-            'Commodity code', 'Commodity', 'Quantity', 'Unit', 
+            'Date of data', 'Trading partner code', 'Trading partner',
+            'Commodity code', 'Commodity', 'Quantity', 'Unit',
             'Supplementary Quantity', 'Supplementary Unit'
         }
-        
+
         missing_cols = expected_cols - set(df.columns)
         if missing_cols:
             print(f"\n[ERROR] The downloaded file is missing required columns: {sorted(list(missing_cols))}")
@@ -206,7 +206,7 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
             os.remove(source_file)
             print(f"Removed incorrect source file: '{source_file}'")
             return
-            
+
         # Validate the date in the file matches the arguments
         if 'Date of data' in df.columns and not df.empty:
             file_date = str(df['Date of data'].iloc[0])
@@ -217,12 +217,12 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
                 os.remove(source_file)
                 print(f"Removed incorrect source file: '{source_file}'")
                 return
-            
+
         # Rename columns
         rename_map = {
             'Commodity code': 'TNVED',
             # 'US dollar': 'STOIM', # This will be handled dynamically
-            'Quantity': 'NETTO'
+            'Quantity': 'Quantity'
         }
         df = df.rename(columns=rename_map)
 
@@ -265,21 +265,21 @@ def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
         else:
             print(f"Error: Invalid flow type '{flow}'. Use 'ИМ' or 'ЭК'.")
             return
-            
+
         # Select and order the final columns
         final_columns = [
-            'Date of data', 'TNVED', 'NETTO', 'Supplementary Quantity',
+            'Date of data', 'TNVED', 'Quantity', 'Unit', 'Supplementary Quantity',
             'Supplementary Unit', 'STOIM', 'PERIOD', 'STRANA', 'NAPR'
         ]
-        
+
         # Filter out any columns that might not exist in the source
         final_columns_exist = [col for col in final_columns if col in df.columns]
-        
+
         df_final = df[final_columns_exist]
 
         output_file = output_path / f'data{year}{month_str}.csv'
         df_final.to_csv(output_file, index=False, encoding='utf-8-sig')
-        
+
         print(f"\nSuccessfully processed and saved data to '{output_file}'")
 
         os.remove(source_file)
@@ -307,11 +307,11 @@ def main():
                              "Опционально: портал чувствителен к автоматизации, по умолчанию выключено.")
 
     args = parser.parse_args()
-    
+
     month_padded = args.month.zfill(2)
 
     print(f"Starting automation for Year: {args.year}, Month: {month_padded}, Flow: {args.flow}, Partner: {args.partner}")
-    
+
     # Step 1: Automate the download
     download_successful = automate_download(args.year, month_padded, args.flow, args.partner, autofill=args.autofill)
 

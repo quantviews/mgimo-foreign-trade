@@ -149,6 +149,21 @@ def load_common_edizm_mapping(project_root: Path) -> Dict[str, Dict[str, str]]:
             'TJ': canonical_records.get('ТЕРАДЖОУЛЬ'),  # Terajoule (if exists)
             'TERAJOULE': canonical_records.get('ТЕРАДЖОУЛЬ'),  # Terajoule full name (if exists)
         }
+        # Preserve distinct source concepts. Never relabel dozens/packages as
+        # pieces or drained weight/carrying capacity as net shipment mass.
+        aliases.update({
+            '12U': {'KOD': None, 'NAME': 'ДЮЖИНА (12 ШТУК)'},
+            'U (JEU/PACK)': {'KOD': None, 'NAME': 'КОМПЛЕКТ/УПАКОВКА'},
+            'U JEU/PACK': {'KOD': None, 'NAME': 'КОМПЛЕКТ/УПАКОВКА'},
+            'KG/NET EDA': {'KOD': None, 'NAME': 'КИЛОГРАММ МАССЫ НЕТТО БЕЗ ЖИДКОСТИ'},
+            'KG NET EDA': {'KOD': None, 'NAME': 'КИЛОГРАММ МАССЫ НЕТТО БЕЗ ЖИДКОСТИ'},
+            'TJ': {'KOD': None, 'NAME': 'ТЕРАДЖОУЛЬ'},
+            'BBL': {'KOD': None, 'NAME': 'БАРРЕЛЬ (ЕДИНИЦА ИСТОЧНИКА)'},
+            'KG MET.AM.': {'KOD': None, 'NAME': 'КИЛОГРАММ МЕТИЛАМИНОВ'},
+            'CT/L': {'KOD': None, 'NAME': 'ТОННА ГРУЗОПОДЪЕМНОСТИ'},
+            'GT': {'KOD': None, 'NAME': 'ВАЛОВАЯ ВМЕСТИМОСТЬ (GT)'},
+            'GRT': {'KOD': None, 'NAME': 'ВАЛОВАЯ РЕГИСТРОВАЯ ТОННА (GRT)'},
+        })
         aliases.update(get_special_edizm_aliases(canonical_records))
 
         final_mapping.update(aliases)
