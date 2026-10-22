@@ -14,9 +14,10 @@ from __future__ import annotations
 import hashlib
 import os
 import secrets
+from urllib.parse import urlencode
 
 import psycopg2
-from flask import redirect, request
+from flask import redirect, url_for
 from flask_appbuilder import BaseView, expose
 from flask_login import current_user
 
@@ -28,7 +29,6 @@ TRADEAPI_DSN = os.environ.get(
 # Superset role that grants API access. Admin assigns it to users.
 REQUIRED_ROLE = os.environ.get("TRADEAPI_ROLE", "API")
 DEFAULT_PLAN = os.environ.get("TRADEAPI_PLAN", "pilot")
-LOGIN_URL = "/login/"
 
 
 # --- token helpers (must match api/app/store.py) ----------------------------
@@ -123,7 +123,10 @@ class ApiKeyView(BaseView):
     def _guard(self):
         """Return a response to short-circuit, or None if access is allowed."""
         if not getattr(current_user, "is_authenticated", False):
-            return redirect(f"{LOGIN_URL}?next={request.path}")
+            # FAB builds the login endpoint with SCRIPT_NAME supplied by ProxyFix.
+            # Always return to the GET page, never replay an interrupted token POST.
+            target = url_for(f"{self.endpoint}.index")
+            return redirect(self.appbuilder.get_url_for_login + "?" + urlencode({"next": target}))
         if not _has_role(current_user, REQUIRED_ROLE):
             return self.render_template("api_cabinet_denied.html", role=REQUIRED_ROLE)
         return None
