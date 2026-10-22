@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-html/tabby.min.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/light-border.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-c8ad9e5dbd60b7b70b38521ab19b7da4.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.7.34">
+
+  <meta name="author" content="МГИМО / Институт энергетики и финансов">
+  <title>МГИМО — Национальная торговая статистика – Национальная торговая статистика</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+  <link rel="stylesheet" href="site_libs/revealjs/dist/reset.css">
+  <link rel="stylesheet" href="site_libs/revealjs/dist/reveal.css">
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+      vertical-align: middle;
+    }
+  </style>
+  <link rel="stylesheet" href="site_libs/revealjs/dist/theme/quarto-6fee42c9e10306a9fe1ea56bfbf4b85f.css">
+  <link rel="stylesheet" href="slides.css">
+  <link rel="stylesheet" href="styles/typographic.css">
+  <link href="site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
+  <link href="site_libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
+  <link href="site_libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
+  <link href="site_libs/revealjs/plugin/reveal-chalkboard/font-awesome/css/all.css" rel="stylesheet">
+  <link href="site_libs/revealjs/plugin/reveal-chalkboard/style.css" rel="stylesheet">
+  <link href="site_libs/revealjs/plugin/quarto-support/footer.css" rel="stylesheet">
+  <style type="text/css">
+    .reveal div.sourceCode {
+      margin: 0;
+      overflow: auto;
+    }
+    .reveal div.hanging-indent {
+      margin-left: 1em;
+      text-indent: -1em;
+    }
+    .reveal .slide:not(.center) {
+      height: 100%;
+    }
+    .reveal .slide.scrollable {
+      overflow-y: auto;
+    }
+    .reveal .footnotes {
+      height: 100%;
+      overflow-y: auto;
+    }
+    .reveal .slide .absolute {
+      position: absolute;
+      display: block;
+    }
+    .reveal .footnotes ol {
+      counter-reset: ol;
+      list-style-type: none; 
+      margin-left: 0;
+    }
+    .reveal .footnotes ol li:before {
+      counter-increment: ol;
+      content: counter(ol) ". "; 
+    }
+    .reveal .footnotes ol li > p:first-child {
+      display: inline-block;
+    }
+    .reveal .slide ul,
+    .reveal .slide ol {
+      margin-bottom: 0.5em;
+    }
+    .reveal .slide ul li,
+    .reveal .slide ol li {
+      margin-top: 0.4em;
+      margin-bottom: 0.2em;
+    }
+    .reveal .slide ul[role="tablist"] li {
+      margin-bottom: 0;
+    }
+    .reveal .slide ul li > *:first-child,
+    .reveal .slide ol li > *:first-child {
+      margin-block-start: 0;
+    }
+    .reveal .slide ul li > *:last-child,
+    .reveal .slide ol li > *:last-child {
+      margin-block-end: 0;
+    }
+    .reveal .slide .columns:nth-child(3) {
+      margin-block-start: 0.8em;
+    }
+    .reveal blockquote {
+      box-shadow: none;
+    }
+    .reveal .tippy-content>* {
+      margin-top: 0.2em;
+      margin-bottom: 0.7em;
+    }
+    .reveal .tippy-content>*:last-child {
+      margin-bottom: 0.2em;
+    }
+    .reveal .slide > img.stretch.quarto-figure-center,
+    .reveal .slide > img.r-stretch.quarto-figure-center {
+      display: block;
+      margin-left: auto;
+      margin-right: auto; 
+    }
+    .reveal .slide > img.stretch.quarto-figure-left,
+    .reveal .slide > img.r-stretch.quarto-figure-left  {
+      display: block;
+      margin-left: 0;
+      margin-right: auto; 
+    }
+    .reveal .slide > img.stretch.quarto-figure-right,
+    .reveal .slide > img.r-stretch.quarto-figure-right  {
+      display: block;
+      margin-left: auto;
+      margin-right: 0; 
+    }
+  </style>
+  <meta name="mermaid-theme" content="neutral">
+  <script src="site_libs/quarto-diagram/mermaid.min.js"></script>
+  <script src="site_libs/quarto-diagram/mermaid-init.js"></script>
+  <link href="site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+</head>
+<body class="quarto-light">
+  <div class="reveal">
+    <div class="slides">
+
+<section id="title-slide" data-background-color="#f8f9fb" class="quarto-title-block center">
+  <h1 class="title">Национальная торговая статистика</h1>
+  <p class="subtitle">Кросс-вузовская экспертиза · стратегические технологические проекты</p>
+
+<div class="quarto-title-authors">
+<div class="quarto-title-author">
+<div class="quarto-title-author-name">
+МГИМО / Институт энергетики и финансов 
+</div>
+</div>
+</div>
+
+  <p class="date">6 октября 2026</p>
+</section>
+<section id="задача-проекта" class="slide level2">
+<h2>Задача проекта</h2>
+<div class="lead">
+<p>Дать аналитикам регулярную и сопоставимую картину внешней торговли России в условиях ограниченной доступности детальной российской статистики.</p>
+</div>
+<div class="cols-2">
+<div class="c">
+<p><span class="ch">Проблема пользователя</span></p>
+<p>Данные партнёров выходят в разные сроки и в разных форматах. Для очередного обзора приходится заново собирать, сверять и объединять выгрузки.</p>
+<p>Стоимость торговли меняется и из-за цен, и из-за физических объёмов. Одной суммы в долларах для анализа недостаточно.</p>
+</div>
+<div class="c">
+<p><span class="ch">Идея продукта</span></p>
+<p>Взять на себя сбор, согласование и обновление данных. Доставлять результат в рабочий инструмент пользователя: дашборд, Excel или ИИ-агент.</p>
+<p>Сохранять источник и различать опубликованные факты и модельные оценки.</p>
+</div>
+</div>
+<div class="concl">
+<p>Ценность для клиента: меньше ручной подготовки, больше времени на интерпретацию и решения.</p>
+</div>
+<aside class="notes">
+<p>Контекст выступления: группа «Технологическое лидерство», КВЭ 6-7 октября. Программа предполагает сопоставление целей и результатов, обсуждение ограничений и поиск решений. Источники: org/квэ-2026/Программа.pdf и установочная встреча 2 октября. Экономию времени пока не выражаем в процентах: её нужно измерить в пилотах.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="пользователь-и-регулярная-задача" class="slide level2">
+<h2>Пользователь и регулярная задача</h2>
+<table class="plain">
+<thead>
+<tr>
+<th>
+Приоритетный сегмент
+</th>
+<th>
+Повторяющаяся задача
+</th>
+<th>
+Результат для пользователя
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+Банки, аналитические центры
+</td>
+<td>
+Ежемесячная оценка торговли и отраслей
+</td>
+<td>
+Обновляемые ряды, индексы и выгрузки для моделей
+</td>
+</tr>
+<tr>
+<td>
+Отраслевые компании и ассоциации
+</td>
+<td>
+Мониторинг товарного рынка и направлений торговли
+</td>
+<td>
+Сопоставимый срез по странам и товарным кодам
+</td>
+</tr>
+<tr>
+<td>
+Логистические компании
+</td>
+<td>
+Оценка динамики грузопотоков
+</td>
+<td>
+Вес и физические объёмы по направлениям
+</td>
+</tr>
+</tbody>
+</table>
+<div class="concl">
+<p>Для первых коммерческих пилотов предлагаем сфокусироваться на аналитических командах с регулярной отчётностью. Это гипотеза сегмента, которую предстоит проверить.</p>
+</div>
+<aside class="notes">
+<p>Это целевые сегменты, а не перечень действующих клиентов. Граница продукта: агрегированная торговая статистика России, без данных об отдельных компаниях, контрагентах и отгрузках. Не обещаем поиск конкретного поставщика или сведения о сделках.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="полученные-результаты" class="slide level2">
+<h2>Полученные результаты</h2>
+<div class="facts">
+<div>
+<span class="fig">7,38 млн</span><span class="cap">строк в единой таблице:<br>6,50 млн фактов + 0,88 млн оценок</span>
+</div>
+<div>
+<span class="fig">138</span><span class="cap">стран-репортёров в источнике Comtrade<br>в составе обработанной базы</span>
+</div>
+<div>
+<span class="fig">3</span><span class="cap">национальных источника:<br>Китай, Индия, Турция</span>
+</div>
+</div>
+<div class="cols-2">
+<div class="c">
+<p><span class="ch">Данные и аналитика</span></p>
+<ul>
+<li>Месячные ряды с января 2019 года.</li>
+<li>Индексы физических объёмов и nowcast.</li>
+<li>Сводный и три страновых бюллетеня.</li>
+</ul>
+</div>
+<div class="c">
+<p><span class="ch">Работающий сервис</span></p>
+<ul>
+<li>Дашборды и обновление данных в Excel.</li>
+<li>API, удалённый MCP и демонстрационный ИИ-чат.</li>
+<li>Авторизация, лимиты и журнал использования API.</li>
+</ul>
+</div>
+</div>
+<div class="note">
+<p>Срез на 4 октября 2026 г. Китай и Турция: факты по август; Индия: по июль. Покрытие Comtrade за август пока неполное.</p>
+</div>
+<aside class="notes">
+<p>Источник чисел: db/unified_trade_data.duckdb, сборка 04.10.2026; data_processed/manifests/mgimo_full_refresh_20261004T101508Z.json. Всего 7 381 951 строка, fact 6 500 350, pred 881 601. 138 относится к странам SOURCE=comtrade по всей истории, не к покрытию последнего месяца. Факт работоспособности не означает подтверждённый платёжеспособный спрос.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="отличие-продукта-данные-аналитика-и-доставка" class="slide level2">
+<h2>Отличие продукта: данные, аналитика и доставка</h2>
+<table class="plain">
+<thead>
+<tr>
+<th>
+Что мы добавляем к исходной статистике
+</th>
+<th>
+Пользовательская ценность
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+Гармонизация национальных источников и Comtrade
+</td>
+<td>
+Один набор стран, кодов, единиц и периодов
+</td>
+</tr>
+<tr>
+<td>
+Индексы физических объёмов
+</td>
+<td>
+Разделение стоимостной и физической динамики
+</td>
+</tr>
+<tr>
+<td>
+Nowcast: среднее DFM+ETS и SARIMA
+</td>
+<td>
+Оценка месяцев, за которые ещё нет отчётности
+</td>
+</tr>
+<tr>
+<td>
+Дашборд, Excel, API и MCP
+</td>
+<td>
+Одна база для ручной работы и автоматизации
+</td>
+</tr>
+</tbody>
+</table>
+<div class="concl">
+<p>Основа дифференциации: предметная методология, регулярное обновление и удобство использования в одном продукте.</p>
+</div>
+<aside class="notes">
+<p>Источники: docs/data_model.md, src/nowcast.R, docs/api-reference.md, mcp-server/README.md. Уникальность описываем как сочетание возможностей; не утверждаем отсутствие аналогов на рынке. Nowcast отдельно маркируется TYPE=pred, не является официальной статистикой. Для проверки его качества нужны ретроспективные сравнения с позднее опубликованными фактами.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="продукт-уже-доступен-пользователю" class="slide level2">
+<h2>Продукт уже доступен пользователю</h2>
+<div class="cols-3">
+<div class="c">
+<p><span class="ch">Посмотреть</span></p>
+<p><strong>Дашборд и бюллетени</strong></p>
+<p>Выбрать страну и товарную группу, увидеть динамику, прочитать краткий обзор.</p>
+</div>
+<div class="c">
+<p><span class="ch">Встроить в работу</span></p>
+<p><strong>Excel через OData / API</strong></p>
+<p>Подключить нужный срез через Power Query и обновлять данные в рабочей книге без повторной ручной выгрузки.</p>
+</div>
+<div class="c">
+<p><span class="ch">Задать вопрос</span></p>
+<p><strong>ИИ-чат и MCP</strong></p>
+<p>Сформулировать задачу обычным языком; агент запросит данные для ответа.</p>
+</div>
+</div>
+<div class="concl">
+<p>Обратная связь → продукт: консультации с отраслевым партнёром МГИМО подтвердили важность Excel для аналитиков. В ответ реализован OData-доступ к API.</p>
+</div>
+<div class="note">
+<p>Демонстрация: <a href="https://nts.mgimo.ru/">nts.mgimo.ru</a> · <a href="https://nts.mgimo.ru/site/demo.html">Спросить ИИ</a></p>
+</div>
+<aside class="notes">
+<p>По информации команды проекта, консультации с отраслевым партнёром МГИМО выявили важность доступа через Excel для аналитиков. Это конкретный пример того, как обратная связь повлияла на продукт: реализован OData-фид поверх API, подключаемый через Power Query. Пользователь задаёт срез и обновляет его в привычной рабочей книге. OData обеспечивает доступ к данным, а не генерацию ответа ИИ. Следующая проверка: возвращается ли пользователь к сервису в новом отчётном цикле. Показать при наличии времени подключение в Excel или один заранее подготовленный вопрос. Не вводить токены в публичную демонстрацию. Сервис развёрнут, но в материалах выступления нет подтверждённых метрик удержания, числа платящих организаций и выручки. Источники: обратная связь команды, site/index.qmd, docs/api-excel-guide.md.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="ии-работает-через-инструменты-доступа-к-данным" class="slide level2 slide-diagram">
+<h2>ИИ работает через инструменты доступа к данным</h2>
+<div class="lead">
+<p>«Как изменилась торговля с Индией?» Агент выбирает срез, получает данные и объясняет результат.</p>
+</div>
+<div class="cell" data-reveal="true" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class=""><p></p>
+<div>
+<pre class="mermaid mermaid-js">flowchart LR
+    A["ИИ-агент"] &lt;--&gt; M["MCP&lt;br/&gt;инструменты"]
+    M &lt;--&gt; P["API&lt;br/&gt;фильтры и расчёты"]
+    P &lt;--&gt; D[("Проверенная база")]
+    classDef plain fill:#ffffff,stroke:#8a95a3,stroke-width:1px,color:#2c3e50
+    class A,M,P plain
+    style D fill:#ffffff,stroke:#003d7a,stroke-width:2px,color:#003d7a
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<div class="cols-2">
+<div class="c">
+<p><span class="ch">API задаёт доступ</span></p>
+<p>Допустимые запросы, авторизация, ограничения объёма и учёт использования.</p>
+</div>
+<div class="c">
+<p><span class="ch">MCP объясняет инструменты агенту</span></p>
+<p>Какие данные можно запросить, как выбрать разрез и интерпретировать показатели.</p>
+</div>
+</div>
+<div class="concl">
+<p>Числа можно проверить по данным. Выбор метода и выводы ИИ по-прежнему требуют контроля.</p>
+</div>
+<aside class="notes">
+<p>Схема относится к внешнему ИИ-агенту через MCP. Встроенный демочат обращается к API через собственные инструменты; MCP не обязателен для каждого клиентского приложения. Наличие базы не исключает неверную группировку, выбор периода или ошибочную интерпретацию. Источники: mcp-server/server.py, demo/app/tools.py, docs/api-reference.md.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="общий-подход-для-других-проектов-стп" class="slide level2">
+<h2>Общий подход для других проектов СТП</h2>
+<div class="cols-2">
+<div class="c">
+<p><span class="ch">Что можно использовать повторно</span></p>
+<ul>
+<li>Доступ к данным через документированный API.</li>
+<li>Подключение ИИ-агентов через MCP.</li>
+<li>Авторизация, лимиты и учёт обращений.</li>
+<li>Демосценарий и проверка ответов на типовых задачах.</li>
+</ul>
+</div>
+<div class="c">
+<p><span class="ch">Что остаётся у команды проекта</span></p>
+<ul>
+<li>Собственные данные и права на их использование.</li>
+<li>Предметная методология и контроль качества.</li>
+<li>Словарь показателей и ограничения интерпретации.</li>
+<li>Пользовательская задача и критерий полезности.</li>
+</ul>
+</div>
+</div>
+<div class="concl">
+<p>Предложение для СТП: испытать подход на одном дополнительном проекте с подготовленными данными и конкретным пользователем.</p>
+</div>
+<aside class="notes">
+<p>Это предложение о переносе подхода, а не заявление о готовой универсальной платформе для всех СТП. Потребуются адаптеры, разграничение прав, проверка чувствительности данных и тестовые вопросы. Один из вариантов клиентского интерфейса: плагин к Kodik вместо зависимости от Cursor. Совместимость и формат интеграции предстоит проверить; договорённость с Kodik не заявляется.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="коммерческая-модель" class="slide level2">
+<h2>Коммерческая модель</h2>
+<table class="plain">
+<thead>
+<tr>
+<th>
+Предлагаемый продукт
+</th>
+<th>
+За что платит организация
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+Подписка на данные
+</td>
+<td>
+Обновляемая база, дашборды, Excel/API; согласованные пользователи и объёмы доступа
+</td>
+</tr>
+<tr>
+<td>
+ИИ-сервис поверх данных
+</td>
+<td>
+Готовый аналитический интерфейс и пакет обращений; учёт стоимости модели
+</td>
+</tr>
+<tr>
+<td>
+Корпоративная интеграция
+</td>
+<td>
+Внедрение в рабочие процессы, специальные срезы, сопровождение
+</td>
+</tr>
+</tbody>
+</table>
+<div class="concl">
+<p>Для запуска продаж: тарифная линейка и типовой договор. Первый шаг: платный пилот с регулярной задачей и измеримой экономией времени.</p>
+</div>
+<aside class="notes">
+<p>Модель предлагается для обсуждения, цены и выручка не утверждены. Подготовить тарифы для покупки доступа и типовой договор: состав данных, пользователи, лимиты, права использования, обновление и поддержка. Доступ через MCP может использовать модель самого клиента; расходы такой модели не следует смешивать с себестоимостью нашего управляемого ИИ-чата. Внутренние ценовые ориентиры не выносим в публичную презентацию.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="совместные-проекты-для-проверки-спроса" class="slide level2">
+<h2>Совместные проекты для проверки спроса</h2>
+<div class="cols-2">
+<div class="c">
+<p><span class="ch">Сессия в МЭЦ</span></p>
+<p>Предложить проектную сессию МГИМО, ИЭФ и Kodik: анализ внешней торговли в интересах российских экспортёров.</p>
+<p>Выбрать реальные вопросы, показать работу с данными через ИИ и сформировать задачи для пилотов.</p>
+</div>
+<div class="c">
+<p><span class="ch">Отраслевые семинары</span></p>
+<p>«Назовите самый сложный аналитический вопрос в вашей отрасли».</p>
+<p>Вместе с индустриальными заказчиками разработать кейсы и сравнить время и качество решения с привычным способом работы.</p>
+</div>
+</div>
+<div class="concl">
+<p>Результат каждой встречи: конкретная задача, ответственный заказчик и критерий успеха пилота.</p>
+</div>
+<aside class="notes">
+<p>Сессия в МЭЦ и участие МГИМО, ИЭФ и Kodik являются предложениями, а не согласованными мероприятиями. На семинарах проверяем задачи, которые решаются агрегированной статистикой; не обещаем данные об отдельных поставщиках и сделках. Метрики пилотов: экономия времени, качество результата, повторное использование, переход в оплату и продление. Для экономики учитывать сбор данных, поддержку и стоимость ИИ на завершённую задачу.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="развитие-продукт-партнёрства-исследования" class="slide level2">
+<h2>Развитие: продукт, партнёрства, исследования</h2>
+<table class="plain">
+<thead>
+<tr>
+<th>
+Направление
+</th>
+<th>
+Предлагаемый следующий шаг
+</th>
+<th>
+Результат
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+Коммерческий продукт
+</td>
+<td>
+Тарифы, типовой договор, платные пилоты и регламент поддержки
+</td>
+<td>
+Проверка спроса и экономики подписки
+</td>
+</tr>
+<tr>
+<td>
+ИИ-интеграция
+</td>
+<td>
+Плагин к Kodik через API/MCP как альтернатива Cursor; пилот на другом СТП
+</td>
+<td>
+Повторное использование подхода
+</td>
+</tr>
+<tr>
+<td>
+Университеты
+</td>
+<td>
+Доступ студентам и аспирантам; кейсы для ВКР и исследований в МГИМО и других вузах
+</td>
+<td>
+Использование и цитирование данных
+</td>
+</tr>
+</tbody>
+</table>
+<div class="note">
+<p>Для исследований: инструкция по цитированию, версия данных и дата выгрузки для воспроизводимости результатов.</p>
+</div>
+<aside class="notes">
+<p>Все направления предложены для обсуждения на КВЭ, сроки и ресурсы требуют согласования. Плагин Kodik пока не реализован и требует проверки совместимости, авторизации и условий партнёрства. Академическое использование: оперативная внешнеторговая статистика для студентов и аспирантов, цитирование в ВКР и исследованиях МГИМО и других вузов. Подготовить образец ссылки на набор данных и методологию, фиксировать версию и дату выгрузки; архивирование версий требует отдельного решения. Измерять число работ с цитированием и повторное использование. Расширение источников определять по спросу и правам использования.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="ограничения-и-решения-для-масштабирования" class="slide level2">
+<h2>Ограничения и решения для масштабирования</h2>
+<table class="plain">
+<thead>
+<tr>
+<th>
+Ограничение
+</th>
+<th>
+Что нужно сделать
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+Задержки и пересмотры источников
+</td>
+<td>
+Показывать покрытие и источник; пересчитывать историю; проверять качество nowcast
+</td>
+</tr>
+<tr>
+<td>
+Зависимость от небольшой команды
+</td>
+<td>
+Закрепить ответственность за продукт, данные, эксплуатацию и продажи
+</td>
+</tr>
+<tr>
+<td>
+Ошибки ИИ и стоимость обращений
+</td>
+<td>
+Проверять ответы на типовых задачах, контролировать доступ и расходы
+</td>
+</tr>
+<tr>
+<td>
+Переход к коммерческому использованию
+</td>
+<td>
+Уточнить права на данные, условия лицензирования и договорную модель
+</td>
+</tr>
+</tbody>
+</table>
+<div class="concl">
+<p>Запрос к экспертам: согласовать путь к продажам, помочь организовать сессию с заказчиками и выбрать СТП для пилота API/MCP.</p>
+</div>
+<aside class="notes">
+<p>Финал для обсуждения в группе «Технологическое лидерство». Проект уже имеет работающий сервис и воспроизводимую обработку данных; следующий барьер связан с проверкой рынка и устойчивой эксплуатацией. Просим обратную связь по приоритетному сегменту, организационной модели и одному кандидату на перенос подхода. Адрес демонстрации: https://nts.mgimo.ru/.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+
+
+</section>
+    </div>
+  <div class="quarto-auto-generated-content" style="display: none;">
+<div class="footer footer-default">
+<p>Национальная торговая статистика · МГИМО</p>
+</div>
+</div></div>
+
+  <script>window.backupDefine = window.define; window.define = undefined;</script>
+  <script src="site_libs/revealjs/dist/reveal.js"></script>
+  <!-- reveal.js plugins -->
+  <script src="site_libs/revealjs/plugin/quarto-line-highlight/line-highlight.js"></script>
+  <script src="site_libs/revealjs/plugin/pdf-export/pdfexport.js"></script>
+  <script src="site_libs/revealjs/plugin/reveal-menu/menu.js"></script>
+  <script src="site_libs/revealjs/plugin/reveal-menu/quarto-menu.js"></script>
+  <script src="site_libs/revealjs/plugin/reveal-chalkboard/plugin.js"></script>
+  <script src="site_libs/revealjs/plugin/quarto-support/support.js"></script>
+  
+
+  <script src="site_libs/revealjs/plugin/notes/notes.js"></script>
+  <script src="site_libs/revealjs/plugin/search/search.js"></script>
+  <script src="site_libs/revealjs/plugin/zoom/zoom.js"></script>
+  <script src="site_libs/revealjs/plugin/math/math.js"></script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
+
+  <script>
+
+      // Full list of configuration options available at:
+      // https://revealjs.com/config/
+      Reveal.initialize({
+'controlsAuto': true,
+'previewLinksAuto': true,
+'pdfSeparateFragments': false,
+'autoAnimateEasing': "ease",
+'autoAnimateDuration': 1,
+'autoAnimateUnmatched': true,
+'jumpToSlide': true,
+'menu': {"side":"left","useTextContentForMissingTitles":true,"markers":false,"loadIcons":false,"custom":[{"title":"Tools","icon":"<i class=\"fas fa-gear\"></i>","content":"<ul class=\"slide-menu-items\">\n<li class=\"slide-tool-item active\" data-item=\"0\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.fullscreen(event)\"><kbd>f</kbd> Fullscreen</a></li>\n<li class=\"slide-tool-item\" data-item=\"1\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.speakerMode(event)\"><kbd>s</kbd> Speaker View</a></li>\n<li class=\"slide-tool-item\" data-item=\"2\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.overview(event)\"><kbd>o</kbd> Slide Overview</a></li>\n<li class=\"slide-tool-item\" data-item=\"3\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.togglePdfExport(event)\"><kbd>e</kbd> PDF Export Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"4\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.toggleScrollView(event)\"><kbd>r</kbd> Scroll View Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"5\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.toggleChalkboard(event)\"><kbd>b</kbd> Toggle Chalkboard</a></li>\n<li class=\"slide-tool-item\" data-item=\"6\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.toggleNotesCanvas(event)\"><kbd>c</kbd> Toggle Notes Canvas</a></li>\n<li class=\"slide-tool-item\" data-item=\"7\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.downloadDrawings(event)\"><kbd>d</kbd> Download Drawings</a></li>\n<li class=\"slide-tool-item\" data-item=\"8\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.keyboardHelp(event)\"><kbd>?</kbd> Keyboard Help</a></li>\n</ul>"}],"openButton":true},
+'chalkboard': {"buttons":false},
+'smaller': false,
+ 
+        // Display controls in the bottom right corner
+        controls: false,
+
+        // Help the user learn the controls by providing hints, for example by
+        // bouncing the down arrow when they first encounter a vertical slide
+        controlsTutorial: false,
+
+        // Determines where controls appear, "edges" or "bottom-right"
+        controlsLayout: 'edges',
+
+        // Visibility rule for backwards navigation arrows; "faded", "hidden"
+        // or "visible"
+        controlsBackArrows: 'faded',
+
+        // Display a presentation progress bar
+        progress: true,
+
+        // Display the page number of the current slide
+        slideNumber: 'c/t',
+
+        // 'all', 'print', or 'speaker'
+        showSlideNumber: 'all',
+
+        // Add the current slide number to the URL hash so that reloading the
+        // page/copying the URL will return you to the same slide
+        hash: true,
+
+        // Start with 1 for the hash rather than 0
+        hashOneBasedIndex: false,
+
+        // Flags if we should monitor the hash and change slides accordingly
+        respondToHashChanges: true,
+
+        // Push each slide change to the browser history
+        history: true,
+
+        // Enable keyboard shortcuts for navigation
+        keyboard: true,
+
+        // Enable the slide overview mode
+        overview: true,
+
+        // Disables the default reveal.js slide layout (scaling and centering)
+        // so that you can use custom CSS layout
+        disableLayout: false,
+
+        // Vertical centering of slides
+        center: false,
+
+        // Enables touch navigation on devices with touch input
+        touch: true,
+
+        // Loop the presentation
+        loop: false,
+
+        // Change the presentation direction to be RTL
+        rtl: false,
+
+        // see https://revealjs.com/vertical-slides/#navigation-mode
+        navigationMode: 'linear',
+
+        // Randomizes the order of slides each time the presentation loads
+        shuffle: false,
+
+        // Turns fragments on and off globally
+        fragments: true,
+
+        // Flags whether to include the current fragment in the URL,
+        // so that reloading brings you to the same fragment position
+        fragmentInURL: false,
+
+        // Flags if the presentation is running in an embedded mode,
+        // i.e. contained within a limited portion of the screen
+        embedded: false,
+
+        // Flags if we should show a help overlay when the questionmark
+        // key is pressed
+        help: true,
+
+        // Flags if it should be possible to pause the presentation (blackout)
+        pause: true,
+
+        // Flags if speaker notes should be visible to all viewers
+        showNotes: false,
+
+        // Global override for autoplaying embedded media (null/true/false)
+        autoPlayMedia: null,
+
+        // Global override for preloading lazy-loaded iframes (null/true/false)
+        preloadIframes: null,
+
+        // Number of milliseconds between automatically proceeding to the
+        // next slide, disabled when set to 0, this value can be overwritten
+        // by using a data-autoslide attribute on your slides
+        autoSlide: 0,
+
+        // Stop auto-sliding after user input
+        autoSlideStoppable: true,
+
+        // Use this method for navigation when auto-sliding
+        autoSlideMethod: null,
+
+        // Specify the average time in seconds that you think you will spend
+        // presenting each slide. This is used to show a pacing timer in the
+        // speaker view
+        defaultTiming: null,
+
+        // Enable slide navigation via mouse wheel
+        mouseWheel: false,
+
+        // The display mode that will be used to show slides
+        display: 'block',
+
+        // Hide cursor if inactive
+        hideInactiveCursor: true,
+
+        // Time before the cursor is hidden (in ms)
+        hideCursorTime: 5000,
+
+        // Opens links in an iframe preview overlay
+        previewLinks: false,
+
+        // Transition style (none/fade/slide/convex/concave/zoom)
+        transition: 'slide',
+
+        // Transition speed (default/fast/slow)
+        transitionSpeed: 'default',
+
+        // Transition style for full page slide backgrounds
+        // (none/fade/slide/convex/concave/zoom)
+        backgroundTransition: 'fade',
+
+        // Number of slides away from the current that are visible
+        viewDistance: 3,
+
+        // Number of slides away from the current that are visible on mobile
+        // devices. It is advisable to set this to a lower number than
+        // viewDistance in order to save resources.
+        mobileViewDistance: 2,
+
+        // The "normal" size of the presentation, aspect ratio will be preserved
+        // when the presentation is scaled to fit different resolutions. Can be
+        // specified using percentage units.
+        width: 1280,
+
+        height: 720,
+
+        // Factor of the display size that should remain empty around the content
+        margin: 6.0e-2,
+
+        math: {
+          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
+          config: 'TeX-AMS_HTML-full',
+          tex2jax: {
+            inlineMath: [['\\(','\\)']],
+            displayMath: [['\\[','\\]']],
+            balanceBraces: true,
+            processEscapes: false,
+            processRefs: true,
+            processEnvironments: true,
+            preview: 'TeX',
+            skipTags: ['script','noscript','style','textarea','pre','code'],
+            ignoreClass: 'tex2jax_ignore',
+            processClass: 'tex2jax_process'
+          },
+        },
+
+        // reveal.js plugins
+        plugins: [QuartoLineHighlight, PdfExport, RevealMenu, RevealChalkboard, QuartoSupport,
+
+          RevealMath,
+          RevealNotes,
+          RevealSearch,
+          RevealZoom
+        ]
+      });
+    </script>
+    <script id="quarto-html-after-body" type="application/javascript">
+      window.document.addEventListener("DOMContentLoaded", function (event) {
+        const tabsets =  window.document.querySelectorAll(".panel-tabset-tabby")
+        tabsets.forEach(function(tabset) {
+          const tabby = new Tabby('#' + tabset.id);
+        });
+        const isCodeAnnotation = (el) => {
+          for (const clz of el.classList) {
+            if (clz.startsWith('code-annotation-')) {                     
+              return true;
+            }
+          }
+          return false;
+        }
+        const onCopySuccess = function(e) {
+          // button target
+          const button = e.trigger;
+          // don't keep focus
+          button.blur();
+          // flash "checked"
+          button.classList.add('code-copy-button-checked');
+          var currentTitle = button.getAttribute("title");
+          button.setAttribute("title", "Скопировано");
+          let tooltip;
+          if (window.bootstrap) {
+            button.setAttribute("data-bs-toggle", "tooltip");
+            button.setAttribute("data-bs-placement", "left");
+            button.setAttribute("data-bs-title", "Скопировано");
+            tooltip = new bootstrap.Tooltip(button, 
+              { trigger: "manual", 
+                customClass: "code-copy-button-tooltip",
+                offset: [0, -8]});
+            tooltip.show();    
+          }
+          setTimeout(function() {
+            if (tooltip) {
+              tooltip.hide();
+              button.removeAttribute("data-bs-title");
+              button.removeAttribute("data-bs-toggle");
+              button.removeAttribute("data-bs-placement");
+            }
+            button.setAttribute("title", currentTitle);
+            button.classList.remove('code-copy-button-checked');
+          }, 1000);
+          // clear code selection
+          e.clearSelection();
+        }
+        const getTextToCopy = function(trigger) {
+            const codeEl = trigger.previousElementSibling.cloneNode(true);
+            for (const childEl of codeEl.children) {
+              if (isCodeAnnotation(childEl)) {
+                childEl.remove();
+              }
+            }
+            return codeEl.innerText;
+        }
+        const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+          text: getTextToCopy
+        });
+        clipboard.on('success', onCopySuccess);
+        if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+          const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+            text: getTextToCopy,
+            container: window.document.getElementById('quarto-embedded-source-code-modal')
+          });
+          clipboardModal.on('success', onCopySuccess);
+        }
+          var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+          var mailtoRegex = new RegExp(/^mailto:/);
+            var filterRegex = new RegExp('/' + window.location.host + '/');
+          var isInternal = (href) => {
+              return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+          }
+          // Inspect non-navigation links and adorn them if external
+         var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+          for (var i=0; i<links.length; i++) {
+            const link = links[i];
+            if (!isInternal(link.href)) {
+              // undo the damage that might have been done by quarto-nav.js in the case of
+              // links that we want to consider external
+              if (link.dataset.originalHref !== undefined) {
+                link.href = link.dataset.originalHref;
+              }
+            }
+          }
+        function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+          const config = {
+            allowHTML: true,
+            maxWidth: 500,
+            delay: 100,
+            arrow: false,
+            appendTo: function(el) {
+                return el.closest('section.slide') || el.parentElement;
+            },
+            interactive: true,
+            interactiveBorder: 10,
+            theme: 'light-border',
+            placement: 'bottom-start',
+          };
+          if (contentFn) {
+            config.content = contentFn;
+          }
+          if (onTriggerFn) {
+            config.onTrigger = onTriggerFn;
+          }
+          if (onUntriggerFn) {
+            config.onUntrigger = onUntriggerFn;
+          }
+            config['offset'] = [0,0];
+            config['maxWidth'] = 700;
+          window.tippy(el, config); 
+        }
+        const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+        for (var i=0; i<noterefs.length; i++) {
+          const ref = noterefs[i];
+          tippyHover(ref, function() {
+            // use id or data attribute instead here
+            let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+            try { href = new URL(href).hash; } catch {}
+            const id = href.replace(/^#\/?/, "");
+            const note = window.document.getElementById(id);
+            if (note) {
+              return note.innerHTML;
+            } else {
+              return "";
+            }
+          });
+        }
+        const findCites = (el) => {
+          const parentEl = el.parentElement;
+          if (parentEl) {
+            const cites = parentEl.dataset.cites;
+            if (cites) {
+              return {
+                el,
+                cites: cites.split(' ')
+              };
+            } else {
+              return findCites(el.parentElement)
+            }
+          } else {
+            return undefined;
+          }
+        };
+        var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+        for (var i=0; i<bibliorefs.length; i++) {
+          const ref = bibliorefs[i];
+          const citeInfo = findCites(ref);
+          if (citeInfo) {
+            tippyHover(citeInfo.el, function() {
+              var popup = window.document.createElement('div');
+              citeInfo.cites.forEach(function(cite) {
+                var citeDiv = window.document.createElement('div');
+                citeDiv.classList.add('hanging-indent');
+                citeDiv.classList.add('csl-entry');
+                var biblioDiv = window.document.getElementById('ref-' + cite);
+                if (biblioDiv) {
+                  citeDiv.innerHTML = biblioDiv.innerHTML;
+                }
+                popup.appendChild(citeDiv);
+              });
+              return popup.innerHTML;
+            });
+          }
+        }
+      });
+      </script>
+    
+
+</body></html>
