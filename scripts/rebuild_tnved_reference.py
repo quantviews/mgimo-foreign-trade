@@ -24,6 +24,7 @@ from core.reference_tables import (  # noqa: E402
     NAME_SOURCE_FTS,
     build_unified_trade_data_enriched_view_from_base_sql,
     load_tnved_mapping,
+    refresh_country_chapters,
 )
 
 
@@ -71,6 +72,7 @@ def main() -> None:
         before = conn.execute("SELECT count(*) FROM tnved_reference").fetchone()[0]
         conn.register("tnved_ref_df", df)
         conn.execute("BEGIN TRANSACTION")
+        refresh_country_chapters(conn, PROJECT_ROOT)
         conn.execute("DROP TABLE IF EXISTS tnved_reference")
         conn.execute(
             """
@@ -85,6 +87,9 @@ def main() -> None:
             "CREATE INDEX idx_tnved_ref_code_level ON tnved_reference(TNVED_CODE, TNVED_LEVEL)"
         )
         conn.execute(build_unified_trade_data_enriched_view_from_base_sql())
+        # Refresh only labels in the existing physical-volume materialization.
+        if conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name='fizob_enriched'").fetchone()[0]:
+            conn.execute("UPDATE fizob_enriched SET TNVED2_NAME=COALESCE((SELECT n.TNVED_NAME FROM tnved_country_chapters n WHERE n.STRANA=fizob_enriched.STRANA AND n.TNVED_CODE=fizob_enriched.tn_code),(SELECT r.TNVED_NAME FROM tnved_reference r WHERE r.TNVED_LEVEL=2 AND r.TNVED_CODE=fizob_enriched.tn_code)) WHERE tn_level=2")
         conn.execute("COMMIT")
         conn.unregister("tnved_ref_df")
         after = conn.execute("SELECT count(*) FROM tnved_reference").fetchone()[0]

@@ -56,7 +56,23 @@ def test_include_uses_enriched_view_and_requires_dim():
         _build(group_by=["strana"], include=["tnved2_name"])
     sql, _, meta = _build(group_by=["tnved2"], include=["tnved2_name"])
     assert meta["table"] == "unified_trade_data_enriched"
-    assert "TNVED2_NAME AS tnved2_name" in sql
+    assert "MIN(TNVED2_NAME)" in sql
+    assert "GROUP BY TNVED2 ORDER" in sql
+
+
+def test_country_chapter_names_do_not_split_global_total():
+    import duckdb
+    with duckdb.connect() as c:
+        c.execute("CREATE TABLE unified_trade_data_enriched AS SELECT * FROM (VALUES ('IN','Индийская группа',100),('CN','Национальные категории',200)) t(STRANA,TNVED2_NAME,STOIM)")
+        for column,typ,value in [('TNVED2','VARCHAR',"'98'"),('TNVED','VARCHAR',"'9800000000'"),('TNVED4','VARCHAR',"'9800'"),('TYPE','VARCHAR',"'fact'"),('PHYSICAL_QUALITY','VARCHAR',"''"),('EDIZM_ISO','VARCHAR',"'166'"),('NETTO_ESTIMATED','BOOLEAN','false'),('KOL_ESTIMATED','BOOLEAN','false'),('KOL','DOUBLE','1'),('NETTO','DOUBLE','1')]:
+            c.execute(f'ALTER TABLE unified_trade_data_enriched ADD COLUMN {column} {typ} DEFAULT {value}')
+        sql,params,_=_build(group_by=['tnved2'],metrics=['stoim'],include=['tnved2_name'])
+        rows=c.execute(sql,params).fetchall()
+        assert len(rows)==1 and rows[0][2]==300
+        assert 'национальных' in rows[0][1]
+        sql,params,_=_build(filters={'strana':['IN']},group_by=['tnved2'],metrics=['stoim'],include=['tnved2_name'])
+        rows=c.execute(sql,params).fetchall()
+        assert rows[0][1:3]==('Индийская группа',100)
 
 
 def test_raw_mode_selects_base_columns():

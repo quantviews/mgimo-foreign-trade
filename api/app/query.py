@@ -189,6 +189,11 @@ def build_trade_query(
             dim = _LABEL_REQUIRES_DIM[i]
             if dim not in group_by:
                 raise QueryError(f"include '{i}' requires '{dim}' in group_by")
+            if i == 'tnved2_name':
+                # National chapter labels must not split one aggregate into
+                # duplicate code rows when several countries are selected.
+                select_parts.append("CASE WHEN TNVED2='98' AND COUNT(DISTINCT TNVED2_NAME)>1 THEN 'Специальные товарные категории национальных номенклатур' ELSE MIN(TNVED2_NAME) END AS tnved2_name")
+                continue
             select_parts.append(f"{_LABELS[i]} AS {i}")
             group_parts.append(_LABELS[i])
         for m in metrics:

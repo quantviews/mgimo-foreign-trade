@@ -89,7 +89,7 @@ def _enriched_select_sql() -> str:
         SELECT
             t.*,
             c.STRANA_NAME AS COUNTRY_NAME,
-            t2.TNVED_NAME AS TNVED2_NAME,
+            COALESCE(n2.TNVED_NAME, t2.TNVED_NAME) AS TNVED2_NAME,
             t4.TNVED_NAME AS TNVED4_NAME,
             h.TNVED4_NAME_SHORT AS TNVED4_NAME_SHORT,
             h.TNVED4_NAME_FULL AS TNVED4_NAME_FULL,
@@ -125,6 +125,7 @@ def _enriched_select_sql() -> str:
             ) AS period_rank
         FROM unified_trade_data t
         LEFT JOIN country_reference c ON t.STRANA = c.STRANA
+        LEFT JOIN tnved_country_chapters n2 ON t.STRANA = n2.STRANA AND t.TNVED2 = n2.TNVED_CODE
         LEFT JOIN tnved_reference t2 ON t.TNVED2 = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
         LEFT JOIN tnved_reference t4 ON t.TNVED4 = t4.TNVED_CODE AND t4.TNVED_LEVEL = 4
         LEFT JOIN hs4_reference h ON t.TNVED4 = h.TNVED4
@@ -177,7 +178,7 @@ def build_unified_trade_data_enriched_view_from_base_sql() -> str:
         SELECT
             b.* EXCLUDE (period_rank),
             c.STRANA_NAME AS COUNTRY_NAME,
-            t2.TNVED_NAME AS TNVED2_NAME,
+            COALESCE(n2.TNVED_NAME, t2.TNVED_NAME) AS TNVED2_NAME,
             t4.TNVED_NAME AS TNVED4_NAME,
             h.TNVED4_NAME_SHORT AS TNVED4_NAME_SHORT,
             h.TNVED4_NAME_FULL AS TNVED4_NAME_FULL,
@@ -210,6 +211,7 @@ def build_unified_trade_data_enriched_view_from_base_sql() -> str:
             b.period_rank
         FROM unified_trade_data_enriched_base b
         LEFT JOIN country_reference c ON b.STRANA = c.STRANA
+        LEFT JOIN tnved_country_chapters n2 ON b.STRANA = n2.STRANA AND b.TNVED2 = n2.TNVED_CODE
         LEFT JOIN tnved_reference t2 ON b.TNVED2 = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
         LEFT JOIN tnved_reference t4 ON b.TNVED4 = t4.TNVED_CODE AND t4.TNVED_LEVEL = 4
         LEFT JOIN hs4_reference h ON b.TNVED4 = h.TNVED4
@@ -394,11 +396,12 @@ def build_fizob_enriched_table_sql() -> str:
             CASE WHEN f.tn_level = 2 THEN f.tn_code END AS TNVED2,
             CASE WHEN f.tn_level = 4 THEN f.tn_code END AS TNVED4,
             CASE WHEN f.tn_level = 6 THEN f.tn_code END AS TNVED6,
-            t2.TNVED_NAME AS TNVED2_NAME,
+            COALESCE(n2.TNVED_NAME, t2.TNVED_NAME) AS TNVED2_NAME,
             t4.TNVED_NAME AS TNVED4_NAME
         FROM fizob_index_v f
         LEFT JOIN country_reference c
             ON f.STRANA = c.STRANA
+        LEFT JOIN tnved_country_chapters n2 ON f.STRANA = n2.STRANA AND f.tn_level = 2 AND f.tn_code = n2.TNVED_CODE
         LEFT JOIN tnved_reference t2
             ON f.tn_level = 2 AND f.tn_code = t2.TNVED_CODE AND t2.TNVED_LEVEL = 2
         LEFT JOIN tnved_reference t4
@@ -448,6 +451,18 @@ def refresh_hs4_reference_db(output_db_path: Path, project_root: Path) -> int:
         conn.close()
 
 
+def refresh_country_chapters(conn, project_root: Path):
+    """Country-specific HS2 headings, never propagated to child codes."""
+    path = project_root / "metadata" / "translations" / "country_chapters.json"
+    entries = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    conn.execute("CREATE OR REPLACE TABLE tnved_country_chapters (STRANA VARCHAR, TNVED_CODE VARCHAR, TNVED_NAME VARCHAR, TNVED_NAME_EN VARCHAR, SOURCE_URL VARCHAR, PRIMARY KEY (STRANA, TNVED_CODE))")
+    for row in entries:
+        if len(row['strana']) != 2 or len(row['code']) != 2 or not row['code'].isdigit():
+            raise ValueError('Invalid country chapter')
+        conn.execute("INSERT INTO tnved_country_chapters VALUES (?, ?, ?, ?, ?)",
+                     [row['strana'], row['code'], row['name'], row['name_en'], row['source_url']])
+
+
 def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
     """
     Save reference tables (TNVED names, country names) as separate tables in DuckDB.
@@ -460,6 +475,7 @@ def save_reference_tables(conn: duckdb.DuckDBPyConnection, project_root: Path):
     logger.info("Creating reference tables...")
 
     # Save TNVED mappings
+    refresh_country_chapters(conn, project_root)
     tnved_mappings = load_tnved_mapping(project_root)
     if tnved_mappings:
         # Create unified TNVED reference table
@@ -826,6 +842,17 @@ def _apply_name_overrides(mappings: Dict[str, Dict[str, Dict[str, any]]], path: 
         if not name:
             continue
         code = str(code).strip()
+        exact_level = data.get('exact_level')
+        if exact_level is not None:
+            if exact_level not in (2, 4, 6, 8, 10) or len(code) != exact_level or not code.isdigit():
+                raise ValueError(f'Invalid exact-level name override: {code}')
+            entry = mappings[f'tnved{exact_level}'].get(code)
+            if entry is not None:
+                entry.update(name=name, source=NAME_SOURCE_MANUAL, translated=False)
+                if "original_name" in data:
+                    entry["name_en"] = data["original_name"]
+                applied += 1
+            continue
         replaced = (data.get('replaces') or '').strip().upper()
         for level in (10, 8, 6, 4, 2):
             entry = mappings[f'tnved{level}'].get(code[:level])
