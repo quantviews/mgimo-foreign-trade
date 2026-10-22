@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     # demo-plan key used for every tool call (per-user limits live in demo_access).
     api_base: str = "http://trade-api:8000"
     service_api_key: str = ""
-    mcp_url: str = "https://nts.mgimo.ru/mcp"
 
     # Postgres (same instance/schema as the API): users, demo_access, verifications.
     postgres_dsn: str = ""

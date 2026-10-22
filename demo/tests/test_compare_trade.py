@@ -3,16 +3,14 @@ import asyncio,json
 import httpx
 from demo.app import tools,exports
 
-def test_comparison_uses_mcp_and_preserves_answer():
+def test_comparison_calls_compare_api_directly_and_preserves_answer():
     seen=[]
-    answer='Индекс: 107,4; масса: 112\u00a0756,9. Факт за общие месяцы.'
+    answer='Индекс: 107,4; масса: 112 756,9. Факт за общие месяцы.'
     def handler(req):
-        if req.method=='DELETE':return httpx.Response(200)
+        assert req.url.path=='/v1/compare/trade'
         body=json.loads(req.content);seen.append(body)
-        if body['method']=='notifications/initialized':return httpx.Response(202)
-        if body['method']=='initialize':return httpx.Response(200,json={'result':{},'id':body['id']},headers={'mcp-session-id':'test'})
-        result={'content':[{'type':'text','text':json.dumps({'answer_ru':answer,'common_month_count':11,'physical_volume':{'available':True}})}]}
-        return httpx.Response(200,content=('event: message\r\ndata: '+json.dumps({'id':body['id'],'result':result},ensure_ascii=False)+'\r\n\r\n').encode(),headers={'content-type':'text/event-stream'})
+        return httpx.Response(200,json={'answer_ru':answer,'common_month_count':11,
+            'physical_volume':{'available':True}})
     async def go():
         state={'user_id':1};tok=exports.export_context.set(state)
         try:
@@ -21,9 +19,9 @@ def test_comparison_uses_mcp_and_preserves_answer():
             assert result['fizob_available'] and state['answer']==answer
         finally:exports.export_context.reset(tok)
     asyncio.run(go())
-    params=seen[-1]['params']
-    assert params['name']=='compare_trade' and params['arguments']['include_fizob'] is True
-    assert 'user_id' not in params['arguments']
+    body=seen[-1]
+    assert body['include_fizob'] is True
+    assert 'user_id' not in body
 
 def test_mcp_failure_does_not_invent_comparison():
     async def go():
@@ -43,11 +41,8 @@ def test_comparison_export_uses_resolved_window():
         state={'user_id':42,'wants_export':True};tok=exports.export_context.set(state)
         obj={'answer_ru':'Сравнение','requested_period':{'from':'2025-09','to':'2026-08'},'common_month_count':11}
         def handler(req):
-            if req.method=='DELETE': return httpx.Response(200)
-            body=json.loads(req.content)
-            if body['method']=='initialize': return httpx.Response(200,json={'result':{},'id':body['id']})
-            if body['method']=='notifications/initialized': return httpx.Response(202)
-            return httpx.Response(200,json={'result':{'content':[{'type':'text','text':json.dumps(obj)}]},'id':body['id']})
+            assert req.url.path=='/v1/compare/trade'
+            return httpx.Response(200,json=obj)
         async def save(client,args,headers):
             assert args['period_from']=='2025-09' and args['period_to']=='2026-08'
             assert args['end_mode']=='fixed' and args['napr']==['ex']
@@ -90,11 +85,9 @@ def test_explanation_export_uses_calculator_periods_and_manifest(available):
                        parent={'current_usd':120,'previous_usd':100,'growth_pct':20},
                        children=[],unmatched_codes=[],residual_change_usd=0)
         def handler(req):
-            if req.method=='DELETE': return httpx.Response(200)
-            body=json.loads(req.content)
-            if body['method']=='initialize': return httpx.Response(200,json={'result':{},'id':body['id']})
-            if body['method']=='notifications/initialized': return httpx.Response(202)
-            return httpx.Response(200,json={'result':{'content':[{'type':'text','text':json.dumps(obj)}]},'id':body['id']})
+            # explain_trade calls the shared decomposition module directly
+            # (patched below); it must never touch the network.
+            raise AssertionError('explain_trade must not make HTTP calls')
         async def save(client,args,headers):
             assert args['period_from']==obj['current_period'][0]
             assert args['period_to']==obj['current_period'][1]

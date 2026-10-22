@@ -6,6 +6,7 @@ demo-plan key. Results are trimmed so a chat turn cannot balloon the token budge
 
 from __future__ import annotations
 
+import asyncio
 import json
 import copy
 import logging
@@ -600,51 +601,28 @@ def summarize_tool_result(name: str, args: dict, result: str) -> str:
 
 
 async def _compare_trade(client, args, tool_name="compare_trade"):
-    """Use the deployed MCP implementation; do not maintain a second calculator."""
-    headers = {"Authorization": f"Bearer {settings.service_api_key}",
-               "Accept": "application/json, text/event-stream"}
-    seq = 0
-    async def rpc(method, params):
-        nonlocal seq
-        seq += 1
-        r = await client.post(settings.mcp_url, headers=headers,
-            json={"jsonrpc":"2.0","id":seq,"method":method,"params":params},timeout=90)
-        r.raise_for_status()
-        if r.headers.get("mcp-session-id"):
-            headers["mcp-session-id"] = r.headers["mcp-session-id"]
-        if "text/event-stream" in r.headers.get("content-type", ""):
-            # Split SSE lines on LF, not unicode whitespace inside numeric strings.
-            events = r.content.decode("utf-8").replace("\r\n", "\n").split("\n\n")
-            values = [json.loads("\n".join(line[5:].lstrip() for line in event.split("\n") if line.startswith("data:")))
-                      for event in events if any(line.startswith("data:") for line in event.split("\n"))]
-            obj = next(v for v in values if v.get("id") == seq)
-        else:
-            obj = r.json()
-        if obj.get("error"): raise ValueError("MCP RPC failed")
-        return obj["result"]
+    """Compute via the same backend the MCP server uses - compare_trade posts to
+    the comparison API endpoint, explain_trade calls the shared decomposition
+    module directly - instead of round-tripping through our own production MCP
+    server. Demo and MCP are peers of the same API/library, not client and
+    server of each other."""
+    headers = {"Authorization": f"Bearer {settings.service_api_key}", "Accept": "application/json"}
     ctx = export_context.get()
     try:
-        await rpc("initialize", {"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"mgimo-demo","version":"1"}})
-        r = await client.post(settings.mcp_url,headers=headers,
-            json={"jsonrpc":"2.0","method":"notifications/initialized"},timeout=30)
-        r.raise_for_status()
-        allowed={"strana","napr","months","period_from","period_to","tnved2","tnved4","tnved6","tnved"}
-        body={k:v for k,v in args.items() if k in allowed}
-        body["include_fizob"]=True
-        if tool_name == "explain_trade": body={k:v for k,v in args.items() if k in {"strana","napr","code","months","period_to","source"}}
         if tool_name == 'explain_trade':
-            import asyncio
+            body = {k: v for k, v in args.items() if k in {"strana","napr","code","months","period_to","source"}}
             from trade_tools_shared.decomposition import explain
             def local_explanation():
                 with httpx.Client() as read_client:
-                    return explain(read_client, settings.api_base,
-                        {'Authorization':f'Bearer {settings.service_api_key}'}, **body)
-            local_obj = await asyncio.to_thread(local_explanation)
-            result = {'content':[{'type':'text','text':json.dumps(local_obj)}]}
+                    return explain(read_client, settings.api_base, headers, **body)
+            obj = await asyncio.to_thread(local_explanation)
         else:
-            result = await rpc("tools/call", {"name":tool_name,"arguments":body})
-        if result.get("isError"): raise ValueError("Comparison tool failed")
-        obj=json.loads(next(item["text"] for item in result["content"] if item.get("type")=="text"))
+            allowed={"strana","napr","months","period_from","period_to","tnved2","tnved4","tnved6","tnved"}
+            body={k:v for k,v in args.items() if k in allowed}
+            body["include_fizob"]=True
+            response = await client.post(f"{settings.api_base}/v1/compare/trade", json=body, headers=headers, timeout=90)
+            response.raise_for_status()
+            obj = response.json()
         if tool_name == "explain_trade":
             if obj.get("error"): raise ValueError("Decomposition unavailable")
             from .answer_style import explanation_facts
@@ -709,15 +687,11 @@ async def _compare_trade(client, args, tool_name="compare_trade"):
         return json.dumps({"comparison_ready":True,"common_month_count":obj.get("common_month_count"),
                            "fizob_available":obj.get("physical_volume",{}).get("available",False)})
     except Exception as exc:
-        logging.getLogger(__name__).exception("MCP comparison failed (tool=%s)", tool_name)
+        logging.getLogger(__name__).exception("Comparison/decomposition failed (tool=%s)", tool_name)
         if ctx is not None:
             ctx["error_code"]="comparison_failed"
             ctx["answer"]="Произошла техническая ошибка при подготовке сравнения. Повторите запрос позже."
         return json.dumps({"error":"Comparison unavailable","code":type(exc).__name__})
-    finally:
-        if headers.get("mcp-session-id"):
-            try: await client.delete(settings.mcp_url, headers=headers, timeout=10)
-            except httpx.HTTPError: pass
 
 TOOLS.append({"type":"function","function":{
     "name":"resolve_trade_route", "description":"Resolve origin and destination before queries expressed from a foreign importer perspective. Russia=RU; unknown=UNKNOWN; worldwide=WORLD. Returns Russia-perspective strana/napr or scope clarification.",
