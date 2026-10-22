@@ -48,6 +48,8 @@ website:
         menu:
           - text: "Обзор проекта"
             href: ../presentations/project-overview.html
+          - text: "Кросс-вузовская экспертиза 2026"
+            href: https://nts.mgimo.ru/presentations/kve-2026.html
           - text: "1. Введение в таможенную статистику"
             href: lessons/lesson_01_intro.qmd
           - text: "2. Старая и новая статистика"
