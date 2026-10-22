@@ -69,21 +69,35 @@ def explain(client, base, headers, strana, napr, code, months=12, period_to=None
     lookup={month_id(r['period']):r['stoim'] for r in parent}
     periods=list(range(start,end+1));prior=[m-12 for m in periods]
     missing=[month_label(m) for m in periods+prior if m not in lookup or lookup[m] is None]
-    if missing:
+    matched=[m for m in periods if lookup.get(m) is not None and lookup.get(m-12) is not None]
+    if not matched:
         return dict(available=False,missing_months=missing,current_period=[month_label(start),month_label(end)],previous_period=[month_label(start-12),month_label(end-12)],period_max=latest,export_instruction='User requested Excel: call export_trade now for current_period with end_mode=fixed; no further permission needed. For evidence use trade with these exact dates and group_by=period,type,source,edizm,edizm_iso. Missing months listed here are specific gaps, not absence of all comparable observations. Existing zero rows remain observed records.',reason='No complete matched parent periods; missing months are not zero.')
     dimension='tnved'+str(len(code)+2)
-    current=get('/v1/trade',dict(common,group_by=dimension,include=dimension+'_name',period_from=month_label(start),period_to=month_label(end)))['data']
-    previous=get('/v1/trade',dict(common,group_by=dimension,include=dimension+'_name',period_from=month_label(start-12),period_to=month_label(end-12)))['data']
-    result=decompose(current,previous,sum(lookup[m] for m in periods),sum(lookup[m] for m in prior),dimension)
+    def children(first,last,selected):
+        rows=get('/v1/trade',dict(common,group_by=dimension+(',period' if missing else ''),include=dimension+'_name',period_from=month_label(first),period_to=month_label(last)))['data']
+        if not missing:return rows
+        grouped={}
+        for row in rows:
+            if month_id(row['period']) not in selected:continue
+            if row.get('stoim') is None:raise ValueError('Unknown child value in matched months')
+            key=row[dimension]
+            grouped.setdefault(key,{dimension:key,dimension+'_name':row.get(dimension+'_name'),'stoim':0.0})['stoim']+=row['stoim']
+        return list(grouped.values())
+    current=children(start,end,set(matched))
+    previous=children(start-12,end-12,{m-12 for m in matched})
+    result=decompose(current,previous,sum(lookup[m] for m in matched),sum(lookup[m-12] for m in matched),dimension)
     labels={r[dimension]:r.get(dimension+'_name') for r in previous+current}
     for child in result['children']:
         child['name']=labels.get(child['code'])
         child['name_source']='database '+dimension+'_name'
         child['name_status']='available' if child['name'] else 'missing'
     result.update(available=True,country=strana.upper(),direction=napr,parent_code=code,source=source,
+        partial_period=bool(missing),missing_months=missing,
+        matched_months=[month_label(m) for m in matched],
+        matched_previous_months=[month_label(m-12) for m in matched],
         period_max=latest,current_period=[month_label(start),month_label(end)],
         previous_period=[month_label(start-12),month_label(end-12)],months=months,
-        method='Value only, USD. Shares use their own period parent; contribution pp = child absolute change / previous parent * 100. Read the computed values, do not sum or recalculate rounded figures. Missing child is unknown, not zero. Residual is unallocated change, not a measured child contribution. No quantity or fizob decomposition is inferred. Use Russian database names with exact codes in parentheses; concise faithful labels are allowed. If name is missing, retain code and state that name is unavailable.',
+        method='Value only, USD. When partial_period is true, all sums, shares and contributions use only matched_months and matched_previous_months, never the complete requested windows. Explicit zero rows are retained; missing rows stay unknown. Shares use their own period parent; contribution pp = child absolute change / previous parent * 100. Read the computed values, do not sum or recalculate rounded figures. Missing child is unknown, not zero. Residual is unallocated change, not a measured child contribution. No quantity or fizob decomposition is inferred. Use Russian database names with exact codes in parentheses; concise faithful labels are allowed. If name is missing, retain code and state that name is unavailable.',
         source_note='Источник: национальная таможенная статистика.' if source=='national' else 'Источник: UN Comtrade. Признаки оценки физических показателей указаны в данных источника.')
     return result
 

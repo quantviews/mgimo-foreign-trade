@@ -17,7 +17,8 @@ from .config import settings
 from .prompts import SYSTEM_PROMPT
 from .tools import TOOLS, execute_tool, summarize_tool_result
 from .exports import export_context
-from .answer_style import export_only, export_facts, request_mode, fallback_draft
+from .answer_style import export_only, export_facts, request_mode, fallback_draft, presentation_facts, missing_requested_evidence
+from .answer_style import physical_request
 
 logger = logging.getLogger(__name__)
 CHAT_NUMERIC_INSTRUCTION = INSTRUCTION.split('Это формат черновика;')[0] + 'Каждую ссылку ставь отдельным абзацем, это целое предложение или таблица, не число для вставки в предложение. Верни черновик со ссылками {{fact:ID}}. Проверку и замену ссылок выполнит сервис автоматически. Не вызывай verify_trade_answer: в чате такого инструмента нет.'
@@ -48,11 +49,18 @@ async def _completion(client: httpx.AsyncClient, messages: list[dict],
         "max_tokens": settings.analytical_output_tokens if (export_context.get() or {}).get("analytical") else settings.max_output_tokens,
         "temperature": 0.2,
     }
+    if settings.deepseek_thinking:
+        payload['thinking'] = {'type': settings.deepseek_thinking}
     if use_tools:
         payload["tools"] = [t for t in TOOLS if t["function"]["name"] != "export_trade" or (export_context.get() or {}).get("wants_export", True)]
         payload["tool_choice"] = "auto"
     if (export_context.get() or {}).get("numeric_facts"):
-        payload["messages"] = [*messages, {"role": "system", "content": FACT_SELECTION_INSTRUCTION}]
+        ctx=export_context.get()
+        facts=ctx['numeric_facts']
+        if not any(v['kind'].startswith(('overview','analysis_','ranking_')) for v in facts.values()):
+            facts=presentation_facts(facts,ctx.get('question',''))
+        payload["messages"] = [*messages, {"role": "system", "content": FACT_SELECTION_INSTRUCTION+
+            '\nДля финального ответа доступны только эти факты: '+json.dumps(facts,ensure_ascii=False)}]
     for attempt in range(2):
         started = time.monotonic()
         try:
@@ -90,7 +98,7 @@ async def run_agent(user_messages: list[dict], user_id: int | None = None) -> As
     ctx['question'] = question
     ctx['request_mode'] = request_mode(question)
     ctx['explicit_direction'] = explicit_direction(question)
-    ctx['wants_ranking'] = bool(re.search(r'\bтоп\b|\btop\b|крупнейш|лидирующ', question))
+    ctx['wants_ranking'] = bool(re.search(r'\bтоп\b|\btop\b|крупнейш|лидирующ|структур.*товарн|товарн.*структур', question))
     ctx['wants_export'] = bool(re.search(r'excel|xlsx|выгруз|скача|файл', question))
     ctx['export_only'] = export_only(question)
     if "африк" in question:
@@ -98,6 +106,25 @@ async def run_agent(user_messages: list[dict], user_id: int | None = None) -> As
     token = export_context.set(ctx)
     try:
         async for event in _run_agent(user_messages):
+            if (event.get('type') == 'answer' and ctx.get('numeric_facts')
+                    and not ctx.get('export_only') and not ctx.get('verified_comparison_answer')):
+                from .analytical_writer import write_answer, compact_fallback
+                all_facts = ctx['numeric_facts']
+                specialized = any(v['kind'].startswith(('overview', 'analysis_', 'ranking_'))
+                                  for v in all_facts.values())
+                if any(v['kind'].startswith('analysis_') for v in all_facts.values()):
+                    evidence = {k:v for k,v in all_facts.items() if v['kind'].startswith('analysis_')}
+                elif any(v['kind'].startswith('ranking_') for v in all_facts.values()):
+                    evidence = {k:v for k,v in all_facts.items() if v['kind'].startswith('ranking_')}
+                else:
+                    evidence = all_facts if specialized else presentation_facts(all_facts, question)
+                prose = await write_answer(question, evidence)
+                if prose:
+                    event = _answer({'content': prose})
+                elif not specialized and ctx.get('request_mode') == 'overview':
+                    compact = compact_fallback(evidence, question)
+                    if compact:
+                        event = _answer({'content': compact})
             yield event
     finally:
         export_context.reset(token)
@@ -107,6 +134,8 @@ def _answer(msg):
     if msg.get("_finish_reason") == "length":
         return {"type": "error", "code": "answer_too_long", "text": "Ответ модели превысил допустимую длину и не показан целиком. Запросите XLSX-выгрузку или сузьте вопрос."}
     text = msg.get("content") or ""
+    if re.search(r'других стран|всех стран',export_context.get().get('question','')):
+        text += '\n\nОхват ответа - торговля с Россией. Потоки между другими странами в этой базе не представлены.'
     link = export_context.get().get('download_link')
     if link:
         text = re.sub(r'\[[^\]]*\]\([^)]*exports/[^)]*\)', '', text)
@@ -121,6 +150,10 @@ async def _checked_answer(client, messages, msg):
         return _answer({'content': comparison})
     facts = export_context.get().get('numeric_facts', {})
     ctx = export_context.get()
+    ranking={k:v for k,v in facts.items() if v['kind'].startswith('ranking_')}
+    if ranking:
+        checked=verify_answer('\n\n'.join('{{fact:'+k+'}}' for k in ranking),ranking)
+        if checked['valid']:return _answer({'content':checked['answer']})
     if ctx.get('export_only') and ctx.get('download_link'):
         brief = dict(ctx.get('export_file_facts', {}))
         monthly=ctx.get('export_monthly_facts',{}) if re.search(r'по месяц|помесяч',ctx.get('question','')) else {}
@@ -147,6 +180,14 @@ async def _checked_answer(client, messages, msg):
         facts = overview_facts
     if not facts:
         return _answer(msg)
+    facts=presentation_facts(facts,ctx.get('question',''))
+    # Mean mass must answer the user's explicit question, including a verified
+    # reason why the arithmetic is blocked. Do not substitute a price/tonne.
+    if re.search(r'средн\w*\s+масс|масс\w*\s+(?:одного|одной)',ctx.get('question','')):
+        order=('mean_mass','total','coverage')
+        draft='\n\n'.join('{{fact:'+k+'}}' for kind in order for k,v in facts.items() if v['kind']==kind)
+        checked=verify_answer(draft,facts)
+        if checked['valid'] and draft:return _answer({'content':checked['answer']})
     checked = verify_answer(msg.get('content') or '', facts)
     if msg.get('_finish_reason')=='length':
         checked={'valid':False,'errors':['Incomplete model generation']}
@@ -182,9 +223,15 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
     """
     messages = [{"role": "system", "content": SYSTEM_PROMPT + "\n" + CHAT_NUMERIC_INSTRUCTION}, *user_messages]
     messages[0]['content'] += (
+        ' Для запроса в натуральных единицах, тоннах, килограммах или штуках используй trade '
+        'с metrics=stoim,netto,kol и group_by=strana,period,type,source,edizm,edizm_iso. '
+        'Это правило действует и без указанной страны. product_overview со стоимостью '
+        'не отвечает на такой вопрос. Отсутствие запрошенного поля в результате не доказывает '
+        'отсутствие данных в базе. Покажи доступную массу и количество с их единицами; '
+        'не заменяй неизвестные значения нулями. '
         '\nСначала суть ответа, затем подтверждающие факты. Режим текущего запроса: '
         +export_context.get().get('request_mode','overview')+
-        '. Для общего запроса о торговле товаром (в том числе названным свободно, например водород) после search_products используй product_overview с найденным кодом и запрошенными датами. Не собирай обзор отдельными trade по странам и месяцам: их покрытие может различаться. Без просьбы о помесячной динамике не добавляй месячные таблицы, экстремумы и темпы м/м. Для индекса выбирай index_change, index_yoy, monthly_table и index_methodology. '
+        '. Для общего обзора товара без указанной страны после search_products используй product_overview. Если страна указана, обязательно сохрани ее в strana; для количества, массы и вопроса «сколько автомобилей» используй trade с этой страной, group_by=period,edizm и metrics=stoim,netto,kol. Не заменяй страновой запрос обзором всех партнеров. Для структуры по товарным группам используй trade с group_by=tnved2, metrics=stoim, include=tnved2_name, limit=10 и полным запрошенным периодом: сервис рассчитает доли по всем группам. Уточняй неоднозначное белье без выбора категории по умолчанию. При вопросе о средней массе выбирай mean_mass, не unit_value. Для помесячной динамики выбирай monthly_dynamics вместо нескольких таблиц уровней, темпов и экстремумов. Без просьбы о помесячной динамике не добавляй месячные таблицы, экстремумы и темпы м/м. Для индекса выбирай index_change, index_yoy, monthly_table и index_methodology. '
         'index_caveat показывай при наличии. Не выводи внутренние idx и технические экстремумы. '
         'Не подменяй динамику физобъема денежным разбором explain_trade. '
         'Уточнение наследует страну, товар и период из истории, если пользователь их не изменил. '
@@ -209,6 +256,8 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
             r.raise_for_status()
             latest = r.json()["data"]["period_max"]
             export_context.get()["period_max"] = latest
+            from .request_scope import bind_scope
+            export_context.get()['request_scope'] = bind_scope(user_messages, latest)
             messages[0]["content"] += (f"\nПоследний доступный период базы: {latest}. "
                 "Если пользователь не указал конечный период, используй эту дату, включая текущий доступный год. "
                 "Товар назван свободным текстом и код еще не подтвержден в диалоге: сначала search_products по описанию товара. Выбирай только реальный код из справочника, подходящий всем признакам. 2 знака - широкая глава, 4 - товарная группа, 6 - явно указанный подтип. Мужское трикотажное белье: проверь 6107 по названию. Просто белье неоднозначно: уточни постельное/нательное, пол и трикотажное/нетрикотажное исполнение; до уточнения не вызывай trade/product_overview/export_trade. Не расширяй конкретный товар до родителя молча и не складывай родителя с детьми. Ответ пользователя на уточнение соедини с исходным запросом из истории, затем повтори поиск при необходимости. Для общего обзора одного товарного кода первым вызови product_overview: название, основные партнеры, доли и динамика на сопоставимом составе. Используй его факты overview, suppliers, overview_dynamics, overview_drivers, overview_coverage, overview_partial и overview_source. Если есть overview_partial, обязательно покажи отдельные темпы стран за их общие месяцы; не смешивай их с общим темпом. Не дублируй заголовок, он уже в overview. Не добавляй своих утверждений об источниках. Покажи динамику и главный драйвер перед таблицами, не добавляй технические экстремумы и массу без запроса пользователя. Для сравнения стран первым вызови compare_trade. Excel создавай только по явной просьбе в последней реплике. На уточнение о динамике используй trade, покажи до 12 месяцев и изменения. История задает срез, но не повторное согласие на создание файла.")
@@ -226,6 +275,11 @@ async def _run_agent(user_messages: list[dict]) -> AsyncIterator[dict]:
             tool_calls = msg.get("tool_calls")
             if not tool_calls:
                 ctx = export_context.get()
+                missing=missing_requested_evidence(ctx.get('numeric_facts',{}),ctx.get('question',''))
+                if missing and not ctx.get('semantic_refinement'):
+                    ctx['semantic_refinement']=True
+                    messages.append({'role':'user','content':missing})
+                    continue
                 # Even clarification questions must not invent classification codes.
                 if not ctx.get('numeric_facts'):
                     codes = set(re.findall(r'\b(?:\d{4}|\d{6}|\d{8}|\d{10})\b', msg.get('content') or ''))

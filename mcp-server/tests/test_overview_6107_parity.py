@@ -48,6 +48,10 @@ def test_6107_mcp_and_chat_share_verified_compact_answer(monkeypatch):
     monkeypatch.setenv('MCP_TRANSPORT', 'stdio')
     import server
     from app import deepseek
+    from app import analytical_writer
+    async def no_editor(*args):
+        return None  # This test covers calculated evidence, not live model prose.
+    monkeypatch.setattr(analytical_writer, 'write_answer', no_editor)
     names = {'CN': 'Китай', 'TR': 'Турция', 'UZ': 'Узбекистан',
              'IT': 'Италия', 'AM': 'Армения'}
     calls = []

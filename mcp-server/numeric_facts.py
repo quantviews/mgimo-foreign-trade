@@ -7,12 +7,16 @@ import re
 INSTRUCTION = '''Числовые выводы оформляй ссылками {{fact:ID}} из numeric_facts. Каждая ссылка заменяется готовым проверенным предложением или таблицей. Не переписывай цифры, даты, проценты, экстремумы и направления изменения своими словами. Вне ссылок допустимы краткие вводные фразы и заголовки без чисел и утверждений о росте/снижении. Выбирай итоги, динамику и экстремумы по вопросу, затем таблицу при запросе помесячного ряда. Показывай отдельно nowcast и пропуски. Для недоступного расчета используй соответствующий факт-оговорку. Не выводи все факты подряд. Не добавляй собственные ссылки скачивания: они передаются сервисом отдельно. Это формат черновика; перед публикацией вызови verify_trade_answer, используй его answer без изменений.'''
 DIMS = ('strana','napr','type','source','edizm','edizm_iso','tnved','tnved2','tnved4','tnved6','tn_level','tn_code')
 COUNTRIES={'CN':'Китай','IN':'Индия','TR':'Турция','SK':'Словакия','HU':'Венгрия','US':'США',
-           'KZ':'Казахстан','UZ':'Узбекистан','AM':'Армения','AZ':'Азербайджан'}
+           'KZ':'Казахстан','UZ':'Узбекистан','AM':'Армения','AZ':'Азербайджан',
+           'GE':'Грузия','DE':'Германия'}
 
 def short_product_name(code, name):
     """Editorial labels for known codes; preserve official names in source exports."""
     labels={'6107':'Мужское трикотажное белье, одежда для сна и домашние халаты',
             '8703':'Легковые автомобили',
+            '870310':'Снегоходные транспортные средства, гольф-кары и аналогичные машины',
+            '870321':'Бензиновые автомобили, двигатель до 1 л включительно',
+            '870390':'Прочие легковые автомобили',
             '870322':'Бензиновые автомобили, двигатель свыше 1 до 1,5 л',
             '870323':'Бензиновые автомобили, двигатель свыше 1,5 до 3 л',
             '870360':'Подзаряжаемые гибриды с бензиновым двигателем',
@@ -112,7 +116,7 @@ def numerical_facts(rows, filters=None, baseline=()):
             value=filters.get(dim)
             if isinstance(value,list):value=value[0] if len(value)==1 else None
             if dim not in r and value is not None:r[dim]=value
-    for r in allrows:groups[tuple(str(r.get(k,'')) for k in DIMS)].append(r)
+    for r in allrows:groups[tuple(str(r.get(k) or '') for k in DIMS)].append(r)
     for key,items in groups.items():
         info=dict(zip(DIMS,key));country=COUNTRIES.get(info['strana'],info['strana'] or 'Выбранные партнеры')
         status='оценка проекта (nowcast)' if info['type']=='pred' or info['source']=='nowcast' else 'статистика источника' if info['type']=='fact' else 'тип данных не указан'
@@ -159,11 +163,25 @@ def numerical_facts(rows, filters=None, baseline=()):
         if any('idx' in r for r in items):metrics=[('idx','Уровень индекса физобъема','ед. индекса',Decimal(1))]
         lookup=defaultdict(list)
         for r in base+items:
-            if tuple(str(r.get(k,'')) for k in DIMS)==key and mid(r.get('period')) is not None:
+            if tuple(str(r.get(k) or '') for k in DIMS)==key and mid(r.get('period')) is not None:
                 lookup[mid(r['period'])].append(r)
         if is_index:
             index_facts(selected,lookup,label,start,end,add)
             continue
+        if 'kol' in {m[0] for m in metrics} or any('kol' in r for r in items):
+            flags=any(r.get('quality_flags_raw') or r.get('quality_flags') for r in selected.values())
+            paired=[(number(r.get('netto')),number(r.get('kol'))) for r in selected.values()]
+            pieces=info['edizm_iso']=='796' or info['edizm'].strip().upper() in ('ШТУКА','ШТ','ШТ.','ШТУК')
+            usable=paired and all(a is not None and a>=0 and b is not None and b>=0 for a,b in paired)
+            if info['type']!='pred' and info['source']!='nowcast':
+                if flags:
+                    add('mean_mass',label+': средняя масса единицы не рассчитана: в исходных записях есть предупреждения о физических показателях. Флаг относится к исходным записям, а не обязательно к отношению агрегированных сумм. Это ограничение массы/количества, не вывод об ошибке стоимости.')
+                elif pieces and usable and sum(b for a,b in paired)>0:
+                    ratio=sum(a for a,b in paired)/sum(b for a,b in paired)
+                    add('mean_mass',label+f': средняя масса по имеющимся парным значениям - **{fmt(ratio)} кг/шт.** (сумма массы / сумма количества). Это арифметическое отношение, не независимая проверка качества источника.'+
+                        (' Полный период не представлен; результат относится только к имеющимся месяцам.' if missing else ''))
+                else:
+                    add('mean_mass',label+': средняя масса единицы не рассчитана: нужны масса и положительное количество в штуках для одного и того же набора наблюдений. Неизвестные значения не заменяются нулями.')
         for metric,title,unit,scale in metrics:
             values={m:number(r.get(metric)) for m,r in selected.items()}
             valid={m:v for m,v in values.items() if v is not None}
@@ -221,6 +239,21 @@ def numerical_facts(rows, filters=None, baseline=()):
             r=selected.get(m,{})
             table.append('| '+month(m)+' | '+' | '.join(fmt(number(r.get(k))/scale,3 if k=='idx' else 2) if number(r.get(k)) is not None else 'нет данных' for k,_,_,scale in metrics)+' |')
         add('monthly_table',label+'\n\n'+'\n'.join(table))
+        if info['type']=='fact':
+            # One compact table answers a monthly follow-up, including quantity YoY.
+            dynmetrics=[m for m in metrics if m[0] in ('stoim','kol')]
+            header='| Месяц | '+' | '.join(t+', '+u+' | Г/г, %' for _,t,u,_ in dynmetrics)+' |'
+            dyn=[header,'|---|'+'---:|---:|'*len(dynmetrics)]
+            for m in range(start,end+1):
+                cols=[]
+                for k,_,_,scale in dynmetrics:
+                    current=number(selected.get(m,{}).get(k))
+                    prev=lookup.get(m-12,[])
+                    old=number(prev[0].get(k)) if len(prev)==1 else None
+                    cols.extend([fmt(current/scale) if current is not None else 'нет данных',
+                        fmt((current/old-1)*100,1) if current is not None and old is not None and old>0 else 'нет данных'])
+                dyn.append('| '+month(m)+' | '+' | '.join(cols)+' |')
+            if dynmetrics:add('monthly_dynamics',label+'\n\n'+'\n'.join(dyn))
     return facts
 
 TOKEN=re.compile(r'\{\{fact:([a-f0-9]{16})\}\}')
@@ -246,10 +279,42 @@ def compact_text(text, facts):
     for fact in facts.values():
         match=re.match(r'(.+?; окно \d{4}-\d{2} - \d{4}-\d{2})',fact['text'])
         if match:labels.add(match[1])
+    # A country/source label is essential when several slices share one answer.
+    if len(labels)>1:return text
     for label in sorted(labels,key=len,reverse=True):
         first=text.find(label)
         if first>=0:
             head=text[:first+len(label)]
-            rest=text[first+len(label):].replace(label+'. ','').replace(label+': ','').replace(label+'\n\n','')
+            rest=text[first+len(label):].replace(label+'. ','').replace(label+': ','')
             text=head+rest
     return text
+
+def ranking_facts(result, filters):
+    """Render server-computed full-denominator ranking as verifiable evidence."""
+    ranking=result.get('ranking',{})
+    if not ranking.get('complete_universe'):return {}
+    facts={}
+    def add(kind,text):
+        facts[hashlib.sha256(text.encode()).hexdigest()[:16]]={'kind':kind,'text':text}
+    countries=filters.get('strana') or []
+    if isinstance(countries,str):countries=[countries]
+    label=', '.join(COUNTRIES.get(c,c) for c in countries) or 'Выбранные страны'
+    direction=filters.get('napr');direction=direction[0] if isinstance(direction,list) else direction
+    route='Импорт России' if direction in ('im','ИМ') else 'Экспорт России'
+    period=ranking.get('requested_period') or [filters.get('period_from',''),filters.get('period_to','')]
+    total=number(ranking['total_stoim']);scale,unit=display_scale('stoim',[total])
+    add('ranking_headline',f'**{route}, {label}: {str(period[0])[:7]} - {str(period[1])[:7]}.**\n\nСтоимость по доступным фактическим записям: **{fmt(total/scale)} {unit}**. Доли рассчитаны по всем товарным группам выбранного среза.')
+    data=result.get('data',[])
+    if data:
+        leader=data[0]
+        name=leader.get('tnved2_name') or 'название отсутствует'
+        if name.isupper():name=name.capitalize()
+        add('ranking_leader',f"Главная товарная группа: {name} ({leader['tnved2']}), **{fmt(leader['share_pct'],1)}%** доступной стоимости.")
+    table=[f'| Код | Товарная группа | {unit} | Доля, % |','|---|---|---:|---:|']
+    for row in data:
+        name=str(row.get('tnved2_name') or 'Название отсутствует').replace('|',' ').replace('\n',' ')
+        table.append(f"| {row['tnved2']} | {name.capitalize() if name.isupper() else name} | {fmt(number(row['stoim'])/scale)} | {fmt(row['share_pct'],1)} |")
+    add('ranking_table','\n'.join(table))
+    add('ranking_coverage',f"Остальные группы: {fmt(number(ranking['other_groups_stoim'])/scale)} {unit.rstrip('.')}. Месяцы с записями: {', '.join(ranking.get('fact_months',[]))}. Это итог доступных записей выбранного периода."+
+        (' Месяцы без записей: '+', '.join(ranking['missing_months'])+'. Пропуски не заменены нулями.' if ranking.get('missing_months') else ''))
+    return facts

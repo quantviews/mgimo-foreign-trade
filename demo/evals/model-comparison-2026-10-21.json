@@ -1,0 +1,166 @@
+{
+  "current": {
+    "cases": 22,
+    "turns": 24,
+    "median_seconds": 8.05,
+    "mean_seconds": 10.183333333333334,
+    "max_seconds": 26.8,
+    "response_models": [
+      "deepseek-flash"
+    ],
+    "timings": {
+      "ambiguous": [
+        7.9
+      ],
+      "cars-cn-analysis": [
+        8.9
+      ],
+      "cars-cn-current": [
+        8.1
+      ],
+      "cars-cn-excel": [
+        5.2,
+        7.0
+      ],
+      "cars-in-analysis": [
+        7.4
+      ],
+      "cars-in-cn-excel": [
+        4.0,
+        14.9
+      ],
+      "cars-tr-mass": [
+        9.1
+      ],
+      "chips-us": [
+        8.5
+      ],
+      "fizob-CN": [
+        8.0
+      ],
+      "fizob-IN": [
+        6.1
+      ],
+      "fizob-TR": [
+        7.4
+      ],
+      "hydrogen-natural-2025": [
+        16.7
+      ],
+      "hydrogen": [
+        24.0
+      ],
+      "india-structure": [
+        20.6
+      ],
+      "oil-cn-excel": [
+        5.2
+      ],
+      "oil-cn": [
+        6.8
+      ],
+      "oil-compare-excel": [
+        5.0
+      ],
+      "oil-in-world": [
+        7.3
+      ],
+      "oil-partners": [
+        26.8
+      ],
+      "overview-code": [
+        8.6
+      ],
+      "overview-name": [
+        10.8
+      ],
+      "turkey-top": [
+        10.1
+      ]
+    },
+    "prompt_tokens": 1098083,
+    "completion_tokens": 23155
+  },
+  "pro": {
+    "cases": 22,
+    "turns": 24,
+    "median_seconds": 14.75,
+    "mean_seconds": 22.09583333333333,
+    "max_seconds": 86.3,
+    "response_models": [
+      "deepseek-v4-pro"
+    ],
+    "timings": {
+      "ambiguous": [
+        10.0
+      ],
+      "cars-cn-analysis": [
+        27.2
+      ],
+      "cars-cn-current": [
+        10.7
+      ],
+      "cars-cn-excel": [
+        4.8,
+        17.0
+      ],
+      "cars-in-analysis": [
+        12.6
+      ],
+      "cars-in-cn-excel": [
+        3.5,
+        40.2
+      ],
+      "cars-tr-mass": [
+        11.9
+      ],
+      "chips-us": [
+        15.7
+      ],
+      "fizob-CN": [
+        13.8
+      ],
+      "fizob-IN": [
+        12.0
+      ],
+      "fizob-TR": [
+        11.2
+      ],
+      "hydrogen-natural-2025": [
+        86.3
+      ],
+      "hydrogen": [
+        36.8
+      ],
+      "india-structure": [
+        31.0
+      ],
+      "oil-cn-excel": [
+        10.2
+      ],
+      "oil-cn": [
+        23.7
+      ],
+      "oil-compare-excel": [
+        8.3
+      ],
+      "oil-in-world": [
+        7.7
+      ],
+      "oil-partners": [
+        59.0
+      ],
+      "overview-code": [
+        29.0
+      ],
+      "overview-name": [
+        22.0
+      ],
+      "turkey-top": [
+        25.7
+      ]
+    },
+    "prompt_tokens": 1078508,
+    "completion_tokens": 30870
+  }
+}

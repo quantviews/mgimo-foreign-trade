@@ -104,7 +104,7 @@ def test_explanation_export_uses_calculator_periods_and_manifest(available):
             state['answer']='export ready'
             return json.dumps({'export_ready':True,'file_manifest':{'periods':obj['previous_period']}})
         try:
-            with patch.object(tools,'_export_trade',side_effect=save):
+            with patch.object(tools,'_export_trade',side_effect=save), patch('demo.app.decomposition.explain',return_value=obj):
                 async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
                     result=json.loads(await tools._compare_trade(client,{'strana':'CN','napr':'im','code':'8703'},tool_name='explain_trade'))
             assert result['export_ready']

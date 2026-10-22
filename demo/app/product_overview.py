@@ -138,7 +138,7 @@ def overview(rows, code, name, countries, start, end, direction):
     return {'numeric_facts':facts, 'period_from':month(lo), 'period_to':month(hi), 'total_usd':str(total), 'comparable_countries':sorted(p[0] for p in pairs), 'partial_country_comparisons':partial}
 
 
-async def fetch_overview(client, base, headers, code, napr, period_from=None, period_to=None):
+async def fetch_overview(client, base, headers, code, napr, period_from=None, period_to=None, strana=None):
     if not code.isdigit() or len(code) not in (2,4,6):
         raise ValueError('Нужен код ТН ВЭД длиной 2, 4 или 6 знаков.')
     async def get(path, params=None):
@@ -152,6 +152,8 @@ async def fetch_overview(client, base, headers, code, napr, period_from=None, pe
     name=next((r['name'] for r in refs if str(r['code'])==code),'Название отсутствует в справочнике')
     countries={r['strana']:r['country_name'] for r in await get('/v1/reference/countries')}
     params={'tnved'+str(len(code)):code,'napr':napr,'type':'fact','group_by':'strana,period,type,source','metrics':'stoim','period_from':month(lo-12)+'-01','period_to':end,'limit':10000}
+    if strana:
+        params['strana']=strana
     result=await get('/v1/trade',params)
     if result.get('meta',{}).get('has_more'):
         return {'result_status':'needs_refinement','message':'Срез превышает лимит строк обзора; требуется более узкий период.'}

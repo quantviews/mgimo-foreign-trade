@@ -9,21 +9,41 @@ from __future__ import annotations
 import json
 import copy
 import logging
+import re
+import hashlib
 
 import httpx
 
 from .query_contract import resolve_trade_route
 from .config import settings
-from .numeric_facts import numerical_facts, index_baseline_filters
+from .numeric_facts import numerical_facts, index_baseline_filters, ranking_facts
 from .analysis import monthly_evidence
 from .trade_evidence import trade_evidence
 from .exports import export_context, save_export, MAX_EXPORT_ROWS
+from .answer_style import physical_request
+
+
+def physical_evidence_args(args, question):
+    """Keep monthly coverage and separate units for a physical-quantity request."""
+    if not physical_request(question):
+        return args
+    args = dict(args)
+    metrics = (args.get('metrics') or 'stoim').split(',')
+    dims = (args.get('group_by') or 'strana,period').split(',')
+    for metric in ('netto', 'kol'):
+        if metric not in metrics:
+            metrics.append(metric)
+    for dim in ('strana', 'period', 'type', 'source', 'edizm', 'edizm_iso'):
+        if dim not in dims:
+            dims.append(dim)
+    args.update(metrics=','.join(metrics), group_by=','.join(dims))
+    return args
 
 _STR_ARRAY = {"type": "array", "items": {"type": "string"}}
 
 TOOLS = [
     {"type":"function","function":{"name":"search_products","description":"FIRST step for a product named in free text. Search official Russian reference at levels 2/4/6. Results are candidates, not confirmed classification. Choose 2 for a broad chapter, 4 for a product group, 6 for an explicit subtype. Ask clarification if material, use, gender or knit/woven makes competing codes possible. Do not query trade or create a file for an ambiguous choice.","parameters":{"type":"object","properties":{"query":{"type":"string"},"level":{"type":"integer","enum":[2,4,6]}},"required":["query"]}}},
-    {"type":"function","function":{"name":"product_overview","description":"Use FIRST for a general overview of one product code, especially requests like information on imports of code 6107. Returns official Russian name, leading partner-country shares and YoY on identical country/source/month coverage, plus separate matched-month changes for countries with incomplete periods. Include overview_partial when present; never combine country-specific rates with the full-window rate. All narrative numbers are verified facts. No need for additional trade calls for this overview.","parameters":{"type":"object","properties":{"code":{"type":"string"},"napr":{"type":"string","enum":["im","ex"]},"period_from":{"type":"string"},"period_to":{"type":"string"}},"required":["code","napr"]}}},
+    {"type":"function","function":{"name":"product_overview","description":"Use FIRST for a general overview of one product code, especially requests like information on imports of code 6107. Returns official Russian name, leading partner-country shares and YoY on identical country/source/month coverage, plus separate matched-month changes for countries with incomplete periods. Include overview_partial when present; never combine country-specific rates with the full-window rate. All narrative numbers are verified facts. Preserve requested strana country filter. For a country-specific quantity/mass question use trade instead; this overview covers value only.","parameters":{"type":"object","properties":{"code":{"type":"string"},"strana":_STR_ARRAY,"napr":{"type":"string","enum":["im","ex"]},"period_from":{"type":"string"},"period_to":{"type":"string"}},"required":["code","napr"]}}},
     {
         "type": "function",
         "function": {
@@ -46,6 +66,8 @@ TOOLS = [
                 "properties": {
                     "name": {"type": "string", "enum": ["countries", "tnved"]},
                     "level": {"type": "integer", "description": "for tnved: 2,4,6,8,10"},
+                    "strana": {"type":"string","description":"ISO2 country for national chapter names, e.g. IN for India chapter 98"},
+                    "code": {"type":"string","description":"Exact code whose reference name is requested, e.g. 98; use with level and strana"},
                     "limit": {"type": "integer"},
                 },
                 "required": ["name"],
@@ -133,7 +155,7 @@ TOOLS.append({"type": "function", "function": {
 
 TOOLS.append({"type":"function","function":{
     "name":"explain_trade",
-    "description":"FIRST for explaining year-on-year drivers/structure for one country and HS2/HS4. Calculates parent totals, child shares, changes and contributions pp; no exploratory calls needed. China cars: strana='CN',napr='im',code='8703',months=12. Monetary analysis, not quantity/fizob decomposition; no file.",
+    "description":"FIRST for explaining year-on-year drivers/structure for one country and HS2/HS4. Calculates parent totals, child shares, changes and contributions pp; no exploratory calls needed. China cars: strana='CN',napr='im',code='8703',months=12. Monetary analysis, not quantity/fizob decomposition. When Excel is requested the service creates it automatically; do not call export_trade again.",
     "parameters":{"type":"object","additionalProperties":False,"properties":{
         "strana":{"type":"string"},"napr":{"type":"string","enum":["im","ex"]},
         "code":{"type":"string"},"months":{"type":"integer","minimum":1,"maximum":12},
@@ -193,8 +215,19 @@ def _trim(text: str) -> str:
 
 
 async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
+    from .request_scope import enforce_scope, confirm_search
+    ctx = export_context.get() or {}
+    try:
+        corrected = enforce_scope(name, args, ctx.get('request_scope', {}))
+        args.clear()
+        args.update(corrected)
+    except ValueError as exc:
+        return json.dumps({'error':str(exc), 'instruction':'Correct the query before claiming missing data.'})
     if name == "resolve_trade_route":
-        return json.dumps(resolve_trade_route(**args), ensure_ascii=False)
+        resolved=resolve_trade_route(**args)
+        if resolved.get('supported') and resolved.get('strana') and export_context.get() is not None:
+            export_context.get()['route_partner']=resolved['strana']
+        return json.dumps(resolved, ensure_ascii=False)
     headers = {"Authorization": f"Bearer {settings.service_api_key}",
                "Accept": "application/json"}
     if name == "search_products":
@@ -211,10 +244,14 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
         ctx = export_context.get()
         if ctx is not None:
             ctx['product_search_codes'] = [r['code'] for r in candidates]
+            confirm_search(ctx.setdefault('request_scope', {}), args['query'], candidates)
         return json.dumps({'query':args['query'],'candidates':candidates,
             'selection_rule':'Lexical matches are candidates, not confirmation. Choose a real code and level matching all requested attributes; explain the scope. If ambiguous, ask one concise clarification and do not request trade data yet. Never sum a parent and its children.'},ensure_ascii=False)
     if name == "product_overview":
         from .product_overview import fetch_overview
+        args=dict(args)
+        ctx=export_context.get() or {}
+        if not args.get('strana') and ctx.get('route_partner'): args['strana']=[ctx['route_partner']]
         result = await fetch_overview(client, settings.api_base, headers, **args)
         return json.dumps(result, ensure_ascii=False)
     if name == "explain_trade":
@@ -233,6 +270,8 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
             params.append(("level", str(args["level"])))
         if args.get("limit") is not None:
             params.append(("limit", str(args["limit"])))
+        if sub=='tnved' and args.get('strana'):
+            params.append(('strana',args['strana'].upper()))
     elif name == "export_trade":
         if export_context.get() is not None and export_context.get().get('wants_export') is False:
             return await execute_tool(client, 'trade', args)
@@ -240,11 +279,27 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
     elif name in ("trade", "fizob"):
         args = dict(args)
         ctx = export_context.get() or {}
+        if name=='fizob' and not args.get('strana') and re.search(r'(ключев|основн)\w*\s+стран',ctx.get('question',''),re.I):
+            # Resolve "key countries" from complete value aggregates, rather
+            # than requesting an arbitrary truncated world index page.
+            ranking={k:v for k,v in args.items() if k in ('napr','period_from','period_to')}
+            levels=args.get('tn_level') or []
+            codes=args.get('tn_code') or []
+            if len(levels)==1 and levels[0] in ('2','4','6') and codes:
+                ranking['tnved'+levels[0]]=codes
+            ranking.update(group_by='strana',metrics='stoim',type=['fact'],limit=1000,order_by='-stoim')
+            response=await client.get(settings.api_base+'/v1/trade',headers=headers,params=_build_params(ranking),timeout=60)
+            response.raise_for_status()
+            ranked=response.json()
+            if not ranked.get('meta',{}).get('has_more'):
+                args['strana']=[r['strana'] for r in ranked.get('data',[])[:3]]
+                args['limit']=1000
+        if name == 'trade':
+            args = physical_evidence_args(args, ctx.get('question', ''))
         if (name == 'trade' and ctx.get('wants_ranking')
-                and args.get('group_by', '').strip() == 'tnved2'
+                and set(args.get('group_by', '').split(',')) <= {'tnved2','type','source'} and 'tnved2' in args.get('group_by','')
                 and args.get('metrics', 'stoim') == 'stoim'
-                and args.get('order_by') == '-stoim'
-                and args.get('type', ['fact']) == ['fact']):
+                                and args.get('type', ['fact']) == ['fact']):
             return await _rank_chapters(client, args, headers)
         if name == 'trade' and args.get('tnved4') == ['8703']:
             metrics = (args.get('metrics') or 'stoim,netto').split(',')
@@ -278,6 +333,15 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
     if r.status_code >= 400:
         return json.dumps({"error": f"HTTP {r.status_code}", "detail": r.text[:400]})
     obj = r.json()
+    if name=='reference' and args.get('name')=='tnved' and args.get('code'):
+        rows=[row for row in obj if row.get('code')==args['code']]
+        facts={}
+        for row in rows:
+            text=f"Код {row['code']}"+(f", национальная номенклатура {args['strana'].upper()}" if args.get('strana') else '')+f": {row['name']}."
+            facts[hashlib.sha256(text.encode()).hexdigest()[:16]]={'kind':'reference','text':text}
+        return json.dumps({'data':rows,'numeric_facts':facts},ensure_ascii=False)
+    if name=='reference':
+        return json.dumps({'data':obj},ensure_ascii=False)
     if name == 'fizob' and not obj.get('meta',{}).get('has_more'):
         baseline=[]
         previous=index_baseline_filters(args,obj.get('data',[]))
@@ -339,13 +403,15 @@ async def _rank_chapters(client, args, headers):
         coverage = coverage_response.json()
         if coverage.get('meta', {}).get('has_more'): raise ValueError('Incomplete monthly coverage')
         months = sorted({str(r['period'])[:7] for r in coverage.get('data', [])})
-        return json.dumps({'meta': {**obj.get('meta', {}), 'has_more': False}, 'data': top,
+        result={'meta': {**obj.get('meta', {}), 'has_more': False}, 'data': top,
             'ranking': {'complete_universe':True,'total_groups':len(rows),'shown_groups':len(top),
                 'total_stoim':str(total),'other_groups_stoim':str(total-top_total),
                 'top_share_pct':float(top_total/total*100) if total>0 else None,
                 'filters':params,'fact_months':months,
                 'sources':sorted({r['source'] for r in coverage.get('data',[])})},
-            'instruction':'Это запрошенный топ из полного списка групп, а не усечение API. Итог и доли рассчитаны по всем группам. Покажи лидеров с названиями и кодами, стоимостью и долями; назови фактические месяцы из fact_months. Это данные за доступную часть года, не за весь календарный год. Рейтинг по факту. Отсутствие месяца не равно нулю. Общая сумма относится к выбранным фильтрам. В этом денежном рейтинге физические показатели не анализируются: не выводи примечания о массе, количестве или единицах из quality_flags. Не утверждай ни ошибочность, ни гарантированную достоверность стоимости на основании физических флагов. Сами флаги сохранены для запросов о соответствующих показателях.'},ensure_ascii=False)
+            'instruction':'Это запрошенный топ из полного списка групп, а не усечение API. Итог и доли рассчитаны по всем группам. Покажи лидеров с названиями и кодами, стоимостью и долями; назови фактические месяцы из fact_months. Это данные за доступную часть года, не за весь календарный год. Рейтинг по факту. Отсутствие месяца не равно нулю. Общая сумма относится к выбранным фильтрам. В этом денежном рейтинге физические показатели не анализируются: не выводи примечания о массе, количестве или единицах из quality_flags. Не утверждай ни ошибочность, ни гарантированную достоверность стоимости на основании физических флагов. Сами флаги сохранены для запросов о соответствующих показателях.'}
+        result['numeric_facts']=ranking_facts(result,params)
+        return json.dumps(result,ensure_ascii=False)
     except (ValueError, KeyError, httpx.HTTPError) as exc:
         ctx = export_context.get()
         if ctx is not None:
@@ -566,7 +632,17 @@ async def _compare_trade(client, args, tool_name="compare_trade"):
         body={k:v for k,v in args.items() if k in allowed}
         body["include_fizob"]=True
         if tool_name == "explain_trade": body={k:v for k,v in args.items() if k in {"strana","napr","code","months","period_to","source"}}
-        result = await rpc("tools/call", {"name":tool_name,"arguments":body})
+        if tool_name == 'explain_trade':
+            import asyncio
+            from .decomposition import explain
+            def local_explanation():
+                with httpx.Client() as read_client:
+                    return explain(read_client, settings.api_base,
+                        {'Authorization':f'Bearer {settings.service_api_key}'}, **body)
+            local_obj = await asyncio.to_thread(local_explanation)
+            result = {'content':[{'type':'text','text':json.dumps(local_obj)}]}
+        else:
+            result = await rpc("tools/call", {"name":tool_name,"arguments":body})
         if result.get("isError"): raise ValueError("Comparison tool failed")
         obj=json.loads(next(item["text"] for item in result["content"] if item.get("type")=="text"))
         if tool_name == "explain_trade":

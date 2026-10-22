@@ -362,13 +362,13 @@ async def search_products(query: str, level: int | None = None, ctx: Context | N
 
 @mcp.tool()
 async def product_overview(code: str, napr: str, period_from: str | None = None,
-                           period_to: str | None = None, ctx: Context | None = None) -> str:
-    """FIRST tool for an overview of a product code (2/4/6 digits): official name, top partners, shares of available value, YoY and partner contributions using identical country/source/month coverage. For a natural-language product call search_products first. Defaults to January through latest database month, up to 12 months. Returns numeric_facts and evidence_id: call verify_trade_answer before publishing. Use overview, dynamics and drivers first, then partner countries and concise coverage/source notes. Include overview_partial when available: it compares each excluded country only on its own identical available months, separately from the full-window rate. Do not combine these rates. Call countries partner countries, not supplier companies. Values concern available partners, not all Russian trade."""
+                           period_to: str | None = None, strana: list[str] | None = None, ctx: Context | None = None) -> str:
+    """Preserve the requested strana filter. For quantities/mass use trade. FIRST tool for an overview of a product code (2/4/6 digits): official name, top partners, shares of available value, YoY and partner contributions using identical country/source/month coverage. For a natural-language product call search_products first. Defaults to January through latest database month, up to 12 months. Returns numeric_facts and evidence_id: call verify_trade_answer before publishing. Use overview, dynamics and drivers first, then partner countries and concise coverage/source notes. Include overview_partial when available: it compares each excluded country only on its own identical available months, separately from the full-window rate. Do not combine these rates. Call countries partner countries, not supplier companies. Values concern available partners, not all Russian trade."""
     from product_overview import fetch_overview
     if napr not in ('im','ex','ИМ','ЭК'):
         return json.dumps({'error':'napr must be im/ex (relative to Russia)'})
     async with httpx.AsyncClient() as client:
-        result=await fetch_overview(client,API_BASE,{'Authorization':'Bearer '+_resolve_token(ctx)},code,napr,period_from,period_to)
+        result=await fetch_overview(client,API_BASE,{'Authorization':'Bearer '+_resolve_token(ctx)},code,napr,period_from,period_to,strana)
     return json.dumps(_attach_numeric(result,ctx,{}),ensure_ascii=False)
 
 
@@ -408,7 +408,9 @@ def rank_trade(strana: str, napr: str, top_n: int = 10,
         with httpx.Client() as client:
             result = rank_chapters(client, API_BASE, {"Authorization": f"Bearer {_resolve_token(ctx)}"},
                                    strana, napr, top_n, period_from, period_to)
-        return json.dumps(result, ensure_ascii=False)
+        from numeric_facts import ranking_facts
+        result['numeric_facts']=ranking_facts(result,{'strana':strana,'napr':napr})
+        return json.dumps(_attach_numeric(result,ctx,{}), ensure_ascii=False)
     except Exception as exc:
         return json.dumps({"error":"Ranking unavailable", "code":type(exc).__name__})
 
@@ -552,11 +554,13 @@ def meta(ctx: Context | None = None) -> str:
 
 @mcp.tool()
 def reference(name: str = "countries", level: int | None = None, limit: int | None = None,
+              strana: str | None = None,
               ctx: Context | None = None) -> str:
     """Lookup dictionaries for resolving codes and names.
 
     name="countries": ISO-2 country codes and their Russian names.
     name="tnved": HS/ТН ВЭД commodity-code names; pass level 2, 4, 6, 8 or 10.
+    For national chapter headings also pass strana, e.g. IN for Indian chapter 98.
     Use this to turn a product/country name into a code before filtering, or a
     code into a human name. Returns JSON.
     """
@@ -565,6 +569,8 @@ def reference(name: str = "countries", level: int | None = None, limit: int | No
         params.append(("level", str(level)))
     if limit is not None:
         params.append(("limit", str(limit)))
+    if name == 'tnved' and strana:
+        params.append(('strana', strana.upper()))
     return _get(f"/v1/reference/{name}", params, ctx)
 
 

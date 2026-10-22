@@ -54,3 +54,20 @@ def test_canonical_russian_names_are_taken_from_database():
  child=r['children'][0]
  assert child['name']=='КАНОНИЧЕСКОЕ РУССКОЕ НАЗВАНИЕ' and child['name_status']=='available'
  assert 'name_en' not in child and child['contribution_pp']==50
+
+
+def test_partial_period_matches_same_months_and_preserves_observed_zero():
+ def handler(req):
+  q=req.url.params
+  if req.url.path.endswith('meta'):return httpx.Response(200,json={'data':{'period_max':'2026-08-01'}})
+  if q.get('group_by')=='period':
+   data=[dict(period='2025-06-01',stoim=10),dict(period='2025-07-01',stoim=20),dict(period='2025-08-01',stoim=999),dict(period='2026-06-01',stoim=0),dict(period='2026-07-01',stoim=40)]
+  else:
+   data=[dict(period='2026-06-01',tnved6='870360',stoim=0),dict(period='2026-07-01',tnved6='870360',stoim=40)] if q['period_from'].startswith('2026') else [dict(period='2025-06-01',tnved6='870360',stoim=10),dict(period='2025-07-01',tnved6='870360',stoim=20),dict(period='2025-08-01',tnved6='870360',stoim=999)]
+  return httpx.Response(200,json={'data':data,'meta':{'has_more':False}})
+ with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+  r=explain(client,'http://api',{},'IN','im','8703',months=3)
+ assert r['available'] and r['partial_period']
+ assert r['matched_months']==['2026-06-01','2026-07-01']
+ assert r['parent']['current_usd']==40 and r['parent']['previous_usd']==30
+ assert r['children'][0]['contribution_pp']==pytest.approx(100/3)

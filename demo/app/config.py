@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
+    deepseek_thinking: str = ""  # Empty preserves provider/model default.
 
     # The read-only data API, reached inside the docker network, and the single
     # demo-plan key used for every tool call (per-user limits live in demo_access).
