@@ -1,5 +1,5 @@
 from app.readable_series import compact_series
-from app.numeric_facts import verify_answer
+from trade_tools_shared.numeric_facts import verify_answer
 from app.answer_style import fallback_draft
 
 

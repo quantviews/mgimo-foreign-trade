@@ -11,8 +11,8 @@ from typing import AsyncIterator
 
 import httpx
 
-from .query_contract import safe_result, explicit_direction
-from .numeric_facts import verify_answer, compact_text, INSTRUCTION
+from trade_tools_shared.query_contract import safe_result, explicit_direction
+from trade_tools_shared.numeric_facts import verify_answer, compact_text, INSTRUCTION
 from .config import settings
 from .prompts import SYSTEM_PROMPT
 from .tools import TOOLS, execute_tool, summarize_tool_result

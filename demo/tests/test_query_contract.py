@@ -1,6 +1,5 @@
 import json
-from pathlib import Path
-from demo.app.query_contract import resolve_trade_route, safe_result
+from trade_tools_shared.query_contract import resolve_trade_route, safe_result
 from demo.app import tools, deepseek
 from demo.app.exports import export_context
 
@@ -26,11 +25,8 @@ def test_monthly_countries_fit():
     raw=json.dumps({'data':[{'strana':c,'period':f'2025-{m:02}-01','stoim':100,'netto':20,'type':'fact','source':'national'} for c in ('CN','IN','TR') for m in range(1,13)]})
     assert '_truncated' not in json.loads(tools._trim(raw))
 
-def test_shared_contract():
-    assert Path('demo/app/query_contract.py').read_bytes()==Path('mcp-server/query_contract.py').read_bytes()
-
 def test_explicit_direction_guard():
-    from demo.app.query_contract import explicit_direction
+    from trade_tools_shared.query_contract import explicit_direction
     assert explicit_direction('Динамика импорта нефти из России по партнерам')=='ex'
     assert explicit_direction('Импорт нефти Китаем из России')=='ex'
     assert explicit_direction('Импорт автомобилей из Китая в Россию')=='im'

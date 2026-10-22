@@ -5,7 +5,7 @@ import uuid
 import base64
 
 from . import db
-from .numeric_facts import numerical_facts
+from trade_tools_shared.numeric_facts import numerical_facts
 from .analysis import monthly_evidence
 
 # Per-request state, isolated between concurrent users.
@@ -44,7 +44,7 @@ def export_file_facts(rows, filters):
 def export_monthly_facts(rows):
     """Present the exact workbook rows, preserving units, nulls and source status."""
     from .answer_style import fact
-    from .numeric_facts import fmt, display_scale, number
+    from trade_tools_shared.numeric_facts import fmt, display_scale, number
     groups={}
     for row in rows:
         if not row.get('period'):

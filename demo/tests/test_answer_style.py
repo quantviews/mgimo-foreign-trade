@@ -1,6 +1,6 @@
 import asyncio
 from app.answer_style import export_only, export_facts, explanation_facts
-from app.numeric_facts import numerical_facts, verify_answer
+from trade_tools_shared.numeric_facts import numerical_facts, verify_answer
 from app.exports import export_context
 from app.deepseek import _checked_answer
 
@@ -146,7 +146,7 @@ def test_analysis_contains_driver_codes_shares_contributions_and_same_periods():
     assert all(v['kind']=='analysis_caveat' for v in unavailable.values())
 
 def test_small_flow_units_and_float_tails():
-    from app.numeric_facts import numerical_facts, fmt
+    from trade_tools_shared.numeric_facts import numerical_facts, fmt
     facts=numerical_facts([dict(strana='KZ',napr='ex',tnved6='280410',source='comtrade',type='fact',period='2026-01',stoim=14936.47,netto=85.24000000000001)],{'period_from':'2026-01','period_to':'2026-02'})
     text='\n'.join(v['text'] for v in facts.values())
     assert '14,94 тыс. долл.' in text and '85,24 кг' in text
@@ -156,7 +156,7 @@ def test_small_flow_units_and_float_tails():
 
 
 def test_short_names_keep_distinguishing_characteristics():
-    from app.numeric_facts import short_product_name
+    from trade_tools_shared.numeric_facts import short_product_name
     assert '1,5 до 3' in short_product_name('870323','official')
     assert 'свыше 1 до 1,5' in short_product_name('870322','official')
     assert 'Подзаряжаемые' in short_product_name('870360','official')

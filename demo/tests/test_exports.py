@@ -71,7 +71,7 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
 
     def test_partial_rows_withheld_before_model(self):
-        from demo.app.query_contract import safe_result
+        from trade_tools_shared.query_contract import safe_result
         result = safe_result({'data': [{'stoim': 123}], 'meta': {'has_more': True}})
         self.assertNotIn('data', result)
         self.assertEqual(result['result_status'], 'needs_refinement')

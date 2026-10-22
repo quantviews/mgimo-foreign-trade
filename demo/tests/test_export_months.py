@@ -1,5 +1,5 @@
 from app.exports import export_file_facts, export_monthly_facts
-from app.numeric_facts import verify_answer
+from trade_tools_shared.numeric_facts import verify_answer
 
 
 def checked(rows,filters):

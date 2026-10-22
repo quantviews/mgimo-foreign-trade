@@ -1,15 +1,9 @@
 import asyncio
 import json
-from pathlib import Path
 import httpx
 
 from app.tools import execute_tool, TOOLS
-from app.product_search import search_candidates
-
-
-def test_search_matches_mcp():
-    root=Path(__file__).resolve().parents[1]
-    assert (root/'app/product_search.py').read_text(encoding='utf-8') == (root.parent/'mcp-server/product_search.py').read_text(encoding='utf-8')
+from trade_tools_shared.product_search import search_candidates
 
 
 def test_search_tool_uses_reference_and_preserves_alternatives():

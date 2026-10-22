@@ -1,0 +1,41 @@
+# Keeps the Docker build context (now the repo root for demo/ and mcp-server/
+# images, so they can COPY shared/trade_tools_shared) from dragging in the ETL
+# pipeline's data, caches and VCS history - none of that belongs in a service
+# image.
+
+.git/
+.github/
+
+# ETL inputs/outputs and database files (large, and rebuilt locally per AGENTS.md).
+data_raw/
+data_processed/
+data_interim_csv/
+data_analytics/
+data_comparison/
+db/
+db_snapshots/
+hs_codes_json/
+
+# Site/report build outputs and source material unrelated to the services.
+_site/
+site/
+presentations/
+lessons/
+reports/
+fig/
+org/
+other/
+pricing/
+superset/
+superset_cabinet/
+old_notebooks/
+trade_pip/
+
+# Local scratch / caches.
+tmp/
+.pytest_tmp/
+**/__pycache__/
+**/*.pyc
+.venv/
+venv/
+node_modules/

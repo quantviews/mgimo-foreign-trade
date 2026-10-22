@@ -4,11 +4,15 @@
 # it at /mcp over TLS. Per-user auth: clients send their API key as a Bearer
 # header, which the server forwards to the API (no token stored here).
 #
-# Deploy:  docker compose up -d --build
+# Deploy:  docker compose up -d --build  (still run from this directory; the
+# wider build context below only reaches shared/trade_tools_shared, trimmed by
+# the repo-root .dockerignore)
 
 services:
   trade-mcp:
-    build: .
+    build:
+      context: ..
+      dockerfile: mcp-server/Dockerfile
     image: mgimo-trade-mcp
     container_name: trade-mcp
     restart: unless-stopped

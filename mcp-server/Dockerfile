@@ -2,10 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+# Build context is the repo root (see docker-compose.yml) so this can also
+# pull in shared/trade_tools_shared, used by both this server and demo/.
+COPY mcp-server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY server.py oauth.py decomposition.py trade_evidence.py coverage_evidence.py query_contract.py numeric_facts.py product_overview.py product_search.py ./
+COPY mcp-server/server.py mcp-server/oauth.py mcp-server/coverage_evidence.py ./
+COPY shared/trade_tools_shared ./trade_tools_shared
 
 # Remote transport. No MGIMO_API_TOKEN here on purpose: each request must carry
 # the client's own key in Authorization: Bearer <key> (forwarded to the API).

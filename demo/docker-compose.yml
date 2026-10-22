@@ -1,10 +1,14 @@
-# Deploy:  docker compose up -d --build
+# Deploy:  docker compose up -d --build  (still run from this directory; the
+# wider build context below only reaches shared/trade_tools_shared, trimmed by
+# the repo-root .dockerignore)
 # Joins Superset's network to reach the data API (trade-api) and Postgres by name.
 # Secrets come from demo/.env (see .env.example).
 
 services:
   trade-demo:
-    build: .
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
     image: mgimo-trade-demo
     container_name: trade-demo
     restart: unless-stopped

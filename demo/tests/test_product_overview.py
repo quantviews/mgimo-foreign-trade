@@ -1,5 +1,5 @@
-from app.product_overview import overview, money
-from app.numeric_facts import verify_answer
+from trade_tools_shared.product_overview import overview, money
+from trade_tools_shared.numeric_facts import verify_answer
 from decimal import Decimal
 
 

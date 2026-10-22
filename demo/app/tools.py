@@ -14,11 +14,11 @@ import hashlib
 
 import httpx
 
-from .query_contract import resolve_trade_route
+from trade_tools_shared.query_contract import resolve_trade_route
 from .config import settings
-from .numeric_facts import numerical_facts, index_baseline_filters, ranking_facts
+from trade_tools_shared.numeric_facts import numerical_facts, index_baseline_filters, ranking_facts
 from .analysis import monthly_evidence
-from .trade_evidence import trade_evidence
+from trade_tools_shared.trade_evidence import trade_evidence
 from .exports import export_context, save_export, MAX_EXPORT_ROWS
 from .answer_style import physical_request
 
@@ -231,7 +231,7 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
     headers = {"Authorization": f"Bearer {settings.service_api_key}",
                "Accept": "application/json"}
     if name == "search_products":
-        from .product_search import search_candidates
+        from trade_tools_shared.product_search import search_candidates
         level = args.get('level')
         if level is not None and level not in (2,4,6):
             return json.dumps({'error':'level must be 2, 4 or 6'})
@@ -248,7 +248,7 @@ async def execute_tool(client: httpx.AsyncClient, name: str, args: dict) -> str:
         return json.dumps({'query':args['query'],'candidates':candidates,
             'selection_rule':'Lexical matches are candidates, not confirmation. Choose a real code and level matching all requested attributes; explain the scope. If ambiguous, ask one concise clarification and do not request trade data yet. Never sum a parent and its children.'},ensure_ascii=False)
     if name == "product_overview":
-        from .product_overview import fetch_overview
+        from trade_tools_shared.product_overview import fetch_overview
         args=dict(args)
         ctx=export_context.get() or {}
         if not args.get('strana') and ctx.get('route_partner'): args['strana']=[ctx['route_partner']]
@@ -634,7 +634,7 @@ async def _compare_trade(client, args, tool_name="compare_trade"):
         if tool_name == "explain_trade": body={k:v for k,v in args.items() if k in {"strana","napr","code","months","period_to","source"}}
         if tool_name == 'explain_trade':
             import asyncio
-            from .decomposition import explain
+            from trade_tools_shared.decomposition import explain
             def local_explanation():
                 with httpx.Client() as read_client:
                     return explain(read_client, settings.api_base,

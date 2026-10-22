@@ -1,4 +1,4 @@
-from demo.app.numeric_facts import numerical_facts,verify_answer
+from trade_tools_shared.numeric_facts import numerical_facts,verify_answer
 
 def row(p,v,kg=100,type='fact',**kw):
     return dict(strana='CN',napr='ex',type=type,source='national' if type=='fact' else 'nowcast',period=p,stoim=v,netto=kg,**kw)
@@ -74,10 +74,6 @@ def test_price_not_blocked_by_quantity_unit_flag():
     assert '| 2026-01 | 500,00 |' in t
     assert '| 2026-02 | нет данных |' in t
 
-def test_shared_numeric_source():
-    from pathlib import Path
-    assert Path('demo/app/numeric_facts.py').read_bytes()==Path('mcp-server/numeric_facts.py').read_bytes()
-
 def test_chat_repair_and_fallback_never_publish_wrong_total():
     import asyncio
     from unittest.mock import patch,AsyncMock
@@ -101,7 +97,7 @@ def test_annual_aggregate_has_no_invented_months():
     assert not any(v['kind']=='yoy' for v in f.values())
 
 def test_small_nonzero_is_never_rendered_zero():
-    from demo.app.numeric_facts import fmt
+    from trade_tools_shared.numeric_facts import fmt
     assert fmt('0.000115')=='0,000115'
     assert fmt('-0.000115')=='-0,000115'
     assert fmt(0)=='0,00'

@@ -26,15 +26,23 @@ returned to the model or logged.
 from __future__ import annotations
 
 import os
+import sys
 import json
 import base64
 from uuid import UUID
 from pathlib import Path
 
+# trade_tools_shared ships as a sibling of this file in the Docker image
+# (COPY shared/trade_tools_shared); outside Docker it lives in ../shared at
+# the repo root, so add that for local/dev runs and tests.
+_SHARED_DIR = Path(__file__).resolve().parent.parent / "shared"
+if (_SHARED_DIR / "trade_tools_shared").is_dir() and str(_SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(_SHARED_DIR))
+
 import httpx
 from mcp.server.fastmcp import Context, FastMCP
 
-from numeric_facts import numerical_facts, verify_answer, index_baseline_filters, INSTRUCTION as NUMERIC_INSTRUCTION
+from trade_tools_shared.numeric_facts import numerical_facts, verify_answer, index_baseline_filters, INSTRUCTION as NUMERIC_INSTRUCTION
 import hashlib
 import time
 import threading
@@ -137,7 +145,9 @@ For analytical questions about changes, drivers, structure or "why", start with 
 
 INSTRUCTIONS += "\nFor year-on-year drivers of ONE country/product, call explain_trade FIRST (CN, im, 8703). Use its calculated shares/contribution_pp and retain unmatched_codes/residual; do not reconstruct arithmetic from monthly rows. For country comparisons compare_trade remains first.\n"
 
-INSTRUCTIONS += '\nUse names from the database in human-facing tables and prose, followed by codes in parentheses. explain_trade includes the canonical Russian name from the database, name_source and name_status. Use the Russian database label as the semantic reference; concise labels with exact codes are allowed. Never infer subcategory names from the parent. Show only 3-5 leading contributors plus the largest negative contributors and a brief unallocated-residual note.\n'
+INSTRUCTIONS += """
+Use names from the database in human-facing tables and prose, followed by codes in parentheses. explain_trade includes the canonical Russian name from the database, name_source and name_status. Use the Russian database label as the semantic reference; concise labels with exact codes are allowed. Never infer subcategory names from the parent. Show only 3-5 leading contributors plus the largest negative contributors and a brief unallocated-residual note.
+"""
 
 # OAuth is enabled for HTTP transports (unless MCP_OAUTH=0). It lets OAuth-only
 # clients (Claude web/mobile, ChatGPT) connect; clients that send the raw API key
@@ -172,12 +182,22 @@ if _OAUTH:
         ),
     )
 
-INSTRUCTIONS += '\n## Аналитический ответ: суть и драйверы\n\nНачинай с результата для аналитика: изменение агрегата, величина и сопоставимый период. В первом абзаце назови также 1-2 главных драйвера, до таблицы. Источник достаточно кратко указать в конце. Для одного короткого ограничения используй примечание, без отдельного большого раздела «Оговорки». Пиши содержательно: «Динамика стоимости включает изменение количества и цен», без противопоставления «это не физические объемы». Затем покажи 3-5 главных подкатегорий с названиями и точными кодами, их доли и вклад в динамику. Объясни, насколько рост сосредоточен в отдельных категориях и как изменилась структура. Лидеров определяй по данным: лидер по вкладу не обязательно лидер по доле или темпу роста. Причины вне данных (спрос, цены, политика) обозначай как гипотезы, только если они полезны вопросу и имеют основание; не придумывай их.\n\nПиши прямо: «Источник: таможенная статистика Китая». Не перечисляй исключенные источники («не Comtrade», «не nowcast») и не строй ответ на оборотах «это не X, а Y», если пользователь не просит разъяснить различия. Внутренние source/type, флаги и формулы не пересказывай как чек-лист. Проверки делай всегда, публикуй только выводы из них, нужные для понимания ответа.\n\nСущественное ограничение ставь рядом с затронутым показателем: отсутствующий месяц, неполное количество, оценка вместо наблюдения, несопоставимость периодов. Если оно делает основной вывод невозможным, сообщи об этом сразу. Иначе краткую справку об источнике, периоде и существенном остатке разложения оставь в конце. Не добавляй общие оговорки о пропусках и оценках без конкретного основания в выбранном срезе. Малый нераспределенный остаток укажи соразмерно его влиянию, без длинного методологического вступления. Не скрывай остаток и не считай пропуски нулями.\n\nНазвания в чате можно сократить для читаемости, сохранив смысл русского справочника и точный код в скобках. В Excel остаются исходные названия. Факт, оценки источника Comtrade и nowcast проекта учитывай раздельно; поясняй различие там, где оно влияет на рассматриваемый показатель. Сначала содержание ответа, затем краткая справка и ссылка на файл, если запрошен.\n'
+INSTRUCTIONS += """
+## Аналитический ответ: суть и драйверы
+
+Начинай с результата для аналитика: изменение агрегата, величина и сопоставимый период. В первом абзаце назови также 1-2 главных драйвера, до таблицы. Источник достаточно кратко указать в конце. Для одного короткого ограничения используй примечание, без отдельного большого раздела «Оговорки». Пиши содержательно: «Динамика стоимости включает изменение количества и цен», без противопоставления «это не физические объемы». Затем покажи 3-5 главных подкатегорий с названиями и точными кодами, их доли и вклад в динамику. Объясни, насколько рост сосредоточен в отдельных категориях и как изменилась структура. Лидеров определяй по данным: лидер по вкладу не обязательно лидер по доле или темпу роста. Причины вне данных (спрос, цены, политика) обозначай как гипотезы, только если они полезны вопросу и имеют основание; не придумывай их.
+
+Пиши прямо: «Источник: таможенная статистика Китая». Не перечисляй исключенные источники («не Comtrade», «не nowcast») и не строй ответ на оборотах «это не X, а Y», если пользователь не просит разъяснить различия. Внутренние source/type, флаги и формулы не пересказывай как чек-лист. Проверки делай всегда, публикуй только выводы из них, нужные для понимания ответа.
+
+Существенное ограничение ставь рядом с затронутым показателем: отсутствующий месяц, неполное количество, оценка вместо наблюдения, несопоставимость периодов. Если оно делает основной вывод невозможным, сообщи об этом сразу. Иначе краткую справку об источнике, периоде и существенном остатке разложения оставь в конце. Не добавляй общие оговорки о пропусках и оценках без конкретного основания в выбранном срезе. Малый нераспределенный остаток укажи соразмерно его влиянию, без длинного методологического вступления. Не скрывай остаток и не считай пропуски нулями.
+
+Названия в чате можно сократить для читаемости, сохранив смысл русского справочника и точный код в скобках. В Excel остаются исходные названия. Факт, оценки источника Comtrade и nowcast проекта учитывай раздельно; поясняй различие там, где оно влияет на рассматриваемый показатель. Сначала содержание ответа, затем краткая справка и ссылка на файл, если запрошен.
+"""
 
 INSTRUCTIONS += "\nFor a general overview of one product use product_overview FIRST, not repeated trade aggregations. Free-text product: search_products first, choose a real reference code and level matching the user's scope. Ask for clarification when competing meanings remain (knit/woven, male/female, material or use). Broad chapter=2 digits, general product group=4, explicit subtype=6. Do not mix a parent with children. product_overview supplies verified name, suppliers, matched-country/source/month YoY and contributions: publish via verify_trade_answer with its evidence_id. Do not recalculate, add unsupported causal claims, or turn available partners into all Russian trade.\n"
 INSTRUCTIONS += "\nFor top product groups by value use rank_trade FIRST (HS2). For Turkey imports this year call rank_trade(strana='TR',napr='im',top_n=10), without dates. It resolves the latest period, calculates shares over all chapters and returns only requested leaders. ranking.complete_universe confirms the full denominator, not full source coverage. Do not treat shown_groups < total_groups as truncation. Describe fact_months/missing_months, not a full year by default. Ordinary trade has_more/_truncated still requires completing the result before totals.\n"
 
-from query_contract import RULES, resolve_trade_route as _resolve_trade_route, safe_result
+from trade_tools_shared.query_contract import RULES, resolve_trade_route as _resolve_trade_route, safe_result
 INSTRUCTIONS = RULES + "\n" + INSTRUCTIONS + "\n" + RULES + "\n" + NUMERIC_INSTRUCTION
 
 mcp = FastMCP("mgimo-trade", instructions=INSTRUCTIONS, **_fastmcp_kwargs)
@@ -302,7 +322,7 @@ def _get(path: str, params: list[tuple[str, str]], ctx: Context | None) -> str:
     if resp.status_code >= 400:
         return f"HTTP {resp.status_code} for {path}: {resp.text[:800]}"
     if path == "/v1/trade":
-        from trade_evidence import trade_evidence
+        from trade_tools_shared.trade_evidence import trade_evidence
         obj = resp.json()
         if obj.get("meta", {}).get("has_more"):
             return json.dumps(safe_result(obj), ensure_ascii=False)
@@ -347,7 +367,7 @@ def _multi(name: str, values: list[str] | None) -> list[tuple[str, str]]:
 @mcp.tool()
 async def search_products(query: str, level: int | None = None, ctx: Context | None = None) -> str:
     """Find real Russian HS/TNVED names/codes for a free-text product. Returns lexical candidates, not a definitive classification. Default searches levels 2/4/6. Select 4 for a general product group, 2 for a broad chapter, 6 only for an explicit subtype. If competing classifications remain, ask about material/use/knit/gender instead of guessing. Never add a parent and its children together."""
-    from product_search import search_candidates
+    from trade_tools_shared.product_search import search_candidates
     if level is not None and level not in (2,4,6):
         return json.dumps({'error':'level must be 2, 4 or 6'})
     headers={'Authorization':'Bearer '+_resolve_token(ctx)}
@@ -364,7 +384,7 @@ async def search_products(query: str, level: int | None = None, ctx: Context | N
 async def product_overview(code: str, napr: str, period_from: str | None = None,
                            period_to: str | None = None, strana: list[str] | None = None, ctx: Context | None = None) -> str:
     """Preserve the requested strana filter. For quantities/mass use trade. FIRST tool for an overview of a product code (2/4/6 digits): official name, top partners, shares of available value, YoY and partner contributions using identical country/source/month coverage. For a natural-language product call search_products first. Defaults to January through latest database month, up to 12 months. Returns numeric_facts and evidence_id: call verify_trade_answer before publishing. Use overview, dynamics and drivers first, then partner countries and concise coverage/source notes. Include overview_partial when available: it compares each excluded country only on its own identical available months, separately from the full-window rate. Do not combine these rates. Call countries partner countries, not supplier companies. Values concern available partners, not all Russian trade."""
-    from product_overview import fetch_overview
+    from trade_tools_shared.product_overview import fetch_overview
     if napr not in ('im','ex','ИМ','ЭК'):
         return json.dumps({'error':'napr must be im/ex (relative to Russia)'})
     async with httpx.AsyncClient() as client:
@@ -403,12 +423,12 @@ def rank_trade(strana: str, napr: str, top_n: int = 10,
     total and shares before selecting top-N. Intentional top-N is not truncation.
     Returns actual/missing months. No preliminary meta call or Excel required.
     """
-    from decomposition import rank_chapters
+    from trade_tools_shared.decomposition import rank_chapters
     try:
         with httpx.Client() as client:
             result = rank_chapters(client, API_BASE, {"Authorization": f"Bearer {_resolve_token(ctx)}"},
                                    strana, napr, top_n, period_from, period_to)
-        from numeric_facts import ranking_facts
+        from trade_tools_shared.numeric_facts import ranking_facts
         result['numeric_facts']=ranking_facts(result,{'strana':strana,'napr':napr})
         return json.dumps(_attach_numeric(result,ctx,{}), ensure_ascii=False)
     except Exception as exc:
@@ -426,7 +446,7 @@ def explain_trade(strana: str, napr: str, code: str, months: int = 12,
     retain unmatched_codes and unallocated residual. Monetary decomposition only.
     Does not create a file or claim a causal explanation of prices/tariffs.
     """
-    from decomposition import explain
+    from trade_tools_shared.decomposition import explain
     try:
         with httpx.Client() as client:
             result = explain(client, API_BASE, {"Authorization": f"Bearer {_resolve_token(ctx)}"},

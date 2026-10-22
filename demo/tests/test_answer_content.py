@@ -2,8 +2,8 @@
 import json,re
 from pathlib import Path
 from app.answer_style import explanation_facts
-from app.numeric_facts import verify_answer, short_product_name
-from app.product_overview import overview
+from trade_tools_shared.numeric_facts import verify_answer, short_product_name
+from trade_tools_shared.product_overview import overview
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -55,7 +55,7 @@ def test_unknown_label_is_preserved_and_short_label_not_used_for_other_code():
 
 
 def test_mean_mass_is_ratio_of_matched_totals_and_flags_block_only_physical_claim():
-    from app.numeric_facts import numerical_facts
+    from trade_tools_shared.numeric_facts import numerical_facts
     from app.answer_style import presentation_facts
     rows=[dict(strana='TR',napr='im',type='fact',source='national',period='2026-01',stoim=50000,netto=4000,kol=2,edizm_iso='796')]
     f=numerical_facts(rows)
@@ -72,7 +72,7 @@ def test_mean_mass_is_ratio_of_matched_totals_and_flags_block_only_physical_clai
 
 
 def test_monthly_followup_uses_one_table_with_quantity_yoy_and_keeps_country_labels():
-    from app.numeric_facts import numerical_facts,compact_text
+    from trade_tools_shared.numeric_facts import numerical_facts,compact_text
     from app.answer_style import presentation_facts
     f=numerical_facts([dict(strana='CN',period='2026-01',type='fact',stoim=200,kol=4,edizm='ШТУКА')],
       baseline=[dict(strana='CN',period='2025-01',type='fact',stoim=100,kol=2,edizm='ШТУКА')])
@@ -86,7 +86,7 @@ def test_monthly_followup_uses_one_table_with_quantity_yoy_and_keeps_country_lab
 
 
 def test_ranking_has_names_shares_and_verified_complete_denominator():
-    from app.numeric_facts import ranking_facts,verify_answer
+    from trade_tools_shared.numeric_facts import ranking_facts,verify_answer
     obj={'data':[{'tnved2':'27','tnved2_name':'Топливо','stoim':80,'share_pct':80}],
          'ranking':{'complete_universe':True,'total_stoim':'100','other_groups_stoim':'20',
                     'requested_period':['2026-01','2026-02'],'fact_months':['2026-01'],'missing_months':['2026-02']}}
@@ -99,7 +99,7 @@ def test_ranking_has_names_shares_and_verified_complete_denominator():
 
 def test_country_filter_is_sent_to_overview_api():
     import asyncio,httpx
-    from app.product_overview import fetch_overview
+    from trade_tools_shared.product_overview import fetch_overview
     calls=[]
     def handler(request):
         calls.append(request)

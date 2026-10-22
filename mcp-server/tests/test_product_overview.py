@@ -6,8 +6,8 @@ from pathlib import Path
 import httpx
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from product_search import search_candidates
-from product_overview import overview
+from trade_tools_shared.product_search import search_candidates
+from trade_tools_shared.product_overview import overview
 
 
 def test_search_uses_reference_and_keeps_ambiguity():
@@ -19,11 +19,6 @@ def test_search_uses_reference_and_keeps_ambiguity():
     assert search_candidates('6107',rows)[0]['level']==4
     assert search_candidates('неизвестныйтовар',rows)==[]
     assert search_candidates('белье',[{'code':'4010','name':'БЕЛЬТИНГ ИЗ РЕЗИНЫ'},{'code':'5805','name':'ГОБЕЛЕНЫ БЕЛЬГИЙСКИЕ'}])==[]
-
-
-def test_overview_matches_demo_module():
-    root=Path(__file__).resolve().parents[1]
-    assert (root/'product_overview.py').read_text(encoding='utf-8') == (root.parent/'demo/app/product_overview.py').read_text(encoding='utf-8').replace('from .numeric_facts import','from numeric_facts import')
 
 
 def test_mcp_overview_evidence_and_verification(monkeypatch):

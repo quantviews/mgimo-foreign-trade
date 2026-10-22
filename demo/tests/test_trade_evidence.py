@@ -1,6 +1,6 @@
 import importlib.util
 from pathlib import Path
-spec=importlib.util.spec_from_file_location('evidence',Path(__file__).parents[1]/'app/trade_evidence.py')
+spec=importlib.util.spec_from_file_location('evidence',Path(__file__).parents[2]/'shared/trade_tools_shared/trade_evidence.py')
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 
 def test_turkey_totals_flags_and_small_mass():
@@ -21,7 +21,3 @@ def test_unknowns_partial_and_sources():
     assert out['computed_summary'][0]['netto'] is None
     assert out['computed_summary'][0]['quality_status']=='not_independently_verified'
     assert m.trade_evidence({'meta':{'has_more':True},'data':[row]})=={}
-
-def test_both_services_same_implementation():
-    root=Path(__file__).parents[2]
-    assert (root/'demo/app/trade_evidence.py').read_bytes()==(root/'mcp-server/trade_evidence.py').read_bytes()

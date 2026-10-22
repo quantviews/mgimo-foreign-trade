@@ -3,7 +3,7 @@ import hashlib
 import re
 from decimal import Decimal
 
-from .numeric_facts import fmt, number, COUNTRIES, short_product_name
+from trade_tools_shared.numeric_facts import fmt, number, COUNTRIES, short_product_name
 
 
 def physical_request(question):

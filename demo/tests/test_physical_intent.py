@@ -46,7 +46,7 @@ def test_mass_table_cannot_label_tonnes_as_kilograms():
 
 
 def test_georgia_is_not_germany():
-    from app.numeric_facts import COUNTRIES
+    from trade_tools_shared.numeric_facts import COUNTRIES
     assert COUNTRIES['GE'] == 'Грузия'
     assert COUNTRIES['DE'] == 'Германия'
 

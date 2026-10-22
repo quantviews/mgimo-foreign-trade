@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import pytest,httpx
-from decomposition import decompose,explain
+from trade_tools_shared.decomposition import decompose,explain
 
 def test_contributions_reconcile_with_offsetting_children():
  r=decompose([{'tnved6':'a','stoim':140},{'tnved6':'b','stoim':60}],

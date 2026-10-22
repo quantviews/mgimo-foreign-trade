@@ -13,4 +13,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-include = ["server.py", "oauth.py", "decomposition.py", "trade_evidence.py", "coverage_evidence.py", "query_contract.py", "numeric_facts.py", "product_overview.py", "product_search.py"]
+# decomposition.py, trade_evidence.py, query_contract.py, numeric_facts.py,
+# product_overview.py and product_search.py now live in ../shared/trade_tools_shared
+# (shared with demo/). This wheel is only meant to be built from inside the
+# monorepo checkout, where server.py's sys.path bootstrap finds that package;
+# it is not a standalone PyPI-publishable artifact.
+include = ["server.py", "oauth.py", "coverage_evidence.py"]

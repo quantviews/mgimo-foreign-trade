@@ -2,10 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+# Build context is the repo root (see docker-compose.yml) so this can also
+# pull in shared/trade_tools_shared, used by both this app and mcp-server/.
+COPY demo/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
+COPY demo/app ./app
+COPY shared/trade_tools_shared ./trade_tools_shared
 
 EXPOSE 8000
 
