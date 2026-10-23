@@ -33,11 +33,21 @@ period_max <- dbGetQuery(con, "SELECT MAX(PERIOD) AS max_period
                                              FROM unified_trade_data") %>% pull(max_period) %>% lubridate::as_date()
 
 df <- dbGetQuery(con, "
-  SELECT STRANA, NAPR, TNVED, PERIOD, EDIZM, STOIM, NETTO, KOL
+  SELECT STRANA, NAPR, TNVED, PERIOD, EDIZM, STOIM, NETTO, KOL, TYPE
   FROM unified_trade_data
 ") %>%
   filter(any(STOIM > 0), .by = c(STRANA, NAPR, TNVED)) %>% # Здесь я фильтровал базу данных, чтобы убрать группы, для которых все данные 0. Для Индии.
   mutate(PERIOD = as_date(PERIOD)) %>% # Перевожу в date
+  # Этот код лишь убирает дабликаты, возможно неправильно. Проверить позже
+  # Было 7 дабликатов, писал Марселю.
+  reframe(
+     across(
+        c(STOIM, NETTO, KOL),
+        ~sum(., na.rm = T)
+        ),
+     EDIZM = last(EDIZM), 
+     .by = c(STRANA, NAPR, TNVED, PERIOD)
+  ) %>%
   # Заполняю пропуски без группировки - замена для group_by %>% complete. Минут на 5 быстрее
   right_join(
     dbGetQuery(con, "
@@ -206,14 +216,14 @@ fo_2 <-
   data_fo %>%
   # Для удобства я делаю готовые переменные для физобъёмов
   mutate(fo_unit = if_else(fo_constr == 'netto', netto_12, kol_12),
-         fo_unit_bp = if_else(fo_constr == 'netto', NETTO_bp, KOL_bp)
+         fo_unit_bp = if_else(fo_constr == 'netto', NETTO_bp, KOL_bp),
+         fo_index = fo_unit / fo_unit_bp
   ) %>%
-  # Группировка включает период, это важно
-  group_by(STRANA, NAPR, TNVED2, PERIOD) %>%
   # Тут помимо взвешенной суммы мы делаем переменную - базовый период для физобъёма на высоком знаке.
   reframe(fizob2 = sum(fo_unit * share_TNVED2),
           price2 = sum(price_12 * share_TNVED2),
-          bp = min(first_year_entry)
+          bp = min(first_year_entry),
+          .by = c(STRANA, NAPR, TNVED2, PERIOD) # Группировка включает период, это важно
   ) %>%
   # Считаем значение физобъёма в базовый период. Тут группировка по трём признакам
   mutate(fizob2_bp = mean(fizob2[PERIOD >= bp & PERIOD <= bp %m+% months(11)], na.rm = TRUE),
