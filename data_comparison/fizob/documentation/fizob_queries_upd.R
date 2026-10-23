@@ -242,7 +242,7 @@ fo_tot <- fo %>% filter(level == 0) %>%
 # Сохранение результатов в parquet файлах -
 #------------------------------------------
 
-fo_2 %>% arrow::write_parquet('~/MGIMO-FT/data_processed/fizob_2.parquet')
-fo_4 %>% arrow::write_parquet('~/MGIMO-FT/data_processed/fizob_4.parquet')
-fo_6 %>% arrow::write_parquet('~/MGIMO-FT/data_processed/fizob_6.parquet')
-fo_tot %>% mutate(TNVED2 = '0') %>% arrow::write_parquet('~/MGIMO-FT/data_processed/fizob_total.parquet')
+fo_2 %>% arrow::write_parquet('data_processed/fizob_2.parquet')
+fo_4 %>% arrow::write_parquet('data_processed/fizob_4.parquet')
+fo_6 %>% arrow::write_parquet('data_processed/fizob_6.parquet')
+fo_tot %>% mutate(TNVED2 = '0') %>% arrow::write_parquet('data_processed/fizob_total.parquet')
