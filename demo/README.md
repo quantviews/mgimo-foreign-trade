@@ -121,6 +121,9 @@ MGIMO_DEMO_FALLBACK_SMTP_PASSWORD=пароль_приложения
 
 ## Развёртывание (на VPS, рядом с Superset)
 
+Код обновляется прямой синхронизацией с локального репозитория (не `git pull`
+на сервере - см. `docs/api-deploy.md`, раздел «Доставить код на VPS»).
+
 ```bash
 # 1. Миграция (создаёт план demo и таблицы demo_*)
 docker exec -i superset-postgres-1 psql -U superset -d tradeapi < api/migrations/004_demo.sql

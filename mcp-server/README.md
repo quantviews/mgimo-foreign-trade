@@ -248,10 +248,14 @@ async with streamablehttp_client(
 Superset, за nginx контейнера `landing` на `/mcp` (см. `deploy/landing-nginx.conf`).
 API он зовёт внутренне (`trade-api:8000`) и токен не хранит.
 
+Код на VPS обновляется прямой синхронизацией с локального репозитория (архив
+изменённых файлов, `scp`, распаковка поверх `~/mgimo-foreign-trade`), минуя
+GitHub - `git pull` на сервере не используется и не отражает реально
+развёрнутый код (см. `docs/api-deploy.md`, раздел «Доставить код на VPS»).
+
 ```bash
 ssh mgimo
-cd ~/mgimo-foreign-trade && git pull
-cd mcp-server
+cd ~/mgimo-foreign-trade/mcp-server
 set -a; . ../api/.env; set +a     # берём MGIMO_API_POSTGRES_DSN (OAuth-клиенты в Postgres)
 docker compose up -d --build      # собрать + (пере)запустить trade-mcp
 ```

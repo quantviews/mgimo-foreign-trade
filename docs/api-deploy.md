@@ -39,13 +39,23 @@ Superset и читает тот же файл `unified_trade_data.duckdb`. Ар�
 
 ## 1. Доставить код на VPS
 
+Первичная настройка нового VPS - клонировать репозиторий с GitHub:
+
 ```bash
 ssh user@217.26.28.186
-git clone https://github.com/quantviews/mgimo-foreign-trade.git   # или git pull
+git clone https://github.com/quantviews/mgimo-foreign-trade.git
 cd mgimo-foreign-trade/api
 cp .env.example .env
 nano .env        # заполнить MGIMO_API_POSTGRES_DSN, DUCKDB_HOST_PATH, SUPERSET_NETWORK
 ```
+
+**Обновление кода на уже настроенном VPS - не `git pull`.** Код выкатывается
+прямой синхронизацией с локального репозитория (архив изменённых файлов по
+`git archive`, `scp` на сервер, распаковка поверх `~/mgimo-foreign-trade`),
+минуя GitHub. Git-история на VPS не обновляется этим процессом и не отражает
+то, что реально развёрнуто - не используйте `git pull`/`git log` там как
+источник правды о текущем состоянии кода; перед изменением файла сверяйте его
+с локальной копией.
 
 ## 2. Применить миграцию (один раз)
 
@@ -105,9 +115,10 @@ docker compose restart trade-api
 Мониторинг использования — на том же Superset, поверх `api.audit_log`.
 
 **1. Применить view'ы** (один раз; `002_usage_views.sql` создаёт `api.usage_log` и
-`api.usage_by_user_month`):
+`api.usage_by_user_month`; файл миграции должен быть на VPS - см. «Обновление кода»
+выше, `git pull` не используется):
 ```bash
-cd ~/mgimo-foreign-trade && git pull
+cd ~/mgimo-foreign-trade
 docker exec -i superset-postgres-1 psql -U superset -d tradeapi \
   < ~/mgimo-foreign-trade/api/migrations/002_usage_views.sql
 ```
