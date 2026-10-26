@@ -1,11 +1,9 @@
 import os
 import argparse
 import sys
-import pandas as pd
 from pathlib import Path
-from selenium.webdriver.support.ui import WebDriverWait, Select
-from selenium.webdriver.common.by import By
-import undetected_chromedriver as uc
+import tempfile
+import json
 
 # Направление с точки зрения Китая -> значение радио iEType на портале.
 # ИМ = импорт Китая (радио "10"), ЭК = экспорт Китая (радио "1").
@@ -13,7 +11,7 @@ IE_RADIO = {"ИМ": "10", "ЭК": "1"}
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from collectors._base import get_project_root
-from core.country_processor_contract import mirror_napr_value
+from collectors.china_evidence import ingest_export
 
 
 def get_download_path():
@@ -62,6 +60,8 @@ def _autofill_form(driver, year: str, month: str, flow: str, partner_code: str):
     партнёра Russia и кнопку Enquiry оставляем пользователю. Best-effort: при сбое
     селектора скрипт сообщит и даст дозаполнить вручную.
     """
+    from selenium.webdriver.support.ui import WebDriverWait, Select
+    from selenium.webdriver.common.by import By
     wait = WebDriverWait(driver, 30)
     wait.until(lambda d: d.find_elements(By.TAG_NAME, "iframe"))
     driver.switch_to.frame(driver.find_element(By.TAG_NAME, "iframe"))
@@ -90,19 +90,20 @@ def _autofill_form(driver, year: str, month: str, flow: str, partner_code: str):
         driver.switch_to.default_content()
 
 
-def automate_download(year: str, month: str, flow: str, partner_code: str, autofill: bool = False):
+def automate_download(year: str, month: str, flow: str, partner_code: str, autofill: bool = False, output_dir=None):
     """
     Opens the Chinese customs stats website, fills the form,
     and waits for the user to solve the CAPTCHA to download the data.
     """
-    download_dir = get_download_path()
+    from selenium.webdriver.support.ui import WebDriverWait
+    import undetected_chromedriver as uc
+    incoming = Path(output_dir or get_project_root() / 'data_raw' / 'china') / 'incoming'
+    incoming.mkdir(parents=True, exist_ok=True)
+    download_dir = Path(tempfile.mkdtemp(prefix='customs-', dir=incoming)).resolve()
     source_file = download_dir / 'downloadData.csv'
 
-    # Clean up old file if it exists
-    if source_file.exists():
-        os.remove(source_file)
-
     options = uc.ChromeOptions()
+    options.add_experimental_option("prefs", {"download.default_directory": str(download_dir), "download.prompt_for_download": False})
     # Stealth options to avoid bot detection
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
@@ -153,10 +154,31 @@ def automate_download(year: str, month: str, flow: str, partner_code: str, autof
         # Wait for download to be present, assuming user has completed it.
         print("Checking for downloaded file...")
         wait = WebDriverWait(driver, 300) # 5-minute timeout for manual process
-        wait.until(lambda d: source_file.exists())
+        wait.until(lambda d: source_file.exists() and not list(download_dir.glob("*.crdownload")))
+
+        # Only public query fields, never cookies, tokens or a full page dump.
+        from selenium.webdriver.common.by import By
+        snapshot = {"status": "unavailable", "provenance": "form_after_download_not_response_metadata"}
+        try:
+            driver.switch_to.default_content()
+            frames = driver.find_elements(By.TAG_NAME, "iframe")
+            if frames:
+                driver.switch_to.frame(frames[0])
+            snapshot["fields"] = driver.execute_script("""
+                const names = ['year','startMonth','endMonth','iEType','currencyType','monthFlag','outerValue1'];
+                return Object.fromEntries(names.map(name => [name,
+                    [...document.querySelectorAll('[name="'+name+'"], [id="'+name+'"]')]
+                    .map(e => ({value:e.value, checked:e.checked ?? null}))]));
+            """)
+            snapshot["status"] = "captured"
+        except Exception as exc:
+            snapshot["error_type"] = type(exc).__name__
+        finally:
+            driver.switch_to.default_content()
+        source_file.with_suffix('.query.json').write_text(json.dumps(snapshot,ensure_ascii=False,indent=2),encoding='utf-8')
 
         print("Download complete.")
-        return True
+        return source_file
 
     except Exception as e:
         print(f"An error occurred during browser automation: {e}")
@@ -173,120 +195,12 @@ def automate_download(year: str, month: str, flow: str, partner_code: str, autof
         finally:
             driver.quit = lambda: None
 
-def process_downloaded_data(year: str, month: str, flow: str, output_dir: Path):
-    """
-    Processes the manually downloaded 'downloadData.csv' file from Chinese customs.
-    """
-    downloads_path = get_download_path()
-    source_file = downloads_path / 'downloadData.csv'
-
-    if not source_file.exists():
-        print(f"Error: '{source_file}' not found. Please download the file first.")
-        return
-
-    import_path = output_dir / 'IMPORT'
-    export_path = output_dir / 'EXPORT'
-    import_path.mkdir(parents=True, exist_ok=True)
-    export_path.mkdir(parents=True, exist_ok=True)
-
-    try:
-        df = pd.read_csv(source_file, encoding='ISO-8859-1', on_bad_lines='skip')
-
-        # Validate that all expected columns are present
-        expected_cols = {
-            'Date of data', 'Trading partner code', 'Trading partner',
-            'Commodity code', 'Commodity', 'Quantity', 'Unit',
-            'Supplementary Quantity', 'Supplementary Unit'
-        }
-
-        missing_cols = expected_cols - set(df.columns)
-        if missing_cols:
-            print(f"\n[ERROR] The downloaded file is missing required columns: {sorted(list(missing_cols))}")
-            print("Please re-download, ensuring all columns are selected on the website.")
-            os.remove(source_file)
-            print(f"Removed incorrect source file: '{source_file}'")
-            return
-
-        # Validate the date in the file matches the arguments
-        if 'Date of data' in df.columns and not df.empty:
-            file_date = str(df['Date of data'].iloc[0])
-            expected_date = f"{year}{month}"
-            if file_date != expected_date:
-                print(f"\n[ERROR] Date mismatch: The script was run for {expected_date}, but the file contains data for {file_date}.")
-                print("Please re-download the correct data file.")
-                os.remove(source_file)
-                print(f"Removed incorrect source file: '{source_file}'")
-                return
-
-        # Rename columns
-        rename_map = {
-            'Commodity code': 'TNVED',
-            # 'US dollar': 'STOIM', # This will be handled dynamically
-            'Quantity': 'Quantity'
-        }
-        df = df.rename(columns=rename_map)
-
-        # Dynamically handle currency column
-        if 'US dollar' in df.columns:
-            df = df.rename(columns={'US dollar': 'STOIM'})
-        elif 'Renminbi Yuan' in df.columns:
-            print("\n[ERROR] The downloaded file contains 'Renminbi Yuan' instead of 'US dollar'.")
-            print("Please re-download the data, ensuring that 'US dollar' is selected as the currency.")
-            os.remove(source_file)
-            print(f"Removed incorrect source file: '{source_file}'")
-            return
-        else:
-            print("Error: Could not find a currency column ('US dollar' or 'Renminbi Yuan').")
-            os.remove(source_file)
-            print(f"Removed incorrect source file: '{source_file}'")
-            return
-
-        # Apply transformations from the notebook
-        df['PERIOD'] = f"{year}-{month}"
-        # TNVED2/4/6 не пишем в raw: их выводит finalize_country_output из TNVED
-        df['TNVED'] = df['TNVED'].astype(str).str.zfill(8)
-
-        # Ensure STOIM is numeric, handling potential commas
-        if df['STOIM'].dtype == 'object':
-            df['STOIM'] = df['STOIM'].str.replace(",", "").astype(float)
-
-        df['STRANA'] = 'CN'  # ISO 3166-1 alpha-2 code for China
-
-        month_str = str(month).zfill(2)
-
-        # Mirror the trade flow for Russia's perspective (единая точка - контракт)
-        mirrored = mirror_napr_value(flow)
-        if flow == 'ИМ':
-            df['NAPR'] = mirrored
-            output_path = export_path
-        elif flow == 'ЭК':
-            df['NAPR'] = mirrored
-            output_path = import_path
-        else:
-            print(f"Error: Invalid flow type '{flow}'. Use 'ИМ' or 'ЭК'.")
-            return
-
-        # Select and order the final columns
-        final_columns = [
-            'Date of data', 'TNVED', 'Quantity', 'Unit', 'Supplementary Quantity',
-            'Supplementary Unit', 'STOIM', 'PERIOD', 'STRANA', 'NAPR'
-        ]
-
-        # Filter out any columns that might not exist in the source
-        final_columns_exist = [col for col in final_columns if col in df.columns]
-
-        df_final = df[final_columns_exist]
-
-        output_file = output_path / f'data{year}{month_str}.csv'
-        df_final.to_csv(output_file, index=False, encoding='utf-8-sig')
-
-        print(f"\nSuccessfully processed and saved data to '{output_file}'")
-
-        os.remove(source_file)
-        print(f"Removed source file: '{source_file}'")
-
-    except Exception as e:
-        print(f"An error occurred during processing: {e}")
+def process_downloaded_data(year, month, flow, output_dir, source_file=None, partner_code='344'):
+    """Archive original bytes and validate every row before processing."""
+    source_file = Path(source_file) if source_file else get_download_path() / 'downloadData.csv'
+    destination, archive = ingest_export(source_file, output_dir, year, month, flow, partner_code)
+    print(f'Processed: {destination}; original and query metadata: {archive}')
+    return destination
 
 
 def main():
@@ -306,6 +220,7 @@ def main():
                         help="автозаполнить поля формы (период/валюта/направление). "
                              "Опционально: портал чувствителен к автоматизации, по умолчанию выключено.")
 
+    parser.add_argument("--source-file", type=Path, help="Process an existing original CSV without opening a browser.")
     args = parser.parse_args()
 
     month_padded = args.month.zfill(2)
@@ -313,12 +228,12 @@ def main():
     print(f"Starting automation for Year: {args.year}, Month: {month_padded}, Flow: {args.flow}, Partner: {args.partner}")
 
     # Step 1: Automate the download
-    download_successful = automate_download(args.year, month_padded, args.flow, args.partner, autofill=args.autofill)
+    download_successful = args.source_file or automate_download(args.year, month_padded, args.flow, args.partner, autofill=args.autofill, output_dir=args.output_dir)
 
     # Step 2: Process the downloaded file
     if download_successful:
         print(f"Starting file processing...")
-        process_downloaded_data(args.year, month_padded, args.flow, args.output_dir)
+        process_downloaded_data(args.year, month_padded, args.flow, args.output_dir, source_file=download_successful, partner_code=args.partner)
 
 if __name__ == "__main__":
     # INSTRUCTIONS:

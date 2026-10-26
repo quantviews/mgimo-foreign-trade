@@ -244,6 +244,48 @@ class TestFailedRequestsAreNotDataLoss:
         assert failed == {"276"}
 
 
+def test_terminal_truncation_discards_both_flows_and_retries(monkeypatch):
+    monkeypatch.setattr(comtrade_collector.time, 'sleep', lambda *_: None)
+    monkeypatch.setattr(comtrade_collector, 'MAX_RECORDS', 3)
+    api = FakeApi([rows(['276'],3),rows(['276'],1),rows(['276'],3)])
+    issues = {}
+    frames, failed = comtrade_collector.fetch_reporters(api,'k','202608',['276'],RequestBudget(None),issues=issues)
+    assert frames == [] and failed == {'276'}
+    assert issues == {'276':'truncated'}
+    available = {'276':dict(checksum='same',lastReleased='2026-10-01')}
+    recorded = {'276':dict(checksum='same',download_status='truncated')}
+    assert stale_reporters(available,recorded,None,{'276'}) == ([],['276'])
+    existing = pd.DataFrame({'reporterCode':['276'],'primaryValue':[123.]})
+    assert splice_reporters(existing,pd.DataFrame(),[]).equals(existing)
+
+
+def test_collect_keeps_old_revision_and_records_truncation(tmp_path, monkeypatch):
+    import sys
+    monkeypatch.setattr(comtrade_collector.time, 'sleep', lambda *_: None)
+    monkeypatch.setattr(comtrade_collector, 'MAX_RECORDS', 3)
+    monkeypatch.setitem(sys.modules, 'comtradeapicall',
+        FakeApi([rows(['276'],3),rows(['276'],1),rows(['276'],3)]))
+    monkeypatch.setattr(comtrade_collector, 'active_reporters', lambda _: pd.DataFrame({'id':['276']}))
+    monkeypatch.setattr(comtrade_collector, 'load_api_key', lambda _: 'test')
+    monkeypatch.setattr(comtrade_collector, 'fetch_availability', lambda *_: None)
+    monkeypatch.setattr(comtrade_collector, 'availability_index',
+        lambda _: {'276':dict(checksum='new',lastReleased='2026-10-01')})
+    monkeypatch.setattr(comtrade_collector, 'build_plan', lambda *a,**k:
+        [comtrade_collector.PeriodPlan(2026,8,reporters=['276'])])
+    directory = tmp_path / comtrade_collector.OUTPUT_SUBDIR
+    directory.mkdir(parents=True)
+    old = pd.DataFrame({'reporterCode':['276'],'primaryValue':[123.]})
+    old.to_parquet(directory/'2026-08.parquet',index=False)
+    comtrade_collector.write_manifest(directory, {'2026-08':{'reporters':{'276':{'checksum':'old'}}}})
+    comtrade_collector.collect(project_root=tmp_path,start_year=2026,refresh=True,
+        check_only=False,dry_run=False,only_periods=[(2026,8)],today=date(2026,10,24))
+    pd.testing.assert_frame_equal(pd.read_parquet(directory/'2026-08.parquet'), old)
+    record = comtrade_collector.read_manifest(directory)['2026-08']['reporters']['276']
+    assert record['checksum'] == 'old'
+    assert record['download_status'] == 'truncated'
+    assert record['absence_means_zero'] is False
+
+
 class TestSplice:
     def make(self, codes):
         return pd.DataFrame({"reporterCode": codes, "primaryValue": range(len(codes))})

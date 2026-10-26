@@ -240,7 +240,7 @@ def stale_reporters(
     for code, meta in available.items():
         previous = recorded.get(code)
         if previous is not None:
-            if previous.get("checksum") != meta["checksum"]:
+            if previous.get("download_status") in {"failed", "truncated"} or previous.get("checksum") != meta["checksum"]:
                 revised.append(code)
         elif code in present:
             # Страна есть в файле, но не в манифесте: либо файл старше манифеста,
@@ -332,7 +332,8 @@ def fetch_availability(api, period: str) -> pd.DataFrame | None:
 
 
 def fetch_reporters(
-    api, key: str, period: str, codes: list[str], budget: RequestBudget, flow: str = "X,M"
+    api, key: str, period: str, codes: list[str], budget: RequestBudget, flow: str = "X,M",
+    issues: dict[str, str] | None = None,
 ) -> tuple[list[pd.DataFrame], set[str]]:
     """Экспорт и импорт пачки стран за месяц, одним запросом.
 
@@ -340,7 +341,7 @@ def fetch_reporters(
     строк, а остальные страны пачки в ответ просто не попадают. Тогда пачка
     делится пополам и запрашивается заново. Пачку из одной страны делить уже
     нечем, кроме как по направлениям, — так и делаем; если и один поток одной
-    страны не помещается, остаётся предупреждение в логе.
+    страны не помещается, публикация страны отклоняется и помечается truncated.
     Возвращает данные и множество стран, по которым запрос не выполнился.
     Различать это обязательно: библиотека на любой не-200 возвращает None, а на
     честно пустой результат — пустой DataFrame.
@@ -392,15 +393,16 @@ def fetch_reporters(
     if len(codes) > 1:
         middle = len(codes) // 2
         logger.info("  ответ упёрся в предел, делим пачку из %d стран пополам", len(codes))
-        left, left_failed = fetch_reporters(api, key, period, codes[:middle], budget, flow)
-        right, right_failed = fetch_reporters(api, key, period, codes[middle:], budget, flow)
+        left, left_failed = fetch_reporters(api, key, period, codes[:middle], budget, flow, issues)
+        right, right_failed = fetch_reporters(api, key, period, codes[middle:], budget, flow, issues)
         return left + right, left_failed | right_failed
 
     if flow == "X,M":
         logger.info("  страна %s за %s не помещается целиком, делим по направлениям", codes[0], period)
-        exports, failed_x = fetch_reporters(api, key, period, codes, budget, "X")
-        imports, failed_m = fetch_reporters(api, key, period, codes, budget, "M")
-        return exports + imports, failed_x | failed_m
+        exports, failed_x = fetch_reporters(api, key, period, codes, budget, "X", issues)
+        imports, failed_m = fetch_reporters(api, key, period, codes, budget, "M", issues)
+        failed = failed_x | failed_m
+        return ([] if failed else exports + imports), failed
 
     logger.warning(
         "  страна %s за %s, поток %s: %d строк — предел ответа, данные обрезаны",
@@ -409,7 +411,10 @@ def fetch_reporters(
         flow,
         len(data),
     )
-    return [data], set()
+    # Never commit a truncated reporter or its other, successful flow.
+    if issues is not None:
+        issues.update({code: "truncated" for code in codes})
+    return [], set(codes)
 
 
 def reference_schema(output_dir: Path) -> "pd.Series | None":
@@ -577,9 +582,10 @@ def collect(
 
         frames: list[pd.DataFrame] = []
         failed: set[str] = set()
+        issues: dict[str, str] = {}
         try:
             for batch in batches:
-                batch_frames, batch_failed = fetch_reporters(api, key, plan.code, batch, budget)
+                batch_frames, batch_failed = fetch_reporters(api, key, plan.code, batch, budget, issues=issues)
                 frames.extend(batch_frames)
                 failed |= batch_failed
         except (QuotaExceeded, BudgetSpent) as exc:
@@ -594,9 +600,24 @@ def collect(
         # колонок и предупреждает, что поведение изменится.
         frames = [frame for frame in frames if not frame.empty]
         fresh = align_schema(pd.concat(frames, ignore_index=True), schema) if frames else pd.DataFrame()
+        if not fresh.empty and failed:
+            fresh = fresh[~fresh["reporterCode"].astype(str).isin(failed)]
         if plan.missing:
             if fresh.empty:
-                logger.info("Период %s: торговли с Россией не обнаружено", plan.name)
+                recorded = dict(manifest.get(plan.name, {}).get("reporters") or {})
+                for code in wanted:
+                    if code in failed:
+                        recorded[code] = dict(recorded.get(code, {}),
+                            download_status=issues.get(code, "failed"),
+                            publication_status="available", absence_means_zero=False)
+                    else:
+                        recorded[code] = dict(available[code], present=False,
+                            download_status="complete", publication_status="available",
+                            absence_means_zero=False)
+                manifest[plan.name] = dict(rows=0, reporters=recorded,
+                    downloaded_at=datetime.now().isoformat(timespec="seconds"))
+                write_manifest(output_dir, manifest)
+                logger.info("Период %s: нет строк для сохранения; неуспешных стран: %d", plan.name, len(failed))
                 continue
             combined = fresh
         else:
@@ -613,7 +634,9 @@ def collect(
             existing = pd.read_parquet(target)
             combined = align_schema(splice_reporters(existing, fresh, fetched), schema)
 
-        combined.to_parquet(target, index=False)
+        changed = bool(set(wanted) - failed)
+        if changed:
+            combined.to_parquet(target, index=False)
         if schema is None:
             schema = combined.dtypes
         # Запоминаем всех, кого спрашивали, а не только тех, кто дал строки.
@@ -628,11 +651,16 @@ def collect(
         recorded = dict(manifest.get(plan.name, {}).get("reporters") or {})
         recorded.update(
             {
-                code: dict(meta, present=code in present_after)
+                code: dict(meta, present=code in present_after, download_status="complete",
+                           publication_status="available", absence_means_zero=False)
                 for code, meta in available.items()
-                if (code in wanted and code not in failed) or code in present_after
+                if code in wanted and code not in failed
             }
         )
+        for code in failed:
+            # Keep the checksum of the last successful revision and retry next run.
+            recorded[code] = dict(recorded.get(code, {}), download_status=issues.get(code, "failed"),
+                                  publication_status="available", absence_means_zero=False)
         manifest[plan.name] = {
             "downloaded_at": datetime.now().isoformat(timespec="seconds"),
             "rows": int(len(combined)),
@@ -640,7 +668,7 @@ def collect(
         }
         write_manifest(output_dir, manifest)
         logger.info("Сохранено %s: %d строк", target.name, len(combined))
-        saved += 1
+        saved += int(changed)
     logger.info("Запросов израсходовано: %d", budget.spent)
     return saved
 
