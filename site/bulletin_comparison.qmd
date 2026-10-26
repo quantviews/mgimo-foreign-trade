@@ -41,7 +41,12 @@ library(ggbreak)
 library(stringi)
 library(showtext)
 library(sysfonts)
-font_add_google("Source Sans 3", "ssp")   # в showtextdb нет "Source Sans Pro"
+bulletin_font <- if (file.exists("C:/Windows/Fonts/arial.ttf")) {
+  "C:/Windows/Fonts/arial.ttf"
+} else {
+  "../presentations/fonts/PTSans-Regular.ttf"
+}
+font_add("ssp", regular = bulletin_font)
 showtext_auto()
 
 mgimo_colors <- c(
@@ -185,11 +190,7 @@ bulletin_headline <- arrow::read_parquet('data/bulletin_headline.parquet')
 names_4 <-
   read_parquet('data/hs4_labels.parquet') %>%
   select(TNVED4 = hs4,
-         TNVED4_string = name_ru_short) %>%
-   # Важно! Для этих визуализаций я меняю спецкод сырой нефти 2799 на обычную сырую нефть для Турции
-   mutate(
-   TNVED4_string = if_else(TNVED4 == '2799', 'Сырая нефть', TNVED4_string)
-   )
+         TNVED4_string = name_ru_short)
 
 pl_fizob <- 
   bulletin_fo %>%
@@ -297,7 +298,7 @@ pl_oil_nonoil <-
                expand = c(0.01, 0.01)) +
   scale_color_manual(
     values =  c(mgimo_colors[["accent1"]], mgimo_colors[['accent3']]),
-    breaks = c('Кроме нефти и газа', 'Нефтегазовый')
+    breaks = c('Прочие и нераскрытые товары', 'Нефтегазовый')
   ) +
   labs(
     x = NULL,
@@ -322,8 +323,8 @@ pl_oil_nonoil <-
 
 pl_oilgas <- 
   data_oilgas %>%
-  ggplot(aes(x = PERIOD, y = NETTO, fill = STRANA)) +
-  geom_area(position = 'stack') +
+  ggplot(aes(x = PERIOD, y = NETTO, color = STRANA)) +
+  geom_line() +
   facet_wrap(~good, scales = 'free',
              labeller = as_labeller(\(x) paste0("<b>", x, "</b>"))
              ) +
@@ -344,26 +345,7 @@ pl_oilgas <-
     plot.background = element_rect(fill = 'transparent', color = 'transparent'),
     legend.background = element_rect(fill = 'transparent',color = 'transparent')
   ) +
-  scale_fill_manual(
-    values = c(
-      country_colors[['Китай']],
-      country_colors[['Турция']],
-      country_colors[['Индия']],
-      country_colors[['Япония']],
-      country_colors[['Венгрия']],
-      country_colors[['Словакия']],
-      country_colors[['Прочие']]
-    ),
-    breaks = c(
-        'Китай',
-        'Индия',
-        'Турция',
-        'Япония',
-        'Венгрия',
-        'Словакия',
-        'Прочие'
-      )
-    ) +
+  scale_color_manual(values = country_colors) +
   labs(x = NULL,
        y = NULL
        )
@@ -400,10 +382,10 @@ fo_val <- function(strana, napr) {
 
 ## Главное за `r hl_month`
 
-- **Наблюдаемый экспорт**[^hl] - **`r fmt_num(hl_exp$stoim_bn)` млрд \$** (`r fmt_pct_col(hl_exp$stoim_mom)` м/м); индекс физического объёма `r fmt_pct_col(hl_exp$fo_yoy)` г/г.
-- **Импорт** - **`r fmt_num(hl_imp$stoim_bn)` млрд \$** (`r fmt_pct_col(hl_imp$stoim_mom)` м/м); индекс физического объёма `r fmt_pct_col(hl_imp$fo_yoy)` г/г.
+- **Экспорт с учётом оперативных оценок**[^hl] - **`r fmt_num(hl_exp$stoim_bn)` млрд \$** (`r fmt_pct_col(hl_exp$stoim_mom)` м/м).
+- **Импорт** - **`r fmt_num(hl_imp$stoim_bn)` млрд \$** (`r fmt_pct_col(hl_imp$stoim_mom)` м/м).
 
-[^hl]: Стоимость - по всем странам, охваченным базой (национальные источники и Comtrade), с учётом nowcast-оценок: в `r hl_month` прогноз даёт около `r round(100 * hl_exp$nowcast_share)`% стоимости экспорта и `r round(100 * hl_imp$nowcast_share)`% импорта. Индекс физического объёма - изменение год к году по основным партнёрам (Китай, Индия, Турция), взвешенное по их товарообороту и только по фактическим данным (см. график ниже). Это наблюдаемая торговля, а не официальные итоги.
+[^hl]: Стоимость - по всем странам, охваченным базой (национальные источники и Comtrade), с учётом nowcast-оценок: в `r hl_month` прогноз даёт около `r round(100 * hl_exp$nowcast_share)`% стоимости экспорта и `r round(100 * hl_imp$nowcast_share)`% импорта. Это сумма доступных записей и оценок проекта по странам базы; охват публикаций меняется.
 
 ## 1. Физические объёмы внешней торговли
 
@@ -413,23 +395,20 @@ fo_val <- function(strana, napr) {
 
 ```{r}
 #| fig-cap: "Изменение физических объёмов торговли по странам-партнёрам, % г/г."
-ggplotly(pl_fizob, dynamicTicks = FALSE) %>%
-  layout(
-    font = list(family = "Source Sans Pro", size = 13),
-    legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.06)
-  )
+#| results: asis
+if (any(is.finite(bulletin_fo$fizob))) {
+  ggplotly(pl_fizob, dynamicTicks = FALSE)
+} else {
+  cat("Полные страновые индексы за этот выпуск не опубликованы: исходные ряды имеют пропуски. Стоимость торговли и доступная масса показаны ниже.\n")
+}
 ```
 
-**Главное:**
-
-- Физобъём импорта из Турции продолжает снижаться - `r fmt_pct_col(fo_val('TR','ИМ'))` г/г.
-- Физобъём экспорта в Индию - `r fmt_pct_col(fo_val('IN','ЭК'))` г/г; основная причина - снижение поставок нефти и нефтепродуктов.
-- Физобъём импорта из Китая за год `r fmt_pct_col(fo_val('CN','ИМ'))`, а экспорта - лишь `r fmt_pct_col(fo_val('CN','ЭК'))`.
+Индекс рассчитывается по методологии Фишера и объединяет товары с разными физическими единицами. Неизвестные значения не заменяются нулями. Общий индекс берётся из расчёта ALL, а не из среднего страновых индексов.
 
 ## 2. Экспорт: нефть и газ vs прочие товары
 
 ::: {.chart-lead}
-Стоимость экспорта: **нефтегазовый и ненефтегазовый** сегменты, **млрд $**
+Стоимость экспорта: **нефтегазовый и прочие и нераскрытые товары** сегменты, **млрд $**
 :::
 
 ```{r}
@@ -441,24 +420,18 @@ ggplotly(pl_oil_nonoil, dynamicTicks = FALSE) %>%
   )
 ```
 
-**Главное**
+В стоимости нефтегазового сегмента учтены коды 2709-2715. Нераскрытые товарные позиции не переклассифицируются в сырую нефть. Свежие месяцы включают оперативные оценки с долями, указанными выше.
 
-- На месячном уровне **объёмы экспорта (в денежном выражении) с начала года выорсли** по многим направлениями.
-- С начала года экспорт нефти и нефтепродкутов в **Китай** и **Индию** значительно вырос.
-- **Главный вопрос**: вернётся ли в 2026 г. объём экспорта неффтепродуктов к уровням 2024 г.?
-
-### 2.1 Экспорт нефти и прородного газа
+### 2.1 Экспорт нефти и природного газа
 
 ::: {.chart-lead}
 Экспорт **нефти, нефтепродуктов и природного газа** в натуральном выражении, **млн т**
 :::
 
 ```{r}
-#| fig-cap: "Экспорт нефти, нефтепродектов и природного газа в натуральном выражении, млн т"
+#| fig-cap: "Экспорт нефти, нефтепродуктов и природного газа в натуральном выражении, млн т"
 
 ggplotly(pl_oilgas, dynamicTicks = F) %>%
-  fix_stacked_area_hover(data_oilgas,
-  x = "PERIOD", y = "NETTO", fill = "STRANA") %>%
   layout(
     font = list(family = "Source Sans Pro", size = 13),
     legend = list(
@@ -475,7 +448,11 @@ ggplotly(pl_oilgas, dynamicTicks = F) %>%
 
 ```
 
-## 3. Экспорт товаров по товарным группам 
+Масса показана только для записей с раскрытыми значениями. Разрывы линий означают неизвестную массу, а не нулевые поставки.
+
+## 3. Экспорт товаров по товарным группам
+
+Сравниваются `r format(hl_latest %m-% months(11), "%m.%Y")` - `r format(hl_latest, "%m.%Y")` и предыдущие 12 месяцев. Изменение относится к доступной стоимости с nowcast; состав публикаций может различаться.
 
 ::: {.chart-lead}
 Топ-20 товарных групп **экспорта** по изменению стоимости за последние 12 месяцев, млрд $.
@@ -488,17 +465,6 @@ ggplotly(pl_oilgas, dynamicTicks = F) %>%
 #| fig-height: 8
 
 df_plot_export <- df_groups %>%
-  # Здесь заменяю код по нефти для Турции. Важно!
-  mutate(TNVED4 = if_else(TNVED4 == '2799', '2709', TNVED4)) %>%
-  mutate(
-     across(
-        everything(),
-        ~sum(., na.rm = T)
-     ),
-   .by = c(TNVED4, NAPR)
-   ) %>%
-   distinct() %>%
-  #
   left_join(names_4, by = "TNVED4") %>%
   filter(NAPR == "ЭК") %>%
   mutate(
@@ -538,9 +504,7 @@ plot_export <-
     aes(x = position_label, y = TNVED4_string, label = label),
     nudge_y = 0.41,
     size = 5) +
-  scale_x_break(c(break_lower_bound+1, break_upper_bound-1)) +
   coord_cartesian(clip = "off") +
-  geom_vline(xintercept = c(break_lower_bound+1.2, break_upper_bound-1.2), color = "grey50", linetype = "solid", linewidth = 1.7) +
   theme_groups() +
   labs(y = NULL, x = "млрд долл.")
 

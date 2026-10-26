@@ -1,0 +1,6 @@
+# Local, selective bulletin build with the website navigation.
+project:
+  render:
+    - country_bulletins/china/bulletin_china_pdf.qmd
+    - country_bulletins/india/bulletin_india_pdf.qmd
+    - country_bulletins/turkey/bulletin_turkey_pdf.qmd

@@ -2,12 +2,9 @@
 # Запуск из корня репозитория: Rscript site/country_bulletins/turkey/data_prep_turkey.R
 # DuckDB: MGIMO_DUCKDB_PATH или db/unified_trade_data.duckdb в корне репо.
 #
-# Замечание по данным: у Турции энергоэкспорт из России идёт нефтепродуктами
-# (2710), а не сырой нефтью (2709) — её в данных нет. Также встречается
-# мусорный/перекодированный агрегат 2799 (в справочнике подписан как
-# «Субпродукты индейки», крупная стоимость при нулевом тоннаже). В итоговых
-# суммах он оставлен (иначе тотал занижается), а из графика «по категориям»
-# исключается на стороне qmd.
+# Турция не раскрывает сырую нефть (2709). Отсутствие строк не означает
+# отсутствие поставок. Позиция 2799 не переносится автоматически в 2709.
+# В общей стоимости она сохраняется; из графика категорий исключена.
 
 suppressPackageStartupMessages({
   library(tidyverse)
@@ -67,7 +64,7 @@ df_groups <- dbGetQuery(
   con, "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'TR'"
 ) %>%
   mutate(STOIM = STOIM / 1e9) %>%
-  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, PERIOD)) %>%
+  reframe(STOIM = sum(STOIM, na.rm = TRUE), NETTO = sum(NETTO), .by = c(TNVED4, NAPR, PERIOD)) %>%
   mutate(max_1 = max(PERIOD), min_1 = max_1 %m-% months(11),
          max_2 = min_1 %m-% months(1), min_2 = max_2 %m-% months(11)) %>%
   mutate(year = case_when(
@@ -76,7 +73,7 @@ df_groups <- dbGetQuery(
     .default = "other"
   )) %>%
   filter(year %in% c("last12", "year_before")) %>%
-  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, year)) %>%
+  reframe(STOIM = sum(STOIM, na.rm = TRUE), NETTO = sum(NETTO), .by = c(TNVED4, NAPR, year)) %>%
   pivot_wider(names_from = year, values_from = c(STOIM, NETTO)) %>%
   mutate(STOIM_diff = STOIM_last12 - STOIM_year_before,
          STOIM_gr = -1 + STOIM_last12 / STOIM_year_before) %>%
@@ -87,10 +84,10 @@ write_parquet(df_groups, file.path(out_dir, "data_4_turkey.parquet"))
 # 3. Экспорт нефтепродуктов (2710) в натуральном выражении (млн т).
 data_oil <- dbGetQuery(
   con,
-  "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'TR' AND TNVED4 = '2710'"
+  "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'TR' AND NAPR = 'ЭК' AND TNVED4 = '2710'"
 ) %>%
   mutate(STOIM = STOIM / 1e9, NETTO = NETTO / 1e9) %>%  # млрд $ и млн т
-  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, PERIOD)) %>%
+  reframe(STOIM = sum(STOIM, na.rm = TRUE), NETTO = sum(NETTO), .by = c(TNVED4, NAPR, PERIOD)) %>%
   left_join(hs4_labels, by = "TNVED4")
 write_parquet(data_oil, file.path(out_dir, "data_oil_export_turkey.parquet"))
 

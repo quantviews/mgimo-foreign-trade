@@ -60,38 +60,6 @@ tab_stoim <- dbGetQuery(
 ) %>%
   reframe(STOIM = sum(STOIM, na.rm = TRUE), .by = c(STRANA, NAPR, PERIOD))
 
-strana_out <- dbGetQuery(
-  con,
-  "SELECT STRANA, NAPR, PERIOD, tn_level, tn_code, fizob, fizob_bp FROM fizob_index"
-) %>%
-  filter(tn_level == 0) %>%
-  filter(STRANA %in% STRANA[fizob > 10000]) %>%
-  pull(STRANA) %>%
-  unique()
-
-bulletin_fo <- dbGetQuery(
-  con,
-  "SELECT STRANA, NAPR, PERIOD, tn_level, tn_code, fizob, fizob_bp FROM fizob_index"
-) %>%
-  filter(STRANA %in% setdiff(STRANA, strana_out)) %>%
-  filter(tn_level == 0) %>%
-  left_join(tab_stoim, by = c("STRANA", "NAPR", "PERIOD")) %>%
-  mutate(
-    STRANA = if_else(STRANA %in% c("IN", "TR", "CN"), STRANA, "OTHER"),
-    fizob = if_else(STRANA == "OTHER", fizob * STOIM, fizob)
-  ) %>%
-  reframe(fizob = mean(fizob, na.rm = TRUE), .by = c(STRANA, NAPR, PERIOD)) %>%
-  arrange(STRANA, NAPR, PERIOD) %>%
-  mutate(
-    fizob = if_else(STRANA == "OTHER", replace_outlier(fizob), fizob),
-    .by = c(STRANA, NAPR)
-  ) %>%
-  mutate(
-    fizob = -1 + fizob / lag(fizob, 12),
-    .by = c(STRANA, NAPR)
-  ) %>%
-  filter(PERIOD >= ymd("2020-01-01"))
-
 tab_stoim_oil <- dbGetQuery(
   con,
   "SELECT STRANA, NAPR, PERIOD, STOIM, TNVED4 FROM unified_trade_data"
@@ -101,7 +69,7 @@ tab_stoim_oil <- dbGetQuery(
     type = if_else(
       TNVED4 %in% c(oil_tnved4, gas_tnved4),
       "Нефтегазовый",
-      "Кроме нефти и газа"
+      "Прочие и нераскрытые товары"
     ),
     STRANA = if_else(STRANA %in% c("IN", "TR", "CN"), STRANA, "OTHER")
   ) %>%
@@ -114,7 +82,7 @@ df_groups <- dbGetQuery(
 ) %>%
   mutate(STOIM = STOIM / 10^9) %>%
   reframe(
-    across(c(STOIM, NETTO, KOL), ~ sum(.x, na.rm = TRUE)),
+    STOIM = sum(STOIM, na.rm = TRUE), across(c(NETTO, KOL), ~ sum(.x)),
     .by = c(TNVED4, NAPR, PERIOD)
   ) %>%
   mutate(
@@ -132,7 +100,7 @@ df_groups <- dbGetQuery(
   ) %>%
   filter(year %in% c("last12", "year_before")) %>%
   reframe(
-    across(c(STOIM, NETTO, KOL), ~ sum(.x, na.rm = TRUE)),
+    STOIM = sum(STOIM, na.rm = TRUE), across(c(NETTO, KOL), ~ sum(.x)),
     .by = c(TNVED4, NAPR, year)
   ) %>%
   select(TNVED4, NAPR, year, STOIM, NETTO, KOL) %>%
@@ -156,7 +124,7 @@ data_oilgas <- dbGetQuery(
       "Прочие"
     )
   ) %>%
-  reframe(NETTO = sum(NETTO, na.rm = TRUE) / 1e6, .by = c(PERIOD, STRANA, good)) %>%
+  reframe(NETTO = sum(NETTO) / 1e9, .by = c(PERIOD, STRANA, good)) %>%
   filter(PERIOD >= ymd("2020-01-01"))
 
 hs4_json <- file.path(repo_root, "metadata", "hs4_labels.json")
@@ -166,31 +134,19 @@ if (!file.exists(hs4_json)) {
 if (!file.exists(hs4_json)) {
   stop("Missing hs4_labels.json in metadata/ or site/data/")
 }
-hs4_labels <- fromJSON(hs4_json, flatten = TRUE) %>% as_tibble()
+hs4_labels <- fromJSON(hs4_json, flatten = TRUE) %>% as_tibble() %>%
+  mutate(name_ru_short = if_else(hs4 == "2799", "Нераскрытые позиции (2799)", name_ru_short))
 
-# Заголовочные показатели.
-# Стоимость: сумма STOIM по всем странам базы (USD -> млрд), nowcast включён;
-# факт считаем отдельно, чтобы показать долю прогноза.
-# Физобъём: изменение физического объёма год к году по основным партнёрам
-# (Китай, Индия, Турция), согласовано с графиком раздела 1. OTHER/Comtrade
-# в индекс не берём: их свежие месяцы обваливаются из-за лага данных.
-# Показатели fizob несопоставимы между странами по масштабу, поэтому берём
-# YoY по каждой стране отдельно и усредняем с весом по товарообороту (STOIM):
-# так вклад страны отражает её долю в торговле, а не масштаб её ряда fizob.
+# Use the shared Fisher series, including the calculated ALL aggregate.
+# Missing indices remain missing; do not average country indices.
 source(file.path(repo_root, "site", "read_fizob_bulletin.R"))
 fizob_shared <- read_fizob_bulletin(con, repo_root)
-# Keep the legacy OTHER series; the three national series share one contract.
-bulletin_fo <- bulletin_fo %>%
-  filter(!STRANA %in% c("CN", "IN", "TR")) %>%
-  bind_rows(fizob_shared %>% filter(tn_level == 0, PERIOD >= as.Date("2020-01-01")) %>%
-              transmute(STRANA, NAPR, PERIOD, fizob = yoy))
+bulletin_fo <- fizob_shared %>%
+  filter(STRANA %in% c("CN", "IN", "TR"), PERIOD >= as.Date("2020-01-01")) %>%
+  transmute(STRANA, NAPR, PERIOD, fizob = yoy)
 fo_index_headline <- fizob_shared %>%
-  filter(tn_level == 0) %>%
-  transmute(STRANA, NAPR, PERIOD, fo_yoy_c = yoy) %>%
-  left_join(tab_stoim, by = c("STRANA", "NAPR", "PERIOD")) %>%
-  filter(!is.na(fo_yoy_c), !is.na(STOIM), STOIM > 0) %>%
-  reframe(fo_yoy = sum(fo_yoy_c * STOIM) / sum(STOIM), .by = c(NAPR, PERIOD)) %>%
-  select(NAPR, PERIOD, fo_yoy)
+  filter(STRANA == "ALL") %>%
+  transmute(NAPR, PERIOD, fo_yoy = yoy)
 
 bulletin_headline <- dbGetQuery(
   con,
@@ -200,8 +156,8 @@ bulletin_headline <- dbGetQuery(
   reframe(
     stoim_bn      = sum(STOIM, na.rm = TRUE) / 1e9,
     stoim_bn_fact = sum(STOIM[is_fact], na.rm = TRUE) / 1e9,
-    netto_mt      = sum(NETTO, na.rm = TRUE) / 1e9,
-    netto_mt_fact = sum(NETTO[is_fact], na.rm = TRUE) / 1e9,
+    netto_mt      = sum(NETTO) / 1e9,
+    netto_mt_fact = sum(NETTO[is_fact]) / 1e9,
     .by = c(NAPR, PERIOD)
   ) %>%
   arrange(NAPR, PERIOD) %>%

@@ -60,7 +60,7 @@ df_groups <- dbGetQuery(
   con, "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'CN'"
 ) %>%
   mutate(STOIM = STOIM / 1e9) %>%
-  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, PERIOD)) %>%
+  reframe(STOIM = sum(STOIM, na.rm = TRUE), NETTO = sum(NETTO), .by = c(TNVED4, NAPR, PERIOD)) %>%
   mutate(max_1 = max(PERIOD), min_1 = max_1 %m-% months(11),
          max_2 = min_1 %m-% months(1), min_2 = max_2 %m-% months(11)) %>%
   mutate(year = case_when(
@@ -69,7 +69,7 @@ df_groups <- dbGetQuery(
     .default = "other"
   )) %>%
   filter(year %in% c("last12", "year_before")) %>%
-  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, year)) %>%
+  reframe(STOIM = sum(STOIM, na.rm = TRUE), NETTO = sum(NETTO), .by = c(TNVED4, NAPR, year)) %>%
   pivot_wider(names_from = year, values_from = c(STOIM, NETTO)) %>%
   mutate(STOIM_diff = STOIM_last12 - STOIM_year_before,
          STOIM_gr = -1 + STOIM_last12 / STOIM_year_before) %>%
@@ -80,10 +80,10 @@ write_parquet(df_groups, file.path(out_dir, "data_4_china.parquet"))
 # 3. Экспорт нефти (2709) в натуральном выражении (млн т).
 data_oil <- dbGetQuery(
   con,
-  "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'CN' AND TNVED4 = '2709'"
+  "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'CN' AND NAPR = 'ЭК' AND TNVED4 = '2709'"
 ) %>%
   mutate(STOIM = STOIM / 1e9, NETTO = NETTO / 1e9) %>%  # млрд $ и млн т
-  reframe(across(c(STOIM, NETTO), ~ sum(.x, na.rm = TRUE)), .by = c(TNVED4, NAPR, PERIOD)) %>%
+  reframe(STOIM = sum(STOIM, na.rm = TRUE), NETTO = sum(NETTO), .by = c(TNVED4, NAPR, PERIOD)) %>%
   left_join(hs4_labels, by = "TNVED4")
 write_parquet(data_oil, file.path(out_dir, "data_oil_export_china.parquet"))
 
