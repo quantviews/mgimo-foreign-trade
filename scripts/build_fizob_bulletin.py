@@ -17,6 +17,14 @@ def build(database, output):
     sql = (ROOT / "sql/fizob_bulletin.sql").read_text(encoding="utf-8")
     # ALL/all-products extends the country-total formula. Require a complete,
     # stable country grid so an absent country row cannot silently lower it.
+    fisher = 'methodology_version' in {r[0] for r in con.execute('DESCRIBE fizob_enriched').fetchall()}
+    if fisher:
+        # The generic shared query also supports legacy schemas. Here the schema
+        # is known: avoid serializing tens of millions of full rows to JSON.
+        sql = sql.replace("json_extract_string(to_json(f), '$.base_period')", 'CAST(f.base_period AS VARCHAR)')
+        sql = sql.replace("json_extract_string(to_json(f), '$.methodology_version')", 'f.methodology_version')
+    def level_sql(level):
+        return sql.replace('WHERE tn_level IN (0, 2, 4, 6)',f'WHERE tn_level={level}')
     invalid_total_grid = con.execute("""
       WITH counts AS (
         SELECT NAPR,PERIOD,count(*) n,
@@ -28,9 +36,14 @@ def build(database, output):
         SELECT NAPR FROM counts GROUP BY NAPR
         HAVING min(n)!=max(n) OR sum(invalid)>0)
     """).fetchone()[0]
-    assert not invalid_total_grid, "Cannot build ALL total from incomplete country indices"
+    if not fisher:
+        assert not invalid_total_grid, "Cannot build ALL total from incomplete country indices"
+    else:
+        # Fisher ALL is already pooled from A/B/C/D. Never reconstruct it by
+        # summing country indices, and keep unavailable observations as NULL.
+        assert con.execute("SELECT count(*) FROM fizob_enriched WHERE coverage<1 AND fizob IS NOT NULL").fetchone()[0] == 0
     # The three national totals are a fixed regression contract for bulletins.
-    con.execute("CREATE TEMP TABLE bulletin AS SELECT * FROM (" + sql +
+    con.execute("CREATE TEMP TABLE bulletin AS SELECT * FROM (" + level_sql(0) +
                 ") s WHERE tn_level=0 AND STRANA IN ('CN','IN','TR')")
     duplicate = con.execute("""
         SELECT count(*) FROM (
@@ -50,7 +63,24 @@ def build(database, output):
       FROM old o JOIN bulletin b USING (STRANA,NAPR,PERIOD)
       WHERE b.tn_level=0
     """).fetchone()
-    assert (difference[0] or 0) < 1e-12 and difference[1] == 0, difference
+    if not fisher:
+        assert (difference[0] or 0) < 1e-12 and difference[1] == 0, difference
+    else:
+        difference = con.execute("""
+          WITH expected AS (
+            SELECT c.STRANA,c.NAPR,c.PERIOD,
+              CASE WHEN c.base_period=p.base_period AND c.base_period IS NOT NULL
+                AND c.methodology_version=p.methodology_version AND p.fizob>0
+                AND isfinite(c.fizob) AND isfinite(p.fizob)
+                THEN c.fizob/p.fizob-1 END yoy
+            FROM fizob_index c LEFT JOIN fizob_index p
+              ON c.STRANA=p.STRANA AND c.NAPR=p.NAPR AND c.tn_level=p.tn_level
+              AND c.tn_code=p.tn_code AND p.PERIOD=c.PERIOD-INTERVAL '1 year'
+            WHERE c.tn_level=0 AND c.STRANA IN ('CN','IN','TR'))
+          SELECT max(abs(e.yoy-b.yoy)),count(*) FILTER(WHERE (e.yoy IS NULL)!=(b.yoy IS NULL))
+          FROM expected e JOIN bulletin b USING(STRANA,NAPR,PERIOD)
+        """).fetchone()
+        assert (difference[0] or 0)<1e-12 and difference[1]==0, difference
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     escaped = output.resolve().as_posix().replace("'", "''")
@@ -59,7 +89,7 @@ def build(database, output):
     with tempfile.TemporaryDirectory(prefix="fizob-build-", dir=ROOT / "tmp") as tmp:
         for level in (0, 2, 4, 6):
             print(f"Building level {level}", flush=True)
-            con.execute("CREATE OR REPLACE TEMP TABLE bulletin AS SELECT * FROM (" + sql +
+            con.execute("CREATE OR REPLACE TEMP TABLE bulletin AS SELECT * FROM (" + level_sql(level) +
                         f") s WHERE tn_level={level}")
             duplicates = con.execute("""
               SELECT count(*) FROM (SELECT STRANA,NAPR,PERIOD,tn_code

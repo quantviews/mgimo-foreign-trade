@@ -19,14 +19,21 @@ WITH total_raw AS (
     FROM total_base
 ), series AS (
     SELECT STRANA, COUNTRY_NAME, NAPR, PERIOD, YEAR, tn_level, tn_code,
-           fizob, TNVED4_NAME, TNVED2_NAME FROM fizob_enriched
+           fizob, TNVED4_NAME, TNVED2_NAME,
+           json_extract_string(to_json(f), '$.base_period') AS chain_base,
+           json_extract_string(to_json(f), '$.methodology_version') AS methodology
+    FROM fizob_enriched f
     WHERE tn_level IN (0, 2, 4, 6)
     UNION ALL
     SELECT 'ALL', 'Все страны в базе', NAPR, PERIOD, year(PERIOD), 0, '0',
-           raw_fizob / nullif(base_value, 0), NULL, NULL
+           raw_fizob / nullif(base_value, 0), NULL, NULL, NULL, NULL
     FROM total_normalized
     WHERE NOT EXISTS (
         SELECT 1 FROM fizob_enriched WHERE STRANA='ALL' AND tn_level=0
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM fizob_enriched f
+        WHERE json_extract_string(to_json(f), '$.methodology_version') IS NOT NULL
     )
 )
 SELECT c.STRANA,
@@ -40,8 +47,15 @@ SELECT c.STRANA,
        CASE WHEN c.tn_level = 0 THEN 'Все товары'
             ELSE c.tn_code || ' · ' || COALESCE(r.TNVED_NAME, c.TNVED4_NAME, c.TNVED2_NAME, 'Название не указано')
        END AS product,
-       c.fizob, p.fizob AS fizob_previous_year,
+       c.fizob,
+       CASE WHEN p.chain_base IS NOT DISTINCT FROM c.chain_base
+                  AND p.methodology IS NOT DISTINCT FROM c.methodology
+                  AND (c.methodology IS NULL OR c.chain_base IS NOT NULL)
+            THEN p.fizob END AS fizob_previous_year,
        CASE WHEN p.fizob > 0 AND isfinite(p.fizob) AND isfinite(c.fizob)
+                  AND p.chain_base IS NOT DISTINCT FROM c.chain_base
+                  AND p.methodology IS NOT DISTINCT FROM c.methodology
+                  AND (c.methodology IS NULL OR c.chain_base IS NOT NULL)
             THEN c.fizob / p.fizob - 1 END AS yoy,
        c.PERIOD >= (SELECT max(PERIOD) FROM series) - INTERVAL '35 months' AS recent_36_months
 FROM series c

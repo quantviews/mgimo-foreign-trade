@@ -337,6 +337,11 @@ def save_fizob_index(
             logger.warning("Ни один fizob-файл не подошёл по схеме, таблица не создана")
             return
 
+        # Combining legacy levels and Fisher levels would silently mix methods.
+        fisher = ["methodology_version" in statement for statement in statements]
+        if any(fisher) and not all(fisher):
+            raise ValueError("Cannot mix legacy and Fisher fizob files")
+
         conn.execute(
             "CREATE OR REPLACE TABLE fizob_index AS "
             + " UNION ALL ".join(statements)

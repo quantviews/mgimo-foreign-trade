@@ -5,6 +5,10 @@ on:
     branches: [ main ]
     paths:
       - "src/**/*.py"
+      - "src/**/*.R"
+      - "sql/**"
+      - "metadata/publication_registry.json"
+      - "scripts/*fisher*.R"
       - "tests/**/*.py"
       - "scripts/**/*.py"
       - "pyproject.toml"
@@ -13,6 +17,10 @@ on:
   pull_request:
     paths:
       - "src/**/*.py"
+      - "src/**/*.R"
+      - "sql/**"
+      - "metadata/publication_registry.json"
+      - "scripts/*fisher*.R"
       - "tests/**/*.py"
       - "scripts/**/*.py"
       - "pyproject.toml"
@@ -52,3 +60,22 @@ jobs:
 
       - name: Run pytest
         run: pytest -q
+
+  fisher-methodology:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::tidyverse
+            any::slider
+            any::duckdb
+            any::DBI
+            any::jsonlite
+      - name: Check Fisher fixtures and optimized chain equivalence
+        run: |
+          mkdir -p tmp
+          Rscript scripts/audit_fizob_fisher.R tmp/fisher-ci-audit.json
+          Rscript scripts/test_fisher_chain_equivalence.R

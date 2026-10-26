@@ -28,7 +28,11 @@ _SELECT = (
     "STRANA, NAPR, PERIOD, tn_level, tn_code, "
     "CASE WHEN tn_level = 2 THEN TNVED2_NAME "
     "WHEN tn_level = 4 THEN TNVED4_NAME END AS tn_name, "
-    "fizob, fizob_bp, idx"
+    "fizob, fizob_bp, idx, "
+    "json_extract_string(to_json(f), '$.base_period') AS base_period, "
+    "json_extract_string(to_json(f), '$.methodology_version') AS methodology_version, "
+    "json_extract_string(to_json(f), '$.status') AS status, "
+    "TRY_CAST(json_extract_string(to_json(f), '$.coverage') AS DOUBLE) AS coverage"
 )
 _PERIOD_YM = re.compile(r"^\d{4}-\d{2}$")
 _PERIOD_YMD = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -104,7 +108,7 @@ def fizob(
     if ob not in _ORDER:
         raise HTTPException(400, f"Unknown order_by: {ob}")
 
-    sql = f"SELECT {_SELECT} FROM fizob_enriched"
+    sql = f"SELECT {_SELECT} FROM fizob_enriched f"
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
     sql += f" ORDER BY {_ORDER[ob]} LIMIT {page + 1} OFFSET {int(offset)}"

@@ -130,6 +130,12 @@ def compare_fizob(get, countries, direction, products, common, names):
         for c in countries:
             if any((c,p) not in data for p in common):return unavailable('Не для всех стран есть индекс за каждый общий месяц факта; период не сокращаем молча.')
             series=[data[c,p] for p in common]
+            if any(r.get('methodology_version') for r in series):
+                bases={(r.get('methodology_version'),str(r.get('base_period') or '')) for r in series}
+                if len(bases)!=1 or any(not r.get('base_period') for r in series):
+                    return unavailable('Период пересекает разрыв цепочки индекса или смену базы.')
+            if any(r.get('idx') is None for r in series):
+                return unavailable('Для части месяцев полный индекс не установлен по покрытию данных.')
             idx=[Decimal(str(r['idx'])) for r in series]
             bp=[Decimal(str(r['fizob_bp'])) for r in series]
             if any(not x.is_finite() or x<0 for x in idx) or idx[0]<=0:
@@ -147,7 +153,10 @@ def compare_fizob(get, countries, direction, products, common, names):
     for r in output:lines.append(f"| {r['country_name']} | 100 | {number(Decimal(r['rebased_end']),1)} | {number(Decimal(r['change_percent']),1)}% |")
     lines+=['','Формула: (индекс конца / индекс начала - 1) × 100. Каждая страна приведена к собственной начальной точке = 100; абсолютные уровни стран не сопоставляются.']
     differences=[{'country':r['strana'],'baseline':countries[0],'growth_difference_pp':str(Decimal(r['change_percent'])-Decimal(output[0]['change_percent']))} for r in output[1:]]
-    lines+=['','Это показатель методологии проекта со сглаживанием и восстановлением части количеств; он не тождественен динамике тоннажа и не является точным разложением стоимости на цену и объём.']
+    if all(r.get('methodology_version')=='fisher_annual_v2' for r in data.values()):
+        lines+=['','Индекс Фишера построен по 12-месячным окнам с вменением части относительных цен по методологии проекта. Он отражает динамику разнородной товарной корзины.']
+    else:
+        lines+=['','Это показатель методологии проекта со сглаживанием и восстановлением части количеств; он не тождественен динамике тоннажа и не является точным разложением стоимости на цену и объём.']
     if level>0:
         lines += ['', 'В товарных агрегатах используются меняющиеся стоимостные веса, поэтому изменение структуры тоже влияет на индекс.']
     if level==0:

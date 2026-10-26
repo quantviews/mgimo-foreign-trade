@@ -1,5 +1,16 @@
 from trade_tools_shared.numeric_facts import numerical_facts,verify_answer
 
+def test_fisher_chain_reset_never_produces_growth():
+    rows=[dict(strana='CN',napr='ex',tn_level=2,tn_code='27',
+               period=p,idx=v,fizob_bp=1,base_period=b,methodology_version='fisher_annual_v2')
+          for p,v,b in [('2025-01',2,'2024-01-01'),('2025-02',1,'2025-01-01')]]
+    baseline=[{**rows[0],'period':'2024-02','idx':.5}]
+    facts=numerical_facts(rows,{'period_from':'2025-01','period_to':'2025-02'},baseline)
+    assert not any(f['kind'] in ('index_change','index_yoy') for f in facts.values())
+    assert any('база цепочки' in f['text'] for f in facts.values())
+    table=next(f['text'] for f in facts.values() if f['kind']=='monthly_table')
+    assert '| 2025-02 | нет данных | нет данных |' in table
+
 def row(p,v,kg=100,type='fact',**kw):
     return dict(strana='CN',napr='ex',type=type,source='national' if type=='fact' else 'nowcast',period=p,stoim=v,netto=kg,**kw)
 

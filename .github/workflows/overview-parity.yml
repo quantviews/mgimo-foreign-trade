@@ -6,11 +6,15 @@ on:
     paths:
       - 'demo/**'
       - 'mcp-server/**'
+      - 'shared/**'
+      - 'conftest.py'
       - '.github/workflows/overview-parity.yml'
   pull_request:
     paths:
       - 'demo/**'
       - 'mcp-server/**'
+      - 'shared/**'
+      - 'conftest.py'
       - '.github/workflows/overview-parity.yml'
   workflow_dispatch:
 

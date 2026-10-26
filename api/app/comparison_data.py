@@ -18,7 +18,7 @@ def database_get(path, pairs, cap=1000):
             order_by='period', limit=cap, offset=0)
     elif path == '/v1/fizob':
         countries = params['strana']
-        sql = 'SELECT STRANA,NAPR,PERIOD,tn_level,tn_code,idx,fizob_bp FROM fizob_enriched WHERE STRANA IN (' + ','.join('?' for _ in countries) + ') AND NAPR=? AND tn_level=? AND tn_code=? AND PERIOD>=? AND PERIOD<=? ORDER BY PERIOD LIMIT ?'
+        sql = "SELECT STRANA,NAPR,PERIOD,tn_level,tn_code,idx,fizob_bp,json_extract_string(to_json(f),'$.base_period') base_period,json_extract_string(to_json(f),'$.methodology_version') methodology_version FROM fizob_enriched f WHERE STRANA IN (" + ','.join('?' for _ in countries) + ') AND NAPR=? AND tn_level=? AND tn_code=? AND PERIOD>=? AND PERIOD<=? ORDER BY PERIOD LIMIT ?'
         args = countries + [params['napr'][0], int(params['tn_level'][0]), params['tn_code'][0], params['period_from'][0]+'-01', params['period_to'][0]+'-01', cap+1]
     else:
         raise ValueError('Unsupported comparison source')

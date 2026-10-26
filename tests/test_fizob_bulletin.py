@@ -5,6 +5,25 @@ import duckdb
 import pytest
 
 
+def test_fisher_never_compares_different_bases_or_synthesizes_all():
+    con = duckdb.connect()
+    con.execute("""CREATE TABLE fizob_enriched AS
+      SELECT 'CN' STRANA,'Китай' COUNTRY_NAME,'ЭК' NAPR,
+      CAST(p AS DATE) PERIOD,year(CAST(p AS DATE)) AS YEAR,0 tn_level,'0' tn_code,
+      1.0 fizob,1.0 fizob_bp,CAST(NULL AS VARCHAR) TNVED4_NAME,
+      CAST(NULL AS VARCHAR) TNVED2_NAME,CAST(b AS DATE) base_period,
+      'fisher_annual_v2' methodology_version
+      FROM (VALUES ('2025-12-01','2019-01-01'),('2026-12-01','2026-01-01')) t(p,b);
+      CREATE TABLE tnved_reference(TNVED_CODE VARCHAR,TNVED_LEVEL INTEGER,TNVED_NAME VARCHAR);
+    """)
+    sql = (Path(__file__).resolve().parents[1] / 'sql/fizob_bulletin.sql').read_text(encoding='utf-8')
+    rows = con.execute('SELECT STRANA,yoy FROM (' + sql + ') s ORDER BY PERIOD').fetchall()
+    assert rows == [('CN', None), ('CN', None)]
+    con.execute('UPDATE fizob_enriched SET base_period=NULL')
+    assert con.execute('SELECT yoy FROM (' + sql + ') s WHERE YEAR=2026').fetchone()[0] is None
+    con.close()
+
+
 def test_calendar_yoy_and_series_isolation():
     con = duckdb.connect()
     con.execute("""

@@ -56,6 +56,42 @@ def build_fizob_select_sql(
     period = "CAST(PERIOD AS DATE)"
     where = f" WHERE EXTRACT(YEAR FROM {period}) >= {int(start_year)}" if start_year else ""
 
+    if "bp" in columns and "methodology_version" not in columns:
+        has_fisher_price = bool(columns & {"price", "price2", "price4", "price6"})
+        has_legacy_base = bool(columns & {"fizob_bp", "fizob2_bp", "fizob4_bp", "fizob6_bp"})
+        if has_fisher_price and not has_legacy_base:
+            raise ValueError("Unversioned Fisher file: rebuild with coverage and methodology metadata")
+
+    if "methodology_version" in columns:
+        if file_stem in TOTAL_STEMS:
+            level, code, value, price = 0, "'0'", "fizob", "price"
+        elif file_stem in FIZOB_LEVELS:
+            level, code, value, _ = FIZOB_LEVELS[file_stem]
+            price = f"price{level}"
+        else:
+            raise ValueError(f"Unknown Fisher file: {file_stem}")
+        metadata = {"bp", "TYPE", "status", "coverage", "base_coverage", "stoim_12",
+                    "available_stoim_12", "imp", "quantity_coverage", "mass_coverage",
+                    "source_estimated_value", value, price}
+        if level:
+            metadata.add(code)
+        if not metadata <= columns:
+            raise ValueError(f"Incomplete Fisher schema: {sorted(metadata - columns)}")
+        # bp is a DATE, not an index divisor. Fisher already has base level 1.
+        # Keep metadata in the serving table; incomplete values remain NULL.
+        return (
+            f"SELECT upper(STRANA) AS STRANA, NAPR, {period} AS PERIOD, "
+            f"{level} AS tn_level, {code} AS tn_code, "
+            f"CASE WHEN methodology_version = 'fisher_annual_v2' AND TYPE = 'fact' "
+            f"AND status IN ('complete', 'base') AND coverage = 1 AND bp IS NOT NULL "
+            f"AND isfinite({value}) AND {value} >= 0 THEN {value} "
+            f"ELSE NULL END AS fizob, CAST(1 AS DOUBLE) AS fizob_bp, CAST(bp AS DATE) AS base_period, "
+            f"{price} AS price_index, methodology_version, TYPE, status, coverage, "
+            "'observed_series_months' AS coverage_basis, "
+            "base_coverage, stoim_12, available_stoim_12, imp, quantity_coverage, "
+            f"mass_coverage, source_estimated_value FROM {source}{where}"
+        )
+
     if file_stem in TOTAL_STEMS:
         if not {"fizob", "fizob_bp"} <= columns:
             logger.warning("%s: нет колонок fizob/fizob_bp, файл пропущен", file_stem)

@@ -69,6 +69,13 @@ def index_baseline_filters(filters, rows):
     return {**filters, 'period_from':month(start-12)+'-01',
             'period_to':month(start-1)+'-01', 'offset':0, 'limit':10000}
 
+def same_index_base(a,b):
+    if a.get('methodology_version') or b.get('methodology_version'):
+        return bool(a.get('base_period') and b.get('base_period') and
+                    a.get('methodology_version')==b.get('methodology_version') and
+                    str(a['base_period'])==str(b['base_period']))
+    return a.get('fizob_bp')==b.get('fizob_bp')
+
 def index_facts(selected, lookup, label, start, end, add):
     values={m:number(r.get('idx')) for m,r in selected.items()}
     valid={m:v for m,v in values.items() if v is not None}
@@ -79,6 +86,8 @@ def index_facts(selected, lookup, label, start, end, add):
     base=valid[first]
     if base<=0:
         add('index_caveat',label+': начальное значение неположительное; индекс с базой начала периода и изменение за окно не рассчитаны.')
+    elif not same_index_base(selected[first],selected[last]):
+        add('index_caveat',label+': в периоде изменилась база цепочки; изменение между крайними месяцами не рассчитано.')
     else:
         change=(valid[last]/base-1)*100
         verb='вырос' if change>0 else 'снизился' if change<0 else 'не изменился'
@@ -88,14 +97,16 @@ def index_facts(selected, lookup, label, start, end, add):
     def yoy(m):
         previous=lookup.get(m-12,[])
         old=number(previous[0].get('idx')) if len(previous)==1 else None
-        return (valid[m]/old-1)*100 if m in valid and old is not None and old>0 else None
+        comparable=len(previous)==1 and m in selected and same_index_base(selected[m],previous[0])
+        return (valid[m]/old-1)*100 if comparable and m in valid and old is not None and old>0 else None
     latest_yoy=yoy(last)
     if latest_yoy is not None:
         add('index_yoy',f'{label}: Изменение за {month(last)} к {month(last-12)} составляет **{fmt(latest_yoy,1)}% г/г**.')
     table=['| Месяц | Индекс ('+month(first)+' = 100) | Изменение г/г, % |','|---|---:|---:|']
     for m in range(start,end+1):
         value=valid.get(m)
-        table.append('| '+month(m)+' | '+(fmt(value/base*100,1) if value is not None and base>0 else 'нет данных')+' | '+fmt(yoy(m),1)+' |')
+        comparable=m in selected and same_index_base(selected[first],selected[m])
+        table.append('| '+month(m)+' | '+(fmt(value/base*100,1) if comparable and value is not None and base>0 else 'нет данных')+' | '+fmt(yoy(m),1)+' |')
     add('monthly_table',label+'\n\n'+'\n'.join(table))
     if len(valid)!=end-start+1:
         add('index_caveat',f'{label}: в окне {month(start)} - {month(end)} есть пропуски; сравнение концов относится к указанным доступным месяцам.')

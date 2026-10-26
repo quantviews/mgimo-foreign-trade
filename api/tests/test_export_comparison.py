@@ -14,6 +14,18 @@ def fixture():
                for c,p,v in [("IN","2026-06",2),("IN","2026-07",3),("CN","2026-06",10),("CN","2026-07",11)]]
     return rows, filters, {"data":indices,"meta":{"has_more":False}}
 
+def test_fisher_new_base_does_not_compare_indices_or_hide_trade():
+    rows,filters,indices=fixture()
+    for r in indices['data']:
+        r['methodology_version']='fisher_annual_v2'
+        r['base_period']='2024-01-01' if r['period']=='2026-06' else '2025-01-01'
+    with patch('app.comparison_data.database_get',return_value=indices):
+        result=export_comparison(rows,{'period_max':'2026-08'},filters)
+    assert result['comparable']
+    assert result['totals'][0]['stoim']=='300'
+    assert not result['physical_volume']['available']
+    assert 'смену базы' in result['physical_volume']['reason']
+
 
 def test_workbook_common_months_and_fizob():
     rows, filters, indices = fixture()
