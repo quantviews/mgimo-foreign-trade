@@ -6,6 +6,7 @@ project:
   render:
     - site/index.qmd
     - site/technical.qmd
+    - site/developers.qmd
     - site/data-model.qmd
     - site/api.qmd
     - site/mcp.qmd
@@ -62,6 +63,8 @@ website:
             href: ../presentations/dataviz-story.html
       - text: "Документация"
         menu:
+          - text: "Разработчикам"
+            href: site/developers.qmd
           - text: "Методология"
             href: site/technical.qmd
           - text: "Модель данных"

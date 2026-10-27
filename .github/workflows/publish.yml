@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - "site/**/*.qmd"
+      - "docs/developer-guide.md"
       - "site/**/*.R"
       - "site/styles/**/*.scss"
       - "site/styles/**/*.css"

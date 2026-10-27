@@ -1,51 +1,21 @@
 # Актуальная статистика внешней торговли (МГИМО)
 
-Репозиторий содержит ETL-пайплайн для сборки, гармонизации и публикации статистики внешней торговли в DuckDB/Superset.
+Данные внешней торговли России на основе статистики стран-партнёров и UN Comtrade: единая база, индексы физических объёмов, оперативные оценки и инструменты для аналитиков. Репозиторий содержит сборщики данных, расчёты, API, MCP, демо-чат и сайт проекта.
 
-## Быстрый старт
+## Для пользователей
 
-Установить Python-зависимости и пакет проекта (editable):
+[Сайт проекта](https://nts.mgimo.ru/site/) · [Спросить ИИ](https://nts.mgimo.ru/site/demo.html) · [Excel](docs/api-excel-guide.md) · [API](https://nts.mgimo.ru/site/api.html) · [MCP](https://nts.mgimo.ru/site/mcp.html)
+
+## Для разработчиков
+
+[Документация разработчика](docs/developer-guide.md): установка, сбор данных, пересборка базы, fizob, сервисы, тесты и публикация.
 
 ```bash
 python -m pip install -r requirements.txt
 python -m pip install -e .
+pytest -q
 ```
 
-Собрать текущую базу через совместимый CLI:
+Для сборки базы нужны исходные данные и настройки источников: клонирование репозитория само по себе их не загружает. Порядок работы описан в [руководстве разработчика](docs/developer-guide.md).
 
-```bash
-python src/merge_processed_data.py --include-comtrade --start-year 2019
-```
-
-Запустить orchestration-слой Prefect 3:
-
-```bash
-python src/orchestration/flows.py
-```
-
-## API-доступ к данным
-
-Тонкий read-only сервис (FastAPI) поверх собранной DuckDB — программный доступ к данным
-с токен-авторизацией и аудитом использования. Код — [`api/`](api/), запуск локально:
-
-```bash
-python -m pip install -r api/requirements.txt
-uvicorn app.main:app --app-dir api --reload   # dev-режим, токен MGIMO_API_DEV_TOKEN
-```
-
-Справочник для потребителей (эндпоинты, параметры, Excel/Power Query) —
-`docs/api-reference.md`. Интерактивная схема — `GET /docs` (Swagger).
-
-## Основная документация
-
-- `docs/orchestration.md` — порядок полного refresh через Prefect 3, повторный merge после nowcast/fizob и SQL quality checks.
-- `docs/merge_processed_data-docs.md` — merge pipeline, DuckDB и CLI-аргументы.
-- `docs/comtrade-collector-docs.md` — загрузка данных UN Comtrade: ключ подписки, учёт
-  пересмотров отчётности, расход запросов на бесплатном тарифе. Сборка `db/comtrade.db`
-  из скачанных parquet — `docs/merge-comtrade-to-duckdb-docs.md`.
-- `docs/data_model.md` — целевая модель `unified_trade_data`, `SOURCE`/`TYPE`, nowcast ingest, справочники и fizob-таблицы.
-- `docs/documentation_fizob.md` — расчет индексов физических объемов; физобъемы считаются только по `TYPE = 'fact'`.
-- `docs/testing-docs.md` — запуск тестов и покрытые проверки.
-- `docs/api-reference.md` — справочник API (эндпоинты, параметры, OData); для аналитиков
-  без кода — `docs/api-excel-guide.md`. План/спецификация/деплой —
-  `docs/api-plan.md`, `docs/api-mvp-phase1.md`, `docs/api-deploy.md`.
+Обработку данных и расчёты выполняем локально. На VPS передаём готовые проверенные результаты с возможностью отката.

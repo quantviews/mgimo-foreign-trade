@@ -1,0 +1,9 @@
+---
+title: "Документация разработчика"
+format:
+  html:
+    toc: true
+    toc-title: "В этом разделе"
+---
+
+{{< include ../docs/developer-guide.md >}}
