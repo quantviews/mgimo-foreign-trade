@@ -1,0 +1,59 @@
+name: Deployment and login checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/mgimo146/**'
+      - 'demo/**'
+      - 'api/migrations/**'
+      - '.gitignore'
+      - '.dockerignore'
+      - '.github/workflows/deployment-checks.yml'
+  pull_request:
+    paths:
+      - 'deploy/mgimo146/**'
+      - 'demo/**'
+      - 'api/migrations/**'
+      - '.gitignore'
+      - '.dockerignore'
+      - '.github/workflows/deployment-checks.yml'
+  workflow_dispatch:
+
+jobs:
+  login-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: tradeapi
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      MGIMO_DEMO_POSTGRES_DSN: postgresql://test:ci-only-password@127.0.0.1:5432/tradeapi
+      PGPASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install demo dependencies
+        run: python -m pip install -r demo/requirements.txt pyyaml
+      - name: Validate deployment sources without executing them
+        run: |
+          python -m compileall -q deploy/mgimo146 demo/scripts
+          python -c "import yaml; yaml.safe_load(open('deploy/mgimo146/compose.yml'))"
+          git check-ignore deploy/privkey.pem deploy/nested/cert.crt deploy/mgimo146/demo.env.new
+          test -z "$(git ls-files '*.pem' '*.key' '*.crt' '*.cer' '*.p12' '*.pfx')"
+      - name: Apply migrations to disposable PostgreSQL
+        run: |
+          for migration in api/migrations/*.sql; do
+            psql -h 127.0.0.1 -U test -d tradeapi -v ON_ERROR_STOP=1 -f "$migration"
+          done
+      - name: Verify active, consumed, expired and old login links
+        run: python demo/scripts/check_verification_dedup.py

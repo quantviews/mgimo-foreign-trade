@@ -63,7 +63,8 @@ async def recent_verification(email: str, minutes: int) -> bool:
     pool = await _require_pool()
     val = await pool.fetchval(
         "SELECT 1 FROM email_verifications "
-        "WHERE email = $1 AND created_at > now() - make_interval(mins => $2) LIMIT 1",
+        "WHERE email = $1 AND consumed_at IS NULL AND expires_at > now() "
+        "AND created_at > now() - make_interval(mins => $2) LIMIT 1",
         email.lower(), minutes,
     )
     return val is not None
