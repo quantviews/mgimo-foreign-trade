@@ -146,6 +146,16 @@ _fastmcp_kwargs: dict = dict(
     host=os.environ.get("MCP_HOST", "127.0.0.1"),
     port=int(os.environ.get("MCP_PORT", "8000")),
 )
+
+# A loopback-only listener behind nginx still receives the public Host header.
+# Preserve DNS-rebinding protection while explicitly allowing the deployment domain.
+if os.environ.get("MCP_ALLOWED_HOSTS"):
+    from mcp.server.transport_security import TransportSecuritySettings
+    _fastmcp_kwargs["transport_security"] = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[h.strip() for h in os.environ["MCP_ALLOWED_HOSTS"].split(",") if h.strip()],
+        allowed_origins=[o.strip() for o in os.environ.get("MCP_ALLOWED_ORIGINS", "").split(",") if o.strip()],
+    )
 oauth_provider = None
 if _OAUTH:
     from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions

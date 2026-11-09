@@ -166,4 +166,23 @@ Thumbs.db
 docs/*.docx
 
 demo/.env
+api/.env
+mcp-server/.env
+# Private TLS material supplied by MGIMO IT.
+deploy/key.txt
+deploy/*.crt
+deploy/*.zip
+deploy/mgimo146/*.env
+# TLS certificates/private keys and temporary secret configuration, at any depth.
+*.pem
+*.key
+*.crt
+*.cer
+*.pfx
+*.p12
+*.env
+*.env.*
+!*.env.example
+deploy/mgimo146/smoke-export.*
+deploy/mgimo146/deployment-receipt.json
 pricing/

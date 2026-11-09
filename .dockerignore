@@ -33,6 +33,15 @@ trade_pip/
 
 # Local scratch / caches.
 tmp/
+deploy/
+**/.env
+**/.env.*
+**/*.key
+**/*.pem
+**/*.crt
+**/*.cer
+**/*.pfx
+**/*.p12
 .pytest_tmp/
 **/__pycache__/
 **/*.pyc

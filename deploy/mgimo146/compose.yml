@@ -1,0 +1,60 @@
+# Run from this directory. Host networking matches the existing MGIMO stack.
+# All application listeners are loopback-only; nginx publishes HTTPS.
+name: mgimo-trade
+services:
+  api:
+    image: mgimo-trade-api:${RELEASE_TAG:-146-current}
+    build:
+      context: ../../api
+      network: host
+      entitlements: [network.host]
+    container_name: trade-api
+    network_mode: host
+    restart: unless-stopped
+    env_file: api.env
+    environment:
+      MGIMO_API_DUCKDB_PATH: /data/unified_trade_data.duckdb
+      MGIMO_API_DUCKDB_THREADS: "2"
+      MGIMO_API_MAX_PAGE_ROWS: "1000000"
+    volumes:
+      - /srv/duckdb:/data:ro
+    command: [uvicorn, app.main:app, --host, 127.0.0.1, --port, "8090", --workers, "2", --proxy-headers, --forwarded-allow-ips, "127.0.0.1"]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  demo:
+    image: mgimo-trade-demo:${RELEASE_TAG:-146-current}
+    build:
+      context: ../..
+      dockerfile: demo/Dockerfile
+      network: host
+      entitlements: [network.host]
+    container_name: trade-demo
+    network_mode: host
+    restart: unless-stopped
+    env_file: demo.env
+    command: [uvicorn, app.main:app, --host, 127.0.0.1, --port, "8091", --proxy-headers, --forwarded-allow-ips, "127.0.0.1"]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  mcp:
+    image: mgimo-trade-mcp:${RELEASE_TAG:-146-current}
+    build:
+      context: ../..
+      dockerfile: mcp-server/Dockerfile
+      network: host
+      entitlements: [network.host]
+    container_name: trade-mcp
+    network_mode: host
+    restart: unless-stopped
+    env_file: api.env
+    environment:
+      MCP_HOST: 127.0.0.1
+      MCP_PORT: "8092"
+      MCP_TRANSPORT: streamable-http
+      MCP_ALLOWED_HOSTS: "nts.mgimo.ru,nts.mgimo.ru:443,127.0.0.1:*,localhost:*"
+      MCP_ALLOWED_ORIGINS: "https://nts.mgimo.ru"
+      MGIMO_API_BASE: http://127.0.0.1:8090
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
