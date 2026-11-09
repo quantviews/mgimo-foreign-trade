@@ -2,6 +2,9 @@ project:
   title: "МГИМО — Национальная торговая статистика"
   type: website
   output-dir: _site
+  render:
+    - "*.qmd"
+    - "!kve-2026.qmd"
   resources:
     - figures/bulletin/**
     - figures/nowcast.svg
