@@ -71,6 +71,78 @@
       "stoim_usd": 15665983447.0,
       "confirmed_on": "2026-10-24",
       "basis": "User-supplied all-commodity national release; archived original, partner, period, rows and value verified. Absence of a commodity is not a confirmed zero."
+    },
+    {
+      "country": "IN",
+      "month": "2026-08",
+      "direction": "ЭК",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/india_new/india_2026_08.csv",
+      "raw_sha256": "d5059b4cecb936aa44cdbdd37d611aa5dfab52fb5ccaa94b2d102fc6021e22e9",
+      "rows": 1674,
+      "stoim_usd": 6958180000.0,
+      "confirmed_on": "2026-11-10",
+      "basis": "Published all-commodity national monthly release for trade with Russia; archived raw response and prepared national row counts and value reconciled. Supersedes monthly nowcast only. Missing commodity rows and undisclosed physical quantities remain unknown, not zero."
+    },
+    {
+      "country": "IN",
+      "month": "2026-08",
+      "direction": "ИМ",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/india_new/india_2026_08.csv",
+      "raw_sha256": "d5059b4cecb936aa44cdbdd37d611aa5dfab52fb5ccaa94b2d102fc6021e22e9",
+      "rows": 5672,
+      "stoim_usd": 400030000.0,
+      "confirmed_on": "2026-11-10",
+      "basis": "Published all-commodity national monthly release for trade with Russia; archived raw response and prepared national row counts and value reconciled. Supersedes monthly nowcast only. Missing commodity rows and undisclosed physical quantities remain unknown, not zero."
+    },
+    {
+      "country": "TR",
+      "month": "2026-09",
+      "direction": "ИМ",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/turkey/tuik_bi/partner_kodu=75/year=2026/month=09.parquet",
+      "raw_sha256": "99e8242cee89faeadfc981db6bea748499f6337f7c32eded5b27b94d67977c40",
+      "rows": 3283,
+      "stoim_usd": 532932147.0,
+      "confirmed_on": "2026-11-10",
+      "basis": "Published all-commodity national monthly release for trade with Russia; archived raw response and prepared national row counts and value reconciled. Supersedes monthly nowcast only. Missing commodity rows and undisclosed physical quantities remain unknown, not zero."
+    },
+    {
+      "country": "TR",
+      "month": "2026-09",
+      "direction": "ЭК",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/turkey/tuik_bi/partner_kodu=75/year=2026/month=09.parquet",
+      "raw_sha256": "99e8242cee89faeadfc981db6bea748499f6337f7c32eded5b27b94d67977c40",
+      "rows": 821,
+      "stoim_usd": 1847917103.0,
+      "confirmed_on": "2026-11-10",
+      "basis": "Published all-commodity national monthly release for trade with Russia; archived raw response and prepared national row counts and value reconciled. Supersedes monthly nowcast only. Missing commodity rows and undisclosed physical quantities remain unknown, not zero."
+    },
+    {
+      "country": "IN",
+      "month": "2026-09",
+      "direction": "ИМ",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/india_new/india_2026_09.csv",
+      "raw_sha256": "36898e1cdcd70c580385f31688936418cdeed5f52507441c775579c72c861ce4",
+      "rows": 5712,
+      "stoim_usd": 357380000.0,
+      "confirmed_on": "2026-11-18",
+      "basis": "Published all-commodity MEIDB monthly release for Russia; both directions, USD and quantities retrieved. Raw and prepared totals reconciled. Supersedes monthly nowcast only. Missing commodities and undisclosed physical quantities remain unknown, not zero."
+    },
+    {
+      "country": "IN",
+      "month": "2026-09",
+      "direction": "ЭК",
+      "status": "confirmed_complete",
+      "raw_file": "data_raw/india_new/india_2026_09.csv",
+      "raw_sha256": "36898e1cdcd70c580385f31688936418cdeed5f52507441c775579c72c861ce4",
+      "rows": 1715,
+      "stoim_usd": 5861360000.0,
+      "confirmed_on": "2026-11-18",
+      "basis": "Published all-commodity MEIDB monthly release for Russia; both directions, USD and quantities retrieved. Raw and prepared totals reconciled. Supersedes monthly nowcast only. Missing commodities and undisclosed physical quantities remain unknown, not zero."
     }
   ]
 }
