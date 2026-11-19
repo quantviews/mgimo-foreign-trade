@@ -143,8 +143,8 @@ ggplotly(pl_oil_nonoil, dynamicTicks = F) %>%
 
 names_4 <- 
   read_parquet('data_comparison/bulletin_data_prep/metadata/hs4_labels.parquet') %>%
-  select(TNVED4 = hs4,
-         TNVED4_string = name_ru_short)
+  transmute(TNVED4 = hs4,
+         TNVED4_string = paste0(name_ru_short, " (", hs4, ")"))
 
 df_groups %>%
   left_join(names_4,

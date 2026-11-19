@@ -189,8 +189,8 @@ bulletin_headline <- arrow::read_parquet('data/bulletin_headline.parquet')
 
 names_4 <-
   read_parquet('data/hs4_labels.parquet') %>%
-  select(TNVED4 = hs4,
-         TNVED4_string = name_ru_short)
+  transmute(TNVED4 = hs4,
+         TNVED4_string = paste0(name_ru_short, " (", hs4, ")"))
 
 pl_fizob <- 
   bulletin_fo %>%
@@ -319,12 +319,13 @@ pl_oil_nonoil <-
     legend.background = element_rect(fill = 'transparent',color = 'transparent')
   )
 
-# Рисунок нефтегаз по странам:
+# Рисунок нефтегаз по странам: доступная масса, без заполнения пропусков.
 
 pl_oilgas <- 
   data_oilgas %>%
-  ggplot(aes(x = PERIOD, y = NETTO, color = STRANA)) +
+  ggplot(aes(x = PERIOD, y = NETTO_AVAILABLE, color = STRANA)) +
   geom_line() +
+  labs(caption = 'Масса по раскрытым строкам; при пропусках итог неполный.') +
   facet_wrap(~good, scales = 'free',
              labeller = as_labeller(\(x) paste0("<b>", x, "</b>"))
              ) +

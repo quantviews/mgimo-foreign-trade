@@ -71,7 +71,7 @@ data_oilgas <- arrow::read_parquet("data/data_oilgas.parquet")
 
 pl_oilgas <-
   data_oilgas %>%
-  ggplot(aes(x = PERIOD, y = NETTO, fill = STRANA)) +
+  ggplot(aes(x = PERIOD, y = NETTO_AVAILABLE, fill = STRANA)) +
   geom_area(position = "stack", linewidth = 0.1, color = "white") +
   facet_wrap(~good, scales = "free", labeller = facet_labeller) +
   scale_x_date(expand = expansion(mult = 0)) +

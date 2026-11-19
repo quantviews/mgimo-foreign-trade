@@ -124,7 +124,9 @@ data_oilgas <- dbGetQuery(
       "Прочие"
     )
   ) %>%
-  reframe(NETTO = sum(NETTO) / 1e9, .by = c(PERIOD, STRANA, good)) %>%
+  reframe(NETTO_AVAILABLE = if (all(is.na(NETTO))) NA_real_ else sum(NETTO, na.rm = TRUE) / 1e9,
+          MASS_MISSING_ROWS = sum(is.na(NETTO)),
+          NETTO = sum(NETTO) / 1e9, .by = c(PERIOD, STRANA, good)) %>%
   filter(PERIOD >= ymd("2020-01-01"))
 
 hs4_json <- file.path(repo_root, "metadata", "hs4_labels.json")
@@ -134,8 +136,7 @@ if (!file.exists(hs4_json)) {
 if (!file.exists(hs4_json)) {
   stop("Missing hs4_labels.json in metadata/ or site/data/")
 }
-hs4_labels <- fromJSON(hs4_json, flatten = TRUE) %>% as_tibble() %>%
-  mutate(name_ru_short = if_else(hs4 == "2799", "Нераскрытые позиции (2799)", name_ru_short))
+hs4_labels <- fromJSON(hs4_json, flatten = TRUE) %>% as_tibble()
 
 # Use the shared Fisher series, including the calculated ALL aggregate.
 # Missing indices remain missing; do not average country indices.

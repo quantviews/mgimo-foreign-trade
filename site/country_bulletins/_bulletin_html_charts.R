@@ -53,12 +53,14 @@ web_balance <- function(trade_balance, colors) {
 web_oil <- function(data_oil, colors) {
   d <- data_oil |>
     dplyr::filter(NAPR == "ЭК") |>
-    dplyr::mutate(`Экспорт, млн т` = round(NETTO, 1)) |>
+    dplyr::mutate(`Экспорт, млн т` = round(NETTO_AVAILABLE, 1),
+                  Покрытие = ifelse(MASS_MISSING_ROWS > 0, "Доступная масса; неполный итог", "Масса раскрыта во всех строках")) |>
     dplyr::rename(Дата = PERIOD)
   dmin <- min(d$Дата); dmax <- max(d$Дата)
-  ggplot(d, aes(Дата, `Экспорт, млн т`)) +
+  ggplot(d, aes(Дата, `Экспорт, млн т`, text = Покрытие, group = 1)) +
     geom_line(color = colors[["primary"]], linewidth = I(1)) +
-    geom_point(shape = 21, fill = "white", color = colors[["primary"]]) +
+    geom_point(aes(shape = MASS_MISSING_ROWS > 0), fill = "white", color = colors[["primary"]]) +
+    scale_shape_manual(values = c(`FALSE` = 21, `TRUE` = 23), guide = "none") +
     scale_x_date(breaks = seq(dmin, dmax, by = "year"), labels = scales::label_date("%Y")) +
     labs(x = NULL, y = NULL) +
     .web_ts_theme() +

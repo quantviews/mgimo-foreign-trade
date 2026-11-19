@@ -32,14 +32,31 @@ def validate():
         differences = con.execute("""
           WITH expected AS (
             SELECT NAPR,PERIOD,CASE WHEN count(*)=count(NETTO)
-              THEN sum(NETTO)/1e9 END mass FROM unified_trade_data
-            WHERE STRANA=? AND NAPR='ЭК' AND TNVED4=? GROUP BY ALL
+              THEN sum(NETTO)/1e9 END mass,
+              sum(NETTO)/1e9 available_mass,
+              count(*)-count(NETTO) missing_rows FROM unified_trade_data
+            WHERE STRANA=? AND NAPR='ЭК' AND TNVED4=?
+              AND (STRANA!='IN' OR (TYPE='fact' AND SOURCE!='nowcast')) GROUP BY ALL
           )
           SELECT count(*) FROM expected e FULL JOIN read_parquet(?) h USING(NAPR,PERIOD)
           WHERE e.PERIOD IS NULL OR h.PERIOD IS NULL
             OR (mass IS NULL)!=(NETTO IS NULL) OR abs(mass-NETTO)>1e-9
+            OR (available_mass IS NULL)!=(NETTO_AVAILABLE IS NULL)
+            OR abs(available_mass-NETTO_AVAILABLE)>1e-9
+            OR missing_rows!=MASS_MISSING_ROWS
         """, [code, "2710" if code == "TR" else "2709", oil]).fetchone()[0]
         assert differences == 0, (country, "oil mass", differences)
+        if code == 'IN':
+            bad = con.execute("""
+              WITH pairs AS (
+                SELECT a.PERIOD,a.NETTO_YOY,
+                  CASE WHEN b.NETTO>0 THEN a.NETTO/b.NETTO-1 END expected
+                FROM read_parquet(?) a LEFT JOIN read_parquet(?) b
+                  ON a.PERIOD=b.PERIOD+INTERVAL '12 months' AND a.NAPR=b.NAPR
+              ) SELECT count(*) FROM pairs
+                WHERE (NETTO_YOY IS NULL)!=(expected IS NULL) OR abs(NETTO_YOY-expected)>1e-12
+            """, [oil, oil]).fetchone()[0]
+            assert bad == 0, 'India oil mass calendar YoY mismatch'
         checks.append(country + ": all monthly costs, facts and oil mass match DuckDB")
     differences = con.execute("""
       SELECT count(*) FROM read_parquet(?) h

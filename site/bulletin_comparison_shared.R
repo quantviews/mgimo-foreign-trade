@@ -118,9 +118,9 @@ df_groups <- arrow::read_parquet("data/df_groups.parquet")
 bulletin_headline <- arrow::read_parquet("data/bulletin_headline.parquet")
 names_4 <-
   read_parquet("data/hs4_labels.parquet") %>%
-  select(
+  transmute(
     TNVED4 = hs4,
-    TNVED4_string = name_ru_short
+    TNVED4_string = paste0(name_ru_short, " (", hs4, ")")
   )
 
 pl_fizob <-

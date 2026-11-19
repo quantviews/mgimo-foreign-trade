@@ -40,7 +40,7 @@ con <- dbConnect(duckdb::duckdb(), db_path, read_only = TRUE)
 on.exit(dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
 hs4_labels <- read_parquet(hs4_path) %>%
-  select(TNVED4 = hs4, TNVED4_string = name_ru_short)
+  transmute(TNVED4 = hs4, TNVED4_string = paste0(name_ru_short, " (", hs4, ")"))
 
 # 1. Экспорт, импорт и торговый баланс (стоимость; в млрд переводит qmd).
 tr_val <- dbGetQuery(
@@ -78,7 +78,8 @@ df_groups <- dbGetQuery(
   mutate(STOIM_diff = STOIM_last12 - STOIM_year_before,
          STOIM_gr = -1 + STOIM_last12 / STOIM_year_before) %>%
   arrange(-STOIM_diff) %>%
-  left_join(hs4_labels, by = "TNVED4")
+  left_join(hs4_labels, by = "TNVED4") %>%
+  mutate(TNVED4_string = coalesce(TNVED4_string, paste0("Код без краткого названия (", TNVED4, ")")))
 write_parquet(df_groups, file.path(out_dir, "data_4_turkey.parquet"))
 
 # 3. Экспорт нефтепродуктов (2710) в натуральном выражении (млн т).
@@ -87,8 +88,12 @@ data_oil <- dbGetQuery(
   "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'TR' AND NAPR = 'ЭК' AND TNVED4 = '2710'"
 ) %>%
   mutate(STOIM = STOIM / 1e9, NETTO = NETTO / 1e9) %>%  # млрд $ и млн т
-  reframe(STOIM = sum(STOIM, na.rm = TRUE), NETTO = sum(NETTO), .by = c(TNVED4, NAPR, PERIOD)) %>%
-  left_join(hs4_labels, by = "TNVED4")
+  reframe(STOIM = sum(STOIM, na.rm = TRUE),
+          NETTO_AVAILABLE = if (all(is.na(NETTO))) NA_real_ else sum(NETTO, na.rm = TRUE),
+          MASS_MISSING_ROWS = sum(is.na(NETTO)),
+          NETTO = sum(NETTO), .by = c(TNVED4, NAPR, PERIOD)) %>%
+  left_join(hs4_labels, by = "TNVED4") %>%
+  mutate(TNVED4_string = coalesce(TNVED4_string, paste0("Код без краткого названия (", TNVED4, ")")))
 write_parquet(data_oil, file.path(out_dir, "data_oil_export_turkey.parquet"))
 
 # 4. Заголовочные показатели: стоимость (млрд $), м/м и г/г, доля nowcast,

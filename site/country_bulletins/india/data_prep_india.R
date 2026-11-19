@@ -36,7 +36,7 @@ con <- dbConnect(duckdb::duckdb(), db_path, read_only = TRUE)
 on.exit(dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
 hs4_labels <- read_parquet(hs4_path) %>%
-  select(TNVED4 = hs4, TNVED4_string = name_ru_short)
+  transmute(TNVED4 = hs4, TNVED4_string = paste0(name_ru_short, " (", hs4, ")"))
 
 # 1. Экспорт, импорт и торговый баланс (стоимость; в млрд переводит qmd).
 india_val <- dbGetQuery(
@@ -74,17 +74,31 @@ df_groups <- dbGetQuery(
   mutate(STOIM_diff = STOIM_last12 - STOIM_year_before,
          STOIM_gr = -1 + STOIM_last12 / STOIM_year_before) %>%
   arrange(-STOIM_diff) %>%
-  left_join(hs4_labels, by = "TNVED4")
+  left_join(hs4_labels, by = "TNVED4") %>%
+  mutate(TNVED4_string = coalesce(TNVED4_string, paste0("Код без краткого названия (", TNVED4, ")")))
 write_parquet(df_groups, file.path(out_dir, "data_4_india.parquet"))
 
 # 3. Экспорт нефти (2709) в натуральном выражении (млн т).
 data_oil <- dbGetQuery(
   con,
-  "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'IN' AND NAPR = 'ЭК' AND TNVED4 = '2709'"
+  "SELECT NAPR, PERIOD, STOIM, NETTO, TNVED4 FROM unified_trade_data WHERE STRANA = 'IN' AND NAPR = 'ЭК' AND TNVED4 = '2709' AND TYPE = 'fact' AND SOURCE != 'nowcast'"
 ) %>%
   mutate(STOIM = STOIM / 1e9, NETTO = NETTO / 1e9) %>%  # млрд $ и млн т
-  reframe(STOIM = sum(STOIM, na.rm = TRUE), NETTO = sum(NETTO), .by = c(TNVED4, NAPR, PERIOD)) %>%
-  left_join(hs4_labels, by = "TNVED4")
+  reframe(STOIM = sum(STOIM, na.rm = TRUE),
+          NETTO_AVAILABLE = if (all(is.na(NETTO))) NA_real_ else sum(NETTO, na.rm = TRUE),
+          MASS_MISSING_ROWS = sum(is.na(NETTO)),
+          NETTO = sum(NETTO), .by = c(TNVED4, NAPR, PERIOD)) %>%
+  left_join(hs4_labels, by = "TNVED4") %>%
+  mutate(TNVED4_string = coalesce(TNVED4_string, paste0("Код без краткого названия (", TNVED4, ")")))
+# Match calendar months, not row offsets. Missing mass stays unknown in both
+# periods; partial sums are displayed but never used as a complete YoY base.
+oil_base <- data_oil %>%
+  transmute(NAPR, TNVED4, PERIOD = PERIOD %m+% months(12), NETTO_BASE = NETTO)
+data_oil <- data_oil %>%
+  left_join(oil_base, by = c("NAPR", "TNVED4", "PERIOD")) %>%
+  mutate(NETTO_YOY = if_else(!is.na(NETTO) & !is.na(NETTO_BASE) & NETTO_BASE > 0,
+                             NETTO / NETTO_BASE - 1, NA_real_)) %>%
+  arrange(PERIOD)
 write_parquet(data_oil, file.path(out_dir, "data_oil_export_india.parquet"))
 
 # 4. Заголовочные показатели (как в общем бюллетене): стоимость (млрд $), м/м и г/г,
