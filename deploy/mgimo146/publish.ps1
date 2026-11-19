@@ -1,6 +1,6 @@
 param(
     [string]$SshTarget = 'stp@172.17.0.146',
-    [string]$Package = 'tmp/publish-146-20261118/release.tar.gz',
+    [string]$Package = 'tmp/publish-146-20261119-india/release.tar.gz',
     [switch]$CheckOnly,
     [string]$RollbackStage = ''
 )

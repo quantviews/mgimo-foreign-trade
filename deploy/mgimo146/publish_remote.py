@@ -7,6 +7,7 @@ directory: it contains verified originals and the manual rollback command.
 import hashlib
 import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
@@ -15,6 +16,61 @@ import tarfile
 import time
 import urllib.request
 import uuid
+
+
+# Only local bulletin hrefs, preserving query strings, fragments and quoting.
+BULLETIN_HREF = re.compile(
+    rb'''(\bhref\s*=\s*["'])(?P<url>(?:(?:\.\./|\./)*|/site/|https://nts\.mgimo\.ru/site/)country_bulletins/(?P<country>china|india|turkey)/bulletin_(?P=country)_pdf)\.qmd(?=[?#"'])''',
+    re.IGNORECASE)
+
+
+def repair_links(body):
+    return BULLETIN_HREF.sub(rb'\1\g<url>.html', body)
+
+
+def navigation_target(name, root):
+    relative(name)
+    if not name.startswith('site/') or not name.endswith('.html'):
+        raise ValueError('Unexpected navigation page')
+    target = root / 'web' / name
+    safe_target(target)
+    return target
+
+
+def backup_navigation(stage, root):
+    records = []
+    for path in sorted((root / 'web/site').rglob('*.html')):
+        safe_target(path)
+        original = path.read_bytes()
+        if repair_links(original) == original:
+            continue
+        name = path.relative_to(root / 'web').as_posix()
+        copy = stage / 'backup/navigation' / name
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        copy.write_bytes(original)
+        records.append({'path': name, 'sha256': sha(copy)})
+    (stage / 'backup/navigation.json').write_text(json.dumps(records))
+
+
+def install_navigation(stage, root, manifest):
+    names = {x['path'] for x in json.loads((stage / 'backup/navigation.json').read_text())}
+    names.update(x['path'].removeprefix('web/') for x in manifest['files']
+                 if x['path'].startswith('web/') and x['path'].endswith('.html'))
+    expected = []
+    for name in sorted(names):
+        target = navigation_target(name, root)
+        body = target.read_bytes()
+        fixed = repair_links(body)
+        if fixed != body:
+            prepared = stage / 'navigation' / name
+            prepared.parent.mkdir(parents=True, exist_ok=True)
+            prepared.write_bytes(fixed)
+            atomic_copy(prepared, target)
+        expected.append({'path': name, 'sha256': sha(target)})
+    # Used by the host's HTTPS checks, including pages outside the data package.
+    output = stage / 'navigation-installed.json'
+    output.write_text(json.dumps(expected))
+    output.chmod(0o644)
 
 
 def sha(path):
@@ -71,6 +127,10 @@ def unpack(stage):
         raise ValueError('Manifest does not match archive')
     if not {'data/unified_trade_data.duckdb', 'data/fizob_bulletin.parquet'} <= set(names):
         raise ValueError('Data pair missing')
+    bulletins = {'web/site/country_bulletins/' + c + '/bulletin_' + c + '_pdf.html'
+                 for c in ('china', 'india', 'turkey')}
+    if not bulletins <= set(names):
+        raise ValueError('Country bulletin HTML missing; navigation would be broken')
     for x in manifest['files']:
         p = payload / x['path']
         if sha(p) != x['sha256'] or p.stat().st_size != x['bytes']:
@@ -123,6 +183,7 @@ def files_action(action, stage, root=Path('/target')):
                 raise ValueError('Existing production data missing')
             originals.append(record)
         (backup / 'manifest.json').write_text(json.dumps(originals, indent=2))
+        backup_navigation(stage, root)
     elif action == 'install':
         for x in manifest['files']:
             src = stage / 'payload' / x['path']
@@ -130,8 +191,15 @@ def files_action(action, stage, root=Path('/target')):
                 raise ValueError('Staged file changed')
         for x in manifest['files']:
             atomic_copy(stage / 'payload' / x['path'], destination(x['path'], root))
+        install_navigation(stage, root, manifest)
     elif action == 'rollback':
         originals = json.loads((backup / 'manifest.json').read_text())
+        navigation_file = backup / 'navigation.json'
+        navigation = json.loads(navigation_file.read_text()) if navigation_file.exists() else []
+        for x in navigation:
+            navigation_target(x['path'], root)
+            if sha(backup / 'navigation' / x['path']) != x['sha256']:
+                raise ValueError('Backup damaged; navigation rollback aborted before writes')
         for x in originals:
             destination(x['path'], root)
             if x['existed'] and sha(backup / x['path']) != x['sha256']:
@@ -143,6 +211,8 @@ def files_action(action, stage, root=Path('/target')):
                 atomic_copy(backup / x['path'], dst)
             elif dst.exists():
                 dst.unlink()
+        for x in navigation:
+            atomic_copy(backup / 'navigation' / x['path'], navigation_target(x['path'], root))
     else:
         raise ValueError(action)
 
@@ -240,12 +310,20 @@ def host(action, stage, digest=None):
             smoke = smoke.replace("(HERE / 'smoke-export.json')", "(Path(__file__).resolve().parent / 'smoke-export.json')")
             (stage / 'check.py').write_text(smoke)
             run('python3', str(stage / 'check.py'))
+            navigation = json.loads((stage / 'navigation-installed.json').read_text())
+            expected_html = {x['path']: x['sha256'] for x in navigation}
             for x in manifest['files']:
                 if x['path'].startswith('web/') and x['path'].endswith(('.html','.pdf')):
                     url = 'https://nts.mgimo.ru/' + x['path'].removeprefix('web/')
                     body = subprocess.check_output(['curl','-fsS','--max-time','30','--resolve','nts.mgimo.ru:443:127.0.0.1',url])
-                    if hashlib.sha256(body).hexdigest() != x['sha256']:
+                    expected = expected_html.get(x['path'].removeprefix('web/'), x['sha256'])
+                    if hashlib.sha256(body).hexdigest() != expected:
                         raise RuntimeError('HTTPS content differs: ' + url)
+            for x in navigation:
+                url = 'https://nts.mgimo.ru/' + x['path']
+                body = subprocess.check_output(['curl','-fsS','--max-time','30','--resolve','nts.mgimo.ru:443:127.0.0.1',url])
+                if hashlib.sha256(body).hexdigest() != x['sha256'] or repair_links(body) != body:
+                    raise RuntimeError('HTTPS navigation differs: ' + url)
         (stage / 'result.json').write_text(json.dumps({'status':action + '_ok','release':manifest['release']},indent=2))
         print(action.upper() + ' OK. Backup and logs: ' + str(stage), flush=True)
     except BaseException:

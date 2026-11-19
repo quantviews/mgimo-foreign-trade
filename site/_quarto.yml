@@ -30,11 +30,11 @@ website:
           - text: "Сводный обзор"
             href: bulletin_comparison.qmd
           - text: "Китай"
-            href: country_bulletins/china/bulletin_china_pdf.qmd
+            href: country_bulletins/china/bulletin_china_pdf.html
           - text: "Индия"
-            href: country_bulletins/india/bulletin_india_pdf.qmd
+            href: country_bulletins/india/bulletin_india_pdf.html
           - text: "Турция"
-            href: country_bulletins/turkey/bulletin_turkey_pdf.qmd
+            href: country_bulletins/turkey/bulletin_turkey_pdf.html
       # Занятия рендерятся отдельным (корневым) проектом; в локальном превью
       # ссылаемся на опубликованные слайды, чтобы не требовать их сборки здесь.
       - text: "Презентации"
