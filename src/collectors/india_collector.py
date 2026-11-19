@@ -323,7 +323,37 @@ def save_india_data(df: pd.DataFrame, year: int, month: int, output_dir: Optiona
     save_path = output_dir / filename
 
 
-    df.to_csv(save_path, index=False, encoding='utf-8-sig')
+    # MEIDB sometimes returns a whole direction filled with zero placeholders.
+    # Validate directions separately: a healthy reverse flow must not mask this.
+    previous = pd.read_csv(save_path, dtype={'TNVED': str}) if save_path.exists() else pd.DataFrame()
+    accepted = []
+    for direction in ('ИМ', 'ЭК'):
+        incoming = df[df['NAPR'].eq(direction)]
+        if has_published_trade_data(incoming):
+            accepted.append(incoming)
+        else:
+            logging.warning('India %s-%02d %s: missing/all-zero response quarantined', year, month, direction)
+            if not incoming.empty:
+                quarantine = output_dir / 'quarantine'
+                quarantine.mkdir(exist_ok=True)
+                stamp = pd.Timestamp.now().strftime('%Y%m%d%H%M%S%f')
+                incoming.to_csv(quarantine / f'{filename}.{direction}.{stamp}.csv', index=False, encoding='utf-8-sig')
+            if not previous.empty:
+                accepted.append(previous[previous['NAPR'].eq(direction)])
+    if not accepted:
+        return
+    result = pd.concat(accepted, ignore_index=True)
+    if result.empty:
+        return
+    if save_path.exists():
+        import shutil
+        revisions = output_dir / 'revisions'
+        revisions.mkdir(exist_ok=True)
+        stamp = pd.Timestamp.now().strftime('%Y%m%d%H%M%S%f')
+        shutil.copy2(save_path, revisions / f'{filename}.{stamp}')
+    temporary = save_path.with_suffix('.csv.new')
+    result.to_csv(temporary, index=False, encoding='utf-8-sig')
+    temporary.replace(save_path)
 
     logging.info(f"Данные сохранены: {save_path}")
 

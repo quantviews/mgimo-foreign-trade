@@ -27,13 +27,13 @@ EXPECTED_SCHEMA = {
 }
 
 # Canonical column set persisted to unified_trade_data: the schema above plus the
-# pipeline-added SOURCE / TYPE. Anything outside this set (e.g. Turkey-specific
+# pipeline-added SOURCE / TYPE and reviewed physical provenance. Anything outside this set (e.g. Turkey-specific
 # ISTPOZ / ISTPOZ_ADI / TNVED_EN_NAME / TNVED_RU_NAME that only warn in
 # validate_schema) is dropped before save so per-country junk never reaches DuckDB
 # or the enriched view (which selects t.*).
 PHYSICAL_COLUMNS = ['SOURCE_UNIT', 'SOURCE_QTY_ESTIMATED', 'SOURCE_NETTO_ESTIMATED',
                     'KOL_ESTIMATED', 'NETTO_ESTIMATED', 'PHYSICAL_QUALITY']
-FINAL_DB_COLUMNS = list(EXPECTED_SCHEMA.keys()) + ['SOURCE', 'TYPE'] + PHYSICAL_COLUMNS
+FINAL_DB_COLUMNS = list(EXPECTED_SCHEMA.keys()) + ['SOURCE', 'TYPE', 'NETTO_SOURCE', 'VERIFIED_ADJUSTMENT'] + PHYSICAL_COLUMNS
 
 def validate_schema(df: pd.DataFrame, filename: str) -> bool:
     """

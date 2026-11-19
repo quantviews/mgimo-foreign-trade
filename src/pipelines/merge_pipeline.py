@@ -308,6 +308,9 @@ def build_merged_dataframe(
     merged_df.loc[merged_df['KOL'].isna(), 'KOL_ESTIMATED'] = pd.NA
     merged_df.loc[merged_df['NETTO'].isna(), 'NETTO_ESTIMATED'] = pd.NA
 
+    from core.india_verified_adjustments import apply_india_verified_adjustments
+    merged_df = apply_india_verified_adjustments(merged_df, project_root)
+
     # Drop any country-specific columns that slipped through per-file validation
     # (validate_schema only warns about them), e.g. Turkey's ISTPOZ / ISTPOZ_ADI /
     # TNVED_EN_NAME / TNVED_RU_NAME. Keeps DuckDB and the enriched view (t.*) on the

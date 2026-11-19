@@ -1,0 +1,2 @@
+# Preserve reviewed source bytes: the registry verifies their SHA-256.
+metadata/verification/** -text

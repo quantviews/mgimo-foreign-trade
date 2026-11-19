@@ -1,0 +1,578 @@
+[
+  {
+    "period": "2021-01-01",
+    "source_quantity": 482498.0,
+    "source_unit": null,
+    "local_known_mass_kg": 482498.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-01-01",
+    "source_quantity": 260326000.0,
+    "source_unit": null,
+    "local_known_mass_kg": 260326000.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-02-01",
+    "source_quantity": 132317.0,
+    "source_unit": null,
+    "local_known_mass_kg": 132317.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-02-01",
+    "source_quantity": 0.0,
+    "source_unit": null,
+    "local_known_mass_kg": null,
+    "difference": null,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-03-01",
+    "source_quantity": 266291.0,
+    "source_unit": null,
+    "local_known_mass_kg": 266291.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-03-01",
+    "source_quantity": 396938000.0,
+    "source_unit": null,
+    "local_known_mass_kg": 396938000.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-04-01",
+    "source_quantity": 520001259.0,
+    "source_unit": null,
+    "local_known_mass_kg": 520001259.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-04-01",
+    "source_quantity": 1119949213.0,
+    "source_unit": null,
+    "local_known_mass_kg": 1119949213.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-05-01",
+    "source_quantity": 411227880.0,
+    "source_unit": null,
+    "local_known_mass_kg": 411227880.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-05-01",
+    "source_quantity": 1964636735.0,
+    "source_unit": null,
+    "local_known_mass_kg": 1964636735.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-06-01",
+    "source_quantity": 273801000.0,
+    "source_unit": null,
+    "local_known_mass_kg": 273801000.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-06-01",
+    "source_quantity": 3208324972.0,
+    "source_unit": null,
+    "local_known_mass_kg": 3208324972.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-07-01",
+    "source_quantity": 269966000.0,
+    "source_unit": null,
+    "local_known_mass_kg": 269966000.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-07-01",
+    "source_quantity": 3240650906.0,
+    "source_unit": null,
+    "local_known_mass_kg": 3240650906.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-08-01",
+    "source_quantity": 262468000.0,
+    "source_unit": null,
+    "local_known_mass_kg": 262468000.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-08-01",
+    "source_quantity": 2812247296.0,
+    "source_unit": null,
+    "local_known_mass_kg": 2812247296.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-09-01",
+    "source_quantity": 810544442.0,
+    "source_unit": null,
+    "local_known_mass_kg": 810544442.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-09-01",
+    "source_quantity": 4715181800.0,
+    "source_unit": null,
+    "local_known_mass_kg": 4715181800.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-10-01",
+    "source_quantity": 419909456.0,
+    "source_unit": null,
+    "local_known_mass_kg": 419909456.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-10-01",
+    "source_quantity": 4229394565.0,
+    "source_unit": null,
+    "local_known_mass_kg": 4229394565.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-11-01",
+    "source_quantity": 271739980.0,
+    "source_unit": null,
+    "local_known_mass_kg": 271739980.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-11-01",
+    "source_quantity": 4099942043.0,
+    "source_unit": null,
+    "local_known_mass_kg": 4099942043.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2021-12-01",
+    "source_quantity": 419676729.0,
+    "source_unit": null,
+    "local_known_mass_kg": 419676729.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2022-12-01",
+    "source_quantity": 5406514999.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5406514999.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-01-01",
+    "source_quantity": 5906579553.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5906579553.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-01-01",
+    "source_quantity": 7751743221.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7751743221.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-02-01",
+    "source_quantity": 6338151451.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6338151451.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-02-01",
+    "source_quantity": 6345621787.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6345621787.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-03-01",
+    "source_quantity": 7807120657.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7807120657.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-03-01",
+    "source_quantity": 0.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7158364639.0,
+    "difference": -7158364639.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-04-01",
+    "source_quantity": 6889835446.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6889835446.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-04-01",
+    "source_quantity": 6955324216.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6955324216.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-05-01",
+    "source_quantity": 8920224652.0,
+    "source_unit": null,
+    "local_known_mass_kg": 8920224652.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-05-01",
+    "source_quantity": 9568560564.0,
+    "source_unit": null,
+    "local_known_mass_kg": 9568560564.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-06-01",
+    "source_quantity": 8908173610.0,
+    "source_unit": null,
+    "local_known_mass_kg": 8908173610.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-06-01",
+    "source_quantity": 7815922976.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7815922976.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-07-01",
+    "source_quantity": 5823313204.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5823313204.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-07-01",
+    "source_quantity": 7699814983.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7699814983.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-08-01",
+    "source_quantity": 7440008012.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7440008012.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-08-01",
+    "source_quantity": 4770876887.0,
+    "source_unit": null,
+    "local_known_mass_kg": 4770876887.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-09-01",
+    "source_quantity": 5170934808.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5170934808.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-09-01",
+    "source_quantity": 8027344770.0,
+    "source_unit": null,
+    "local_known_mass_kg": 8027344770.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-10-01",
+    "source_quantity": 5989535522.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5989535522.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-10-01",
+    "source_quantity": 10376969264.0,
+    "source_unit": null,
+    "local_known_mass_kg": 10376969264.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-11-01",
+    "source_quantity": 5738890035.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5738890035.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-11-01",
+    "source_quantity": 7220495306.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7220495306.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2023-12-01",
+    "source_quantity": 6881241514.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6881241514.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-12-01",
+    "source_quantity": 6028384563.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6028384563.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-10-01",
+    "source_quantity": 10376969264.0,
+    "source_unit": null,
+    "local_known_mass_kg": 10376969264.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-10-01",
+    "source_quantity": 7156735229.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7156745056.0,
+    "difference": -9827.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-11-01",
+    "source_quantity": 7220495306.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7220495306.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-11-01",
+    "source_quantity": 7712601208.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7712600347.0,
+    "difference": 861.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2024-12-01",
+    "source_quantity": 6028384563.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6028384563.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-12-01",
+    "source_quantity": 5782981271.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5782981271.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-01-01",
+    "source_quantity": 6780951659.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6780951659.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-01-01",
+    "source_quantity": 4542882576.0,
+    "source_unit": null,
+    "local_known_mass_kg": 4542882576.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-02-01",
+    "source_quantity": 4867521105.0,
+    "source_unit": null,
+    "local_known_mass_kg": 4867521105.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-02-01",
+    "source_quantity": 5448478989.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5448478989.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-03-01",
+    "source_quantity": 7426410472.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7426410472.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-03-01",
+    "source_quantity": 5272945940.0,
+    "source_unit": null,
+    "local_known_mass_kg": 5272945940.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-04-01",
+    "source_quantity": 8569412874.0,
+    "source_unit": null,
+    "local_known_mass_kg": 8569412874.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-04-01",
+    "source_quantity": 6696299132.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6696391221.0,
+    "difference": -92089.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-05-01",
+    "source_quantity": 9015390224.0,
+    "source_unit": null,
+    "local_known_mass_kg": 9015390224.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-05-01",
+    "source_quantity": 8956606885.0,
+    "source_unit": null,
+    "local_known_mass_kg": 8956606214.0,
+    "difference": 671.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-06-01",
+    "source_quantity": 6988777913.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6989205668.0,
+    "difference": -427755.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-06-01",
+    "source_quantity": 8744697953.0,
+    "source_unit": null,
+    "local_known_mass_kg": 8744697953.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-07-01",
+    "source_quantity": 7130580181.0,
+    "source_unit": null,
+    "local_known_mass_kg": 7175639770.0,
+    "difference": -45059589.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-07-01",
+    "source_quantity": 11038656421.0,
+    "source_unit": null,
+    "local_known_mass_kg": 11038656421.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-08-01",
+    "source_quantity": 6925531973.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6925531664.0,
+    "difference": 309.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-08-01",
+    "source_quantity": 8483308619.0,
+    "source_unit": null,
+    "local_known_mass_kg": 8483308619.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2025-09-01",
+    "source_quantity": 6502199966.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6502199966.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  },
+  {
+    "period": "2026-09-01",
+    "source_quantity": 6978341445.0,
+    "source_unit": null,
+    "local_known_mass_kg": 6978341445.0,
+    "difference": 0.0,
+    "positive_cost_rows_missing_mass": 0
+  }
+]

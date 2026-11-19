@@ -1,0 +1,66 @@
+{
+  "reviewed_on": "2026-11-19",
+  "country": "IN",
+  "source": "national",
+  "purpose": "Evidence review only; not an executable retirement or zero-fill registry",
+  "approved_exclusions": [],
+  "sources": [
+    {
+      "url": "https://www.indiabudget.gov.in/budget2021-22/doc/Finance_Bill.pdf",
+      "locator": "Third Schedule, printed page 168, PDF page 178",
+      "finding": "Proposed customs replacement of 27091000 and 27092000 by 27090010 and 27090090 from 2021-04-01. This bill is not proof of a statistical series cutoff."
+    },
+    {
+      "url": "https://content.dgft.gov.in/Website/dgftprod/b0643d3c-c5d6-4f3c-bf0e-e60241971980/Monthly%20Bulletin%20on%20Foreign%20Trade%20Statistics%20May%202021-22.pdf",
+      "locator": "Table 16, April 2022-23",
+      "finding": "Official monthly statistics report positive imports under both 27090000 and 27090010 in April 2022. No exclusive one-to-one switch on that date."
+    },
+    {
+      "url": "https://tradestat.commerce.gov.in/eidb/help",
+      "finding": "Help describes April 2024 directory, dropped/reallocated codes, possible unit changes and asterisk markers."
+    },
+    {
+      "url": "https://tradestat.commerce.gov.in/meidb/hscode",
+      "method": "POST",
+      "parameters": {"hscode": "27", "description": ""},
+      "finding": "All four eight-digit oil codes 27090000, 27090010, 27090090, 27092000 returned without asterisk. The search dialog currently mentions April 2026, conflicting with the help page's edition date."
+    }
+  ],
+  "candidates": [
+    {
+      "tnved": "2709000000",
+      "napr": "ЭК",
+      "first_observed": "2019-01-01",
+      "last_observed": "2023-12-01",
+      "last_positive": "2022-03-01",
+      "valid_to": null,
+      "status": "pending_statistical_validity_confirmation",
+      "successor_candidates": ["2709001000", "2709009000"],
+      "mapping_approved": false
+    },
+    {
+      "tnved": "2709200000",
+      "napr": "ЭК",
+      "first_observed": "2022-03-01",
+      "last_observed": "2023-12-01",
+      "last_positive": "2022-03-01",
+      "valid_to": null,
+      "status": "pending_statistical_validity_confirmation",
+      "successor_candidates": ["2709001000"],
+      "mapping_approved": false
+    },
+    {
+      "tnved": "2709001000",
+      "napr": "ЭК",
+      "first_observed": "2022-04-01",
+      "valid_from": null,
+      "status": "first_observation_is_not_legal_effective_date"
+    },
+    {
+      "tnved": "2709009000",
+      "napr": "ЭК",
+      "first_observed": null,
+      "status": "listed_in_directory_but_no_rows_in_local_series_not_confirmed_zero"
+    }
+  ]
+}

@@ -2,6 +2,7 @@ metadata/*
 !metadata/hs4_labels.json
 !metadata/national_release_coverage.json
 !metadata/publication_registry.json
+!metadata/india_code_validity_review.json
 # выверенные вручную наименования ТН ВЭД — их не пересоздать, храним в git
 !metadata/translations/
 metadata/translations/*
@@ -186,3 +187,8 @@ deploy/mgimo146/*.env
 deploy/mgimo146/smoke-export.*
 deploy/mgimo146/deployment-receipt.json
 pricing/
+!metadata/india_verified_adjustments.json
+!metadata/verification/
+!metadata/verification/india-20261119/
+!metadata/verification/india-20261119/*.json
+!metadata/verification/india-20261119/*.csv
