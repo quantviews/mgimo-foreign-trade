@@ -160,6 +160,12 @@ oil_last <- data_oil %>% filter(NAPR == "ЭК") %>% filter(PERIOD == max(PERIOD)
 oil_last <- if (length(oil_last) == 0) NA_real_ else oil_last[1]
 
 source("../_bulletin_insights.R", encoding = "UTF-8")
+oil_yoy_last <- data_oil %>% filter(PERIOD == max(PERIOD)) %>% pull(NETTO_YOY)
+if (length(oil_yoy_last) == 1 && is.finite(oil_yoy_last)) {
+  oil_note <- paste0(oil_note, " Изменение массы к тому же месяцу прошлого года: ",
+                     ifelse(oil_yoy_last >= 0, "+", ""), fmt_num(100 * oil_yoy_last, 1),
+                     if (knitr::is_latex_output()) "\\%." else "%.")
+}
 
 pl_trade_balance <-
   trade_balance %>%
@@ -192,14 +198,26 @@ pl_trade_balance <-
   theme_pdf_timeseries() +
   coord_cartesian(clip = "off")
 
+pl_oil_yoy <- data_oil %>%
+  filter(PERIOD >= max(PERIOD) %m-% months(23)) %>%
+  mutate(`Изменение массы, % г/г` = round(NETTO_YOY * 100, 1)) %>%
+  rename(Дата = PERIOD) %>%
+  ggplot(aes(Дата, `Изменение массы, % г/г`)) +
+  geom_hline(yintercept = 0, color = "grey70", linewidth = 0.3) +
+  geom_line(color = mgimo_colors[["primary"]], linewidth = I(1)) +
+  scale_x_date(date_breaks = "6 months", labels = scales::label_date("%m.%Y")) +
+  labs(x = NULL, y = NULL, title = "Масса, % г/г (24 мес.)") +
+  theme_pdf_timeseries()
+
 pl_oil_export <-
   data_oil %>%
-  mutate(`Экспорт, млн т` = round(NETTO, 1)) %>%
+  mutate(`Экспорт, млн т` = round(NETTO_AVAILABLE, 1)) %>%
   rename(Дата = PERIOD) %>%
   ggplot(aes(x = Дата, y = `Экспорт, млн т`)) +
   geom_line(color = mgimo_colors[["primary"]], linewidth = I(1)) +
-  geom_point(shape = 21, fill = "white", color = mgimo_colors[["primary"]], size = 1.3) +
-  scale_x_date(breaks = seq(date_min, date_max, by = "year"), labels = scales::label_date("%Y")) +
+  geom_point(aes(shape = MASS_MISSING_ROWS > 0), fill = "white", color = mgimo_colors[["primary"]], size = 1.3) +
+  scale_shape_manual(values = c(`FALSE` = 21, `TRUE` = 23), guide = "none") +
+  scale_x_date(date_breaks = "2 years", labels = scales::label_date("%Y")) +
   labs(x = NULL, y = NULL) +
   theme_pdf_timeseries() +
   theme(legend.position = "none")
@@ -238,7 +256,7 @@ save_chart <- function(plot, name, width, height) {
 }
 
 fig_balance <- save_chart(pl_trade_balance, "01-balance", 5.35, 3.0)
-fig_oil <- save_chart(pl_oil_export, "02-oil", 5.35, 3.0)
+fig_oil <- save_chart((pl_oil_export + labs(title = "Масса, млн т")) + pl_oil_yoy + patchwork::plot_layout(ncol = 2), "02-oil", 5.35, 3.0)
 fig_export <- save_chart(plot_export, "03-export", 5.35, 5.35)
 fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 ```
@@ -263,7 +281,7 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 \includegraphics[width=\linewidth]{`r fig_balance`}
 \end{chartpanel}
 }{%
-\begin{chartpanel}{02}{Экспорт нефти в Индию, млн т}
+\begin{chartpanel}{02}{Экспорт нефти: масса и динамика}
 \includegraphics[width=\linewidth]{`r fig_oil`}
 \end{chartpanel}
 }
@@ -281,8 +299,8 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 }{%
 \begin{insightbox}{Главное · объёмы и оперативность}
 \begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
+\item `r oil_note` Ромбы отмечают неполный итог по раскрытой массе.
 \item `r fizob_note`
-\item `r oil_note`
 \item `r source_note`
 \end{itemize}
 \end{insightbox}
@@ -380,10 +398,18 @@ render_ts(web_balance(trade_balance, mgimo_colors))
 render_ts(web_oil(data_oil, mgimo_colors))
 ```
 
+```{r}
+#| eval: !expr knitr::is_html_output()
+#| fig-cap: "Масса экспорта нефти за последние 24 месяца: изменение к тому же месяцу прошлого года, %. Рассчитано по фактическим записям с раскрытой массой в обоих месяцах."
+render_ts(pl_oil_yoy)
+```
+
+Годовая динамика здесь относится к массе нефти (2709). Общий индекс физического объема экспорта рассчитывается отдельно по всей товарной корзине.
+
 **Главное · объёмы и оперативность**
 
+- `r oil_note` Ромбы отмечают неполный итог по раскрытой массе.
 - `r fizob_note`
-- `r oil_note`
 - `r source_note`
 
 ## Экспорт и импорт по категориям

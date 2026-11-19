@@ -182,11 +182,12 @@ pl_trade_balance <-
 
 pl_oil_export <-
   data_oil %>%
-  mutate(`Экспорт, млн т` = round(NETTO, 1)) %>%
+  mutate(`Экспорт, млн т` = round(NETTO_AVAILABLE, 1)) %>%
   rename(Дата = PERIOD) %>%
   ggplot(aes(x = Дата, y = `Экспорт, млн т`)) +
   geom_line(color = mgimo_colors[["primary"]], linewidth = I(1)) +
-  geom_point(shape = 21, fill = "white", color = mgimo_colors[["primary"]], size = 1.3) +
+  geom_point(aes(shape = MASS_MISSING_ROWS > 0), fill = "white", color = mgimo_colors[["primary"]], size = 1.3) +
+  scale_shape_manual(values = c(`FALSE` = 21, `TRUE` = 23), guide = "none") +
   scale_x_date(breaks = seq(date_min, date_max, by = "year"), labels = scales::label_date("%Y")) +
   labs(x = NULL, y = NULL) +
   theme_pdf_timeseries() +
@@ -270,7 +271,7 @@ fig_import <- save_chart(plot_import, "04-import", 5.35, 5.35)
 \begin{insightbox}{Главное · физобъём и динамика}
 \begin{itemize}[nosep,leftmargin=1em,itemsep=0pt,topsep=0pt,parsep=0pt]
 \item `r fizob_note`
-\item `r oil_note`
+\item `r oil_note` Ромбы обозначают неполный итог. Доступная масса показана по строкам с раскрытым весом; при пропусках это неполный итог, а не нулевые поставки.
 \item `r source_note`
 \end{itemize}
 \end{insightbox}
@@ -371,7 +372,7 @@ render_ts(web_oil(data_oil, mgimo_colors))
 **Главное · физобъём и динамика**
 
 - `r fizob_note`
-- `r oil_note`
+- `r oil_note` Ромбы обозначают неполный итог. Доступная масса показана по строкам с раскрытым весом; при пропусках это неполный итог, а не нулевые поставки.
 - `r source_note`
 
 ## Экспорт и импорт по категориям

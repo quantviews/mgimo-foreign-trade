@@ -39,7 +39,7 @@
 <polyline points='41.06,225.96 821.25,225.96 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
 <polyline points='41.06,176.85 821.25,176.85 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
 <polyline points='41.06,127.75 821.25,127.75 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
-<polyline points='41.06,78.65 821.25,78.65 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
+<polyline points='41.06,78.64 821.25,78.64 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
 <polyline points='100.21,275.06 100.21,51.34 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
 <polyline points='168.33,275.06 168.33,51.34 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
 <polyline points='236.46,275.06 236.46,51.34 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
@@ -52,9 +52,9 @@
 <polyline points='708.88,275.06 708.88,51.34 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
 <polyline points='777.00,275.06 777.00,51.34 ' style='stroke-width: 0.85; stroke: #DDE3EA; stroke-linecap: butt;' />
 <rect x='731.09' y='51.34' width='60.72' height='223.72' style='stroke-width: 1.45; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #F39C12; fill-opacity: 0.10;' />
-<polyline points='55.78,113.30 78.74,121.63 100.21,113.76 123.17,121.85 145.38,111.95 168.33,136.54 190.55,130.81 213.50,130.47 236.46,130.44 258.67,119.06 281.63,128.84 303.84,123.79 326.80,126.07 349.75,131.69 370.48,119.90 393.44,118.11 415.65,126.19 438.61,132.34 460.82,126.91 483.78,133.35 506.73,127.54 528.94,116.22 551.90,129.76 574.11,112.31 597.07,147.47 620.02,152.95 640.76,111.06 663.71,82.66 685.92,88.37 708.88,101.97 731.09,96.35 ' style='stroke-width: 2.56; stroke: #003D7A; stroke-linecap: butt;' />
-<polyline points='731.09,96.35 754.05,104.41 777.00,105.71 ' style='stroke-width: 2.77; stroke: #F39C12; stroke-dasharray: 7.40,3.70; stroke-linecap: butt;' />
-<circle cx='777.00' cy='105.71' r='3.26' style='stroke-width: 0.97; stroke: #F39C12; fill: #F39C12;' />
+<polyline points='55.78,113.29 78.74,121.63 100.21,113.76 123.17,121.85 145.38,111.95 168.33,136.54 190.55,130.81 213.50,130.47 236.46,130.44 258.67,119.06 281.63,128.84 303.84,123.78 326.80,126.06 349.75,131.68 370.48,119.90 393.44,118.10 415.65,126.18 438.61,132.34 460.82,126.91 483.78,133.35 506.73,127.54 528.94,116.23 551.90,129.76 574.11,112.31 597.07,147.46 620.02,152.94 640.76,111.06 663.71,82.66 685.92,88.37 708.88,101.97 731.09,96.34 ' style='stroke-width: 2.56; stroke: #003D7A; stroke-linecap: butt;' />
+<polyline points='731.09,96.34 754.05,104.40 777.00,105.70 ' style='stroke-width: 2.77; stroke: #F39C12; stroke-dasharray: 7.40,3.70; stroke-linecap: butt;' />
+<circle cx='777.00' cy='105.70' r='3.26' style='stroke-width: 0.97; stroke: #F39C12; fill: #F39C12;' />
 <text x='712.58' y='63.88' text-anchor='end' style='font-size: 11.67px;fill: #003D7A; font-family: "PT Sans";' textLength='88.30px' lengthAdjust='spacingAndGlyphs'>отчётные данные</text>
 <text x='749.60' y='63.88' style='font-size: 11.67px; font-weight: bold;fill: #A06B0C; font-family: "PT Sans";' textLength='38.97px' lengthAdjust='spacingAndGlyphs'>наукаст</text>
 </g>
@@ -62,7 +62,7 @@
 <text x='34.34' y='279.37' text-anchor='end' style='font-size: 12.30px;fill: #2C3E50; font-family: "PT Sans";' textLength='6.70px' lengthAdjust='spacingAndGlyphs'>0</text>
 <text x='34.34' y='230.26' text-anchor='end' style='font-size: 12.30px;fill: #2C3E50; font-family: "PT Sans";' textLength='13.41px' lengthAdjust='spacingAndGlyphs'>10</text>
 <text x='34.34' y='181.16' text-anchor='end' style='font-size: 12.30px;fill: #2C3E50; font-family: "PT Sans";' textLength='13.41px' lengthAdjust='spacingAndGlyphs'>20</text>
-<text x='34.34' y='132.06' text-anchor='end' style='font-size: 12.30px;fill: #2C3E50; font-family: "PT Sans";' textLength='13.41px' lengthAdjust='spacingAndGlyphs'>30</text>
+<text x='34.34' y='132.05' text-anchor='end' style='font-size: 12.30px;fill: #2C3E50; font-family: "PT Sans";' textLength='13.41px' lengthAdjust='spacingAndGlyphs'>30</text>
 <text x='34.34' y='82.95' text-anchor='end' style='font-size: 12.30px;fill: #2C3E50; font-family: "PT Sans";' textLength='13.41px' lengthAdjust='spacingAndGlyphs'>40</text>
 <text x='100.21' y='290.40' text-anchor='middle' style='font-size: 12.30px;fill: #2C3E50; font-family: "PT Sans";' textLength='29.44px' lengthAdjust='spacingAndGlyphs'>03.24</text>
 <text x='168.33' y='290.40' text-anchor='middle' style='font-size: 12.30px;fill: #2C3E50; font-family: "PT Sans";' textLength='29.44px' lengthAdjust='spacingAndGlyphs'>06.24</text>
