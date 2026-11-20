@@ -42,6 +42,33 @@ def test_guarded_mass_and_idempotence(tmp_path):
         apply_india_verified_adjustments(frame, tmp_path)
 
 
+def test_national_may_revision_preserves_values_units_and_unknowns():
+    root = Path(__file__).resolve().parents[1]
+    registry = json.loads((root / 'metadata/india_verified_adjustments.json').read_text(encoding='utf-8'))
+    patches = [p for p in registry['adjustments']
+               if p['evidence'].endswith('india-20261120/national-may2025-mass.json')]
+    assert len(patches) == 5
+    frame = pd.DataFrame([
+        dict(STRANA='IN', SOURCE='national', TYPE='fact', PERIOD=pd.Timestamp(p['period']),
+             NAPR=p['napr'], TNVED=p['tnved'], NETTO=float('nan'), STOIM=p['expected_cost'],
+             KOL=float('nan'), EDIZM=None, NETTO_ESTIMATED=None)
+        for p in patches
+    ])
+    control = frame.iloc[[0]].copy()
+    control['STRANA'] = 'CN'
+    frame = pd.concat([frame, control], ignore_index=True)
+    result = apply_india_verified_adjustments(frame.copy(), root)
+    assert result.NETTO.iloc[:5].tolist() == [p['value'] for p in patches]
+    assert result.NETTO.iloc[:5].sum() == 10427864
+    assert pd.isna(result.NETTO.iloc[5])
+    for name in ('STOIM', 'KOL', 'EDIZM', 'SOURCE', 'NETTO_ESTIMATED'):
+        pd.testing.assert_series_equal(result[name], frame[name])
+    pd.testing.assert_frame_equal(result, apply_india_verified_adjustments(result.copy(), root))
+    frame.loc[0, 'STOIM'] += 10000
+    with pytest.raises(ValueError, match='national cost changed'):
+        apply_india_verified_adjustments(frame, root)
+
+
 def test_zero_direction_preserves_previous_and_valid_individual_zero(tmp_path):
     old = pd.DataFrame([dict(NAPR='ЭК', TNVED='27090010', STOIM=100, KOL=20),
                         dict(NAPR='ИМ', TNVED='27090010', STOIM=5, KOL=1)])

@@ -1,0 +1,77 @@
+[
+  {
+    "url": "https://tradestat.commerce.gov.in/meidb/country_wise_all_commodities_export",
+    "parameters": {
+      "cwcexddMonth": 4,
+      "cwcexddYear": 2026,
+      "cwcexddCommodityLevel": 8,
+      "cwcexddReportVal": 1,
+      "cwcexddReportYear": 2,
+      "cwcexallcount": 344
+    },
+    "sha256": "13c513cc7a0f086c4de6f83610e6e7192a142dbf393a9ac9df33553d1c1a4769",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Apr-2025\r\n\r\n                                            (R)",
+      "Apr-2026                        \r\n                                            (F)",
+      "%Growth",
+      "Jan-Apr-2025\r\n                                            (R)",
+      "Jan-Apr-2026                        \r\n                                            (F)",
+      "%Growth"
+    ],
+    "rows": 11022,
+    "selected_rows": [
+      [
+        "5090",
+        "86080090",
+        "OTHERS-OF-RLWAY/TRMWAY TRCK FXTRS AND FTNGS;MCHNCL ANDELCTRO-MCHNCL SGNLNG,TRFC CNTRL EQPMNT FR ROADS,INLND WTRWAYS ETC,PRTS O",
+        "0.00",
+        "0.03",
+        "-",
+        "0.00",
+        "0.03",
+        "-"
+      ]
+    ]
+  },
+  {
+    "url": "https://tradestat.commerce.gov.in/meidb/country_wise_all_commodities_export",
+    "parameters": {
+      "cwcexddMonth": 4,
+      "cwcexddYear": 2026,
+      "cwcexddCommodityLevel": 8,
+      "cwcexddReportVal": 2,
+      "cwcexddReportYear": 2,
+      "cwcexallcount": 344
+    },
+    "sha256": "de607bbd42bc78c625ef7195163c28dbeebfabb606fc96e54afe6e5f1058bf72",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Unit",
+      "Apr-2025\r\n\r\n                                            (R)",
+      "Apr-2026                        \r\n                                            (F)",
+      "%Growth",
+      "Jan-Apr-2025\r\n                                            (R)",
+      "Jan-Apr-2026                        \r\n                                            (F)",
+      "%Growth"
+    ],
+    "selected_rows": [
+      [
+        "5090",
+        "86080090",
+        "OTHERS-OF-RLWAY/TRMWAY TRCK FXTRS AND FTNGS;MCHNCL ANDELCTRO-MCHNCL SGNLNG,TRFC CNTRL EQPMNT FR ROADS,INLND WTRWAYS ETC,PRTS O",
+        "KGS",
+        "0",
+        "4,000",
+        "-",
+        "0",
+        "4,000",
+        "-"
+      ]
+    ]
+  }
+]

@@ -1,5 +1,5 @@
 {
-  "review_date": "2026-11-19",
+  "review_date": "2026-11-20",
   "adjustments": [
     {
       "period": "2026-04-01",
@@ -476,6 +476,66 @@
       "source": "comtrade_tariffline_alt_qty_kg",
       "evidence": "metadata/verification/india-20261119/approved-mass-patches.csv",
       "evidence_sha256": "19109e003cf5e5fa22672c07e1a4d67191216a4248caf6fcef6be736a112bfbd"
+    },
+    {
+      "period": "2025-05-01",
+      "napr": "ИМ",
+      "tnved": "1006301900",
+      "field": "NETTO",
+      "old": null,
+      "value": 9108175.0,
+      "expected_cost": 3960000.0,
+      "source": "national_meidb_verified",
+      "evidence": "metadata/verification/india-20261120/national-may2025-mass.json",
+      "evidence_sha256": "57b66dec06d94b8971647483bf94376ba46c3bfdaaa0e89bb9628d87a700350b"
+    },
+    {
+      "period": "2025-05-01",
+      "napr": "ИМ",
+      "tnved": "1006309200",
+      "field": "NETTO",
+      "old": null,
+      "value": 502500.0,
+      "expected_cost": 520000.0,
+      "source": "national_meidb_verified",
+      "evidence": "metadata/verification/india-20261120/national-may2025-mass.json",
+      "evidence_sha256": "57b66dec06d94b8971647483bf94376ba46c3bfdaaa0e89bb9628d87a700350b"
+    },
+    {
+      "period": "2025-05-01",
+      "napr": "ИМ",
+      "tnved": "1006309900",
+      "field": "NETTO",
+      "old": null,
+      "value": 805000.0,
+      "expected_cost": 340000.0,
+      "source": "national_meidb_verified",
+      "evidence": "metadata/verification/india-20261120/national-may2025-mass.json",
+      "evidence_sha256": "57b66dec06d94b8971647483bf94376ba46c3bfdaaa0e89bb9628d87a700350b"
+    },
+    {
+      "period": "2025-05-01",
+      "napr": "ИМ",
+      "tnved": "2926909000",
+      "field": "NETTO",
+      "old": null,
+      "value": 12156.0,
+      "expected_cost": 460000.0,
+      "source": "national_meidb_verified",
+      "evidence": "metadata/verification/india-20261120/national-may2025-mass.json",
+      "evidence_sha256": "57b66dec06d94b8971647483bf94376ba46c3bfdaaa0e89bb9628d87a700350b"
+    },
+    {
+      "period": "2025-05-01",
+      "napr": "ИМ",
+      "tnved": "2933499000",
+      "field": "NETTO",
+      "old": null,
+      "value": 33.0,
+      "expected_cost": 60000.0,
+      "source": "national_meidb_verified",
+      "evidence": "metadata/verification/india-20261120/national-may2025-mass.json",
+      "evidence_sha256": "57b66dec06d94b8971647483bf94376ba46c3bfdaaa0e89bb9628d87a700350b"
     }
   ]
 }

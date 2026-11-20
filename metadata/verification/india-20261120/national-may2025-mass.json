@@ -1,0 +1,155 @@
+{
+  "url": "https://tradestat.commerce.gov.in/meidb/country_wise_all_commodities_export",
+  "parameters": {
+    "cwcexddMonth": 5,
+    "cwcexddYear": 2026,
+    "cwcexddCommodityLevel": 8,
+    "cwcexddReportVal": 2,
+    "cwcexddReportYear": 2,
+    "cwcexallcount": 344
+  },
+  "sha256": "fcd88747512da52dbe998d4fe702ac7db84d7747b8f39506f049ff09e49d6b22",
+  "selected_rows": [
+    [
+      "205",
+      "10063019",
+      "PARBOILED OTHER",
+      "KGS",
+      "9,108,175",
+      "14,353,150",
+      "58",
+      "25,935,050",
+      "49,307,544",
+      "90"
+    ],
+    [
+      "208",
+      "10063092",
+      "BASMATI RICE",
+      "KGS",
+      "502,500",
+      "691,360",
+      "38",
+      "565,320",
+      "2,371,546",
+      "320"
+    ],
+    [
+      "209",
+      "10063099",
+      "OTHERS-OF-SEMI/WHOLLY MILED RICE W/N POLISHED/GLAZED",
+      "KGS",
+      "805,000",
+      "1,936,000",
+      "140",
+      "3,311,910",
+      "7,688,100",
+      "132"
+    ],
+    [
+      "1249",
+      "29269090",
+      "OTHERS-OF-OTHR NITRILE-FUNCTION COMPOUNDS",
+      "KGS",
+      "12,156",
+      "400",
+      "-97",
+      "12,219",
+      "70,681",
+      "478"
+    ],
+    [
+      "1331",
+      "29334990",
+      "OTHERS-OF-OTHERS-OF-HETEROCYCLIC COMPOUNDS WITH NITROGEN",
+      "KGS",
+      "33",
+      "530",
+      "1,506",
+      "4,290",
+      "23,755",
+      "454"
+    ]
+  ],
+  "value_report": {
+    "url": "https://tradestat.commerce.gov.in/meidb/country_wise_all_commodities_export",
+    "parameters": {
+      "cwcexddMonth": 5,
+      "cwcexddYear": 2026,
+      "cwcexddCommodityLevel": 8,
+      "cwcexddReportVal": 1,
+      "cwcexddReportYear": 2,
+      "cwcexallcount": 344
+    },
+    "sha256": "434793bd2b01bfe22ac785510960eda4baac1e3389355a335f199b7c3985cd80",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "May-2025\r\n\r\n                                            (R)",
+      "May-2026                        \r\n                                            (F)",
+      "%Growth",
+      "Jan-May-2025\r\n                                            (R)",
+      "Jan-May-2026                        \r\n                                            (F)",
+      "%Growth"
+    ],
+    "rows": 11116
+  },
+  "selected_value_rows": [
+    [
+      "205",
+      "10063019",
+      "PARBOILED OTHER",
+      "3.96",
+      "5.25",
+      "32.44",
+      "11.69",
+      "18.16",
+      "55.36"
+    ],
+    [
+      "208",
+      "10063092",
+      "BASMATI RICE",
+      "0.52",
+      "0.71",
+      "36.20",
+      "0.58",
+      "2.33",
+      "302.67"
+    ],
+    [
+      "209",
+      "10063099",
+      "OTHERS-OF-SEMI/WHOLLY MILED RICE W/N POLISHED/GLAZED",
+      "0.34",
+      "0.69",
+      "105.72",
+      "1.41",
+      "2.84",
+      "100.95"
+    ],
+    [
+      "1249",
+      "29269090",
+      "OTHERS-OF-OTHR NITRILE-FUNCTION COMPOUNDS",
+      "0.46",
+      "0.24",
+      "-48.91",
+      "0.48",
+      "0.79",
+      "63.18"
+    ],
+    [
+      "1331",
+      "29334990",
+      "OTHERS-OF-OTHERS-OF-HETEROCYCLIC COMPOUNDS WITH NITROGEN",
+      "0.06",
+      "0.20",
+      "217.89",
+      "0.17",
+      "1.02",
+      "492.85"
+    ]
+  ]
+}
