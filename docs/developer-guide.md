@@ -27,6 +27,9 @@ pytest -q
 
 ## Модель данных и расчёты
 
+- [Версионируемый справочник соответствий кодов](code-correspondence-registry.md): переходы, сроки, источники и локальное применение без подстановки нулей.
+- [Единый проверочный расчет Индии от 20.11.2026](india-joint-fizob-review-2026-11-20.md): нефтяной ряд, дополнения массы и остаточные ограничения покрытия. Это локальный сценарий, не опубликованная база.
+
 - [Модель данных](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/data_model.md): поля, источники, факт и nowcast, справочники, схема fizob.
 - [Проверка новой методологии Фишера](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/fizob-fisher-audit-2026-10-24.md): пропуски, нули, агрегаты и тесты.
 - [Разбор покрытия](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/fisher-coverage-blockers-2026-10-24.md) и [эксперимент с сопоставимой корзиной](https://github.com/quantviews/mgimo-foreign-trade/blob/main/docs/fisher-matched-basket-2026-10-24.md). Эксперимент не заменяет опубликованный полный индекс.
