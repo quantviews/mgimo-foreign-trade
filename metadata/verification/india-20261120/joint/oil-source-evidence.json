@@ -1,0 +1,1250 @@
+[
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-01-hs4-value.html",
+    "sha256": "338d7cab923aef571ee7dfefcf1c1f5e2b769bcef87b655505f4c71c34a11a95",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jan-2019\r\n\r\n                                            (R)",
+      "Jan-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jan-2019\r\n                                            (R)",
+      "Jan-Jan-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "45",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "55.56",
+      "259.54",
+      "367.10",
+      "55.56",
+      "259.54",
+      "367.10"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-02-hs4-value.html",
+    "sha256": "ce9314df784e77bfd8df78c2839d7c674754eba0d0a49759cdc8f4353b070943",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Feb-2019\r\n\r\n                                            (R)",
+      "Feb-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Feb-2019\r\n                                            (R)",
+      "Jan-Feb-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "46",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "0.00",
+      "0.00",
+      "-",
+      "55.56",
+      "259.54",
+      "367.10"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-03-hs4-value.html",
+    "sha256": "ef056a68c3d0b0d13a5a33387619e331a9a28ef8e750e1e796af6ff72c5516c5",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Mar-2019\r\n\r\n                                            (R)",
+      "Mar-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Mar-2019\r\n                                            (R)",
+      "Jan-Mar-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "51",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "0.00",
+      "81.25",
+      "-",
+      "55.56",
+      "340.79",
+      "513.32"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-04-hs4-value.html",
+    "sha256": "95c2de0a6d0a5b981925d5b56e55e3e3cf4cc39494f77cd0854ad3c5264a9384",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Apr-2019\r\n\r\n                                            (R)",
+      "Apr-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Apr-2019\r\n                                            (R)",
+      "Jan-Apr-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "51",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "502.77",
+      "29.40",
+      "-94.15",
+      "558.34",
+      "370.19",
+      "-33.70"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-05-hs4-value.html",
+    "sha256": "e960e23abb5fa4d035be94f1d9ae5adbc2c5528cd63f810e149582fb33a0dc66",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "May-2019\r\n\r\n                                            (R)",
+      "May-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-May-2019\r\n                                            (R)",
+      "Jan-May-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "51",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "302.52",
+      "23.34",
+      "-92.28",
+      "860.86",
+      "393.54",
+      "-54.29"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-06-hs4-value.html",
+    "sha256": "6f971c4b7f3473e126396667b3bef30476e6d71db3c6873912af4692f8943bfe",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jun-2019\r\n\r\n                                            (R)",
+      "Jun-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jun-2019\r\n                                            (R)",
+      "Jan-Jun-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "52",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "70.27",
+      "167.43",
+      "138.25",
+      "931.13",
+      "560.97",
+      "-39.75"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-07-hs4-value.html",
+    "sha256": "af9390a2f1d4311cb21a027a0c28d63a765b926249936298213533216d5682cb",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jul-2019\r\n\r\n                                            (R)",
+      "Jul-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jul-2019\r\n                                            (R)",
+      "Jan-Jul-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "52",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "172.29",
+      "130.88",
+      "-24.04",
+      "1,103.43",
+      "691.85",
+      "-37.30"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-08-hs4-value.html",
+    "sha256": "6c0e503e49199d022f731dc436a09150eaacc7e8e7c47c4b922aa6dba0749f6a",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Aug-2019\r\n\r\n                                            (R)",
+      "Aug-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Aug-2019\r\n                                            (R)",
+      "Jan-Aug-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "54",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "52.18",
+      "88.88",
+      "70.34",
+      "1,155.60",
+      "780.73",
+      "-32.44"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-09-hs4-value.html",
+    "sha256": "219949df1690ef1806d086993acad2b383f003ec26925ed1e39378f61dd59158",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Sep-2019\r\n\r\n                                            (R)",
+      "Sep-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Sep-2019\r\n                                            (R)",
+      "Jan-Sep-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "56",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "61.66",
+      "0.00",
+      "-",
+      "1,217.26",
+      "780.73",
+      "-35.86"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-10-hs4-value.html",
+    "sha256": "bab74c85221644b8e4451861a6aad697e1f8a5d853853258bb4c65b081f3d8fd",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Oct-2019\r\n\r\n                                            (R)",
+      "Oct-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Oct-2019\r\n                                            (R)",
+      "Jan-Oct-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "56",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "174.91",
+      "0.00",
+      "-",
+      "1,392.18",
+      "780.73",
+      "-43.92"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-11-hs4-value.html",
+    "sha256": "e0d92963bbb258579bc19b91bbbf5ecd9c46714a85ad9a05277eae4b7702d81c",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Nov-2019\r\n\r\n                                            (R)",
+      "Nov-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Nov-2019\r\n                                            (R)",
+      "Jan-Nov-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "56",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "77.60",
+      "0.00",
+      "-",
+      "1,469.78",
+      "780.73",
+      "-46.88"
+    ]
+  },
+  {
+    "path": "tmp/india-joint-review-20261120/oil/2020-12-hs4-value.html",
+    "sha256": "ab4b4df78d279ba4a3e29b332838b7f17486855a0f0bf5aa616dc99ce3f580de",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Dec-2019\r\n\r\n                                            (R)",
+      "Dec-2020                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Dec-2019\r\n                                            (R)",
+      "Jan-Dec-2020                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "58",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "0.00",
+      "145.94",
+      "-",
+      "1,469.78",
+      "926.67",
+      "-36.95"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-01-hs4-value.html",
+    "sha256": "293fd3537e18336e58cf60eab10f4bc95845fca6b999b5172d3e91b47d981f90",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jan-2021\r\n\r\n                                            (R)",
+      "Jan-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jan-2021\r\n                                            (R)",
+      "Jan-Jan-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "54",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "189.47",
+      "178.19",
+      "-5.95",
+      "189.47",
+      "178.19",
+      "-5.95"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-02-hs4-value.html",
+    "sha256": "c17d0d9d11e72d820e5b07f000eef189b48a9202107e080cd39be34e72365ffa",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Feb-2021\r\n\r\n                                            (R)",
+      "Feb-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Feb-2021\r\n                                            (R)",
+      "Jan-Feb-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "56",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "61.20",
+      "0.00",
+      "-",
+      "250.67",
+      "178.19",
+      "-28.91"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-03-hs4-value.html",
+    "sha256": "d815034569acde96530398b3b8a0939ec78359c23c000005bf50641cc031891c",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Mar-2021\r\n\r\n                                            (R)",
+      "Mar-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Mar-2021\r\n                                            (R)",
+      "Jan-Mar-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "59",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "107.49",
+      "343.27",
+      "219.35",
+      "358.16",
+      "521.46",
+      "45.60"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-04-hs4-value.html",
+    "sha256": "feab62078cd3ae5437abe40dbfc6f0397dbdb34e139ef0269db14b8bc5b238b7",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Apr-2021\r\n\r\n                                            (R)",
+      "Apr-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Apr-2021\r\n                                            (R)",
+      "Jan-Apr-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "59",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "226.19",
+      "866.40",
+      "283.04",
+      "584.35",
+      "1,387.87",
+      "137.51"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-05-hs4-value.html",
+    "sha256": "a2e790df44c948588a71d5d5e6dee6d159ea3b5e98361190d725f1524aed0fc8",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "May-2021\r\n\r\n                                            (R)",
+      "May-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-May-2021\r\n                                            (R)",
+      "Jan-May-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "60",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "215.10",
+      "1,341.01",
+      "523.43",
+      "799.45",
+      "2,728.87",
+      "241.34"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-06-hs4-value.html",
+    "sha256": "f97eafa673b1fd480a0d8eeccd1ff22291aca35572494fe5d9855b91ba53441d",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jun-2021\r\n\r\n                                            (R)",
+      "Jun-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jun-2021\r\n                                            (R)",
+      "Jan-Jun-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "60",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "146.87",
+      "2,362.91",
+      "1,508.82",
+      "946.32",
+      "5,091.78",
+      "438.06"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-07-hs4-value.html",
+    "sha256": "ac1f0984dea7d6717a3f93c00184d625f79f15c0ec60872abb73e0564836e9d3",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jul-2021\r\n\r\n                                            (R)",
+      "Jul-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jul-2021\r\n                                            (R)",
+      "Jan-Jul-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "60",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "146.59",
+      "2,365.43",
+      "1,513.63",
+      "1,092.91",
+      "7,457.22",
+      "582.32"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-08-hs4-value.html",
+    "sha256": "10c0fe20e948dfc8235af21ecccddc97898dd62240d2c3404fba68e50258c37c",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Aug-2021\r\n\r\n                                            (R)",
+      "Aug-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Aug-2021\r\n                                            (R)",
+      "Jan-Aug-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "61",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "147.20",
+      "1,938.43",
+      "1,216.89",
+      "1,240.11",
+      "9,395.65",
+      "657.65"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-09-hs4-value.html",
+    "sha256": "45a155b9e0301fc6a2a27d948bc6998c8a9904f334786a987cd1c0ce3555284e",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Sep-2021\r\n\r\n                                            (R)",
+      "Sep-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Sep-2021\r\n                                            (R)",
+      "Jan-Sep-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "63",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "446.94",
+      "3,125.31",
+      "599.27",
+      "1,687.05",
+      "12,520.96",
+      "642.18"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-10-hs4-value.html",
+    "sha256": "451e50d2cd00a13fafe77e22d1ade5d10c86af7fce4eb8fcff96768eb9a6094b",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Oct-2021\r\n\r\n                                            (R)",
+      "Oct-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Oct-2021\r\n                                            (R)",
+      "Jan-Oct-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "63",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "218.49",
+      "2,627.84",
+      "1,102.75",
+      "1,905.54",
+      "15,148.79",
+      "694.99"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-11-hs4-value.html",
+    "sha256": "1ccfe6e01af13d212bed410942dd75b3b9095ea4ae1ab361468aac9893aebad0",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Nov-2021\r\n\r\n                                            (R)",
+      "Nov-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Nov-2021\r\n                                            (R)",
+      "Jan-Nov-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "64",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "160.95",
+      "2,721.89",
+      "1,591.10",
+      "2,066.49",
+      "17,870.69",
+      "764.78"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2022-12-hs4-value.html",
+    "sha256": "831c3e5c5ca61bf9cbd57794ef7271c9643d54c82154875eaebfecf4cb66567f",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Dec-2021\r\n\r\n                                            (R)",
+      "Dec-2022                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Dec-2021\r\n                                            (R)",
+      "Jan-Dec-2022                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "64",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "241.12",
+      "3,133.20",
+      "1,199.45",
+      "2,307.61",
+      "21,003.89",
+      "810.20"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-01-hs4-value.html",
+    "sha256": "0474be1f86e2576524c07b46edc3a7c335b346004f88bddbd5ed60397c089965",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jan-2023\r\n\r\n                                            (R)",
+      "Jan-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jan-2023\r\n                                            (R)",
+      "Jan-Jan-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "52",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,174.73",
+      "4,478.36",
+      "41.06",
+      "3,174.73",
+      "4,478.36",
+      "41.06"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-02-hs4-value.html",
+    "sha256": "3be587101b33e15d264e24230b4296d8e4f524aad1e144001c8cd3f28a973c82",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Feb-2023\r\n\r\n                                            (R)",
+      "Feb-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Feb-2023\r\n                                            (R)",
+      "Jan-Feb-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "53",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,351.62",
+      "3,609.86",
+      "7.71",
+      "6,526.35",
+      "8,088.22",
+      "23.93"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-03-hs4-value.html",
+    "sha256": "21ed5454bf8dd9dace202cc8633eb44a18e925f026bf181cc9d9f09f33aba8e5",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Mar-2023\r\n\r\n                                            (R)",
+      "Mar-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Mar-2023\r\n                                            (R)",
+      "Jan-Mar-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "35",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "4,015.89",
+      "0.00",
+      "-",
+      "10,542.23",
+      "0.00",
+      "-"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-04-hs4-value.html",
+    "sha256": "55ad35f5fe21997532ebb5b7df0b0c942017951a248f5ca6175ed065e802ffc9",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Apr-2023\r\n\r\n                                            (R)",
+      "Apr-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Apr-2023\r\n                                            (R)",
+      "Jan-Apr-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "57",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,442.46",
+      "4,284.93",
+      "24.47",
+      "13,984.69",
+      "16,604.24",
+      "18.73"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-05-hs4-value.html",
+    "sha256": "c502a500a5836bda25159ca0efd9a9775d9d19406801e6e602188d7a4a99e125",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "May-2023\r\n\r\n                                            (R)",
+      "May-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-May-2023\r\n                                            (R)",
+      "Jan-May-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "58",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "4,588.53",
+      "5,871.58",
+      "27.96",
+      "18,573.22",
+      "22,475.82",
+      "21.01"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-06-hs4-value.html",
+    "sha256": "9801b357a3cef36abbf6cf89b6cb11f571d832a5d96d15df3e122a51d6ddf112",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jun-2023\r\n\r\n                                            (R)",
+      "Jun-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jun-2023\r\n                                            (R)",
+      "Jan-Jun-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "60",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,803.77",
+      "4,667.45",
+      "22.71",
+      "22,376.99",
+      "27,143.27",
+      "21.30"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-07-hs4-value.html",
+    "sha256": "af5e117011ff93b78d2e9a0de2720a8ae2af5c11c94f00fdf31aa58955d3b02f",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jul-2023\r\n\r\n                                            (R)",
+      "Jul-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jul-2023\r\n                                            (R)",
+      "Jan-Jul-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "61",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,373.24",
+      "4,640.64",
+      "37.57",
+      "25,750.23",
+      "31,783.91",
+      "23.43"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-08-hs4-value.html",
+    "sha256": "69c3257a8e0f0558570425677ca2c874645885b538c64990f1648c17aca67317",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Aug-2023\r\n\r\n                                            (R)",
+      "Aug-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Aug-2023\r\n                                            (R)",
+      "Jan-Aug-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "62",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "4,150.20",
+      "2,860.13",
+      "-31.08",
+      "29,900.43",
+      "34,644.04",
+      "15.86"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-09-hs4-value.html",
+    "sha256": "0348eddd6d2b5051b83abd2ca1ab5beb4924b5aa9f36cbd37b92f29280f8e87b",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Sep-2023\r\n\r\n                                            (R)",
+      "Sep-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Sep-2023\r\n                                            (R)",
+      "Jan-Sep-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "63",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,482.71",
+      "4,674.72",
+      "34.23",
+      "33,383.15",
+      "39,318.76",
+      "17.78"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-10-hs4-value.html",
+    "sha256": "b43e9f2e7c34dbb0709b7e64aee5f10e313deb2268ab1cdb1d9acc1e33c63a6b",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Oct-2023\r\n\r\n                                            (R)",
+      "Oct-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Oct-2023\r\n                                            (R)",
+      "Jan-Oct-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "63",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,787.26",
+      "5,801.83",
+      "53.19",
+      "37,170.41",
+      "45,120.59",
+      "21.39"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-11-hs4-value.html",
+    "sha256": "0567101d47c5ab0f0adafa569f1c46d3f5b7749036c78957bc1d73e51f1efca5",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Nov-2023\r\n\r\n                                            (R)",
+      "Nov-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Nov-2023\r\n                                            (R)",
+      "Jan-Nov-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "63",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,615.28",
+      "3,902.80",
+      "7.95",
+      "40,785.69",
+      "49,023.39",
+      "20.20"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2024-12-hs4-value.html",
+    "sha256": "4e2e301bc189d0b6e677180e2aae754850c48605dd2c366b9d0806aaa55b567d",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Dec-2023\r\n\r\n                                            (R)",
+      "Dec-2024                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Dec-2023\r\n                                            (R)",
+      "Jan-Dec-2024                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "63",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,924.78",
+      "3,199.16",
+      "-18.49",
+      "44,710.47",
+      "52,222.55",
+      "16.80"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2025-10-hs4-value.html",
+    "sha256": "33e0c49fb3a65839bd8ee73e06a75e0771ae63dd5dd1a1ab0a45ab83cfdbbe5a",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Oct-2024\r\n\r\n                                            (R)",
+      "Oct-2025                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Oct-2024\r\n                                            (R)",
+      "Jan-Oct-2025                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "67",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "5,801.83",
+      "3,563.52",
+      "-38.58",
+      "45,120.59",
+      "37,048.48",
+      "-17.89"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2025-11-hs4-value.html",
+    "sha256": "6f4687571bb77bd00df997770e8df9f5e1e67388ade18c521b79fc1b3ed8c7d0",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Nov-2024\r\n\r\n                                            (R)",
+      "Nov-2025                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Nov-2024\r\n                                            (R)",
+      "Jan-Nov-2025                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "70",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,902.80",
+      "3,722.14",
+      "-4.63",
+      "49,023.39",
+      "40,770.62",
+      "-16.83"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2025-12-hs4-value.html",
+    "sha256": "c310e75eaa5862da1c55d068a26f46c451dbd560c2467ec0148b25a2b2746586",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Dec-2024\r\n\r\n                                            (R)",
+      "Dec-2025                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Dec-2024\r\n                                            (R)",
+      "Jan-Dec-2025                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "72",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,199.16",
+      "2,714.02",
+      "-15.16",
+      "52,222.55",
+      "43,484.64",
+      "-16.73"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-01-hs4-value.html",
+    "sha256": "bd6323cfc339d8b83da36abbe02f1512c762bb5026dc1161626a8c83f471dcd2",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jan-2025\r\n\r\n                                            (R)",
+      "Jan-2026                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Jan-2025\r\n                                            (R)",
+      "Jan-Jan-2026                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "62",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,611.32",
+      "1,982.60",
+      "-45.10",
+      "3,611.32",
+      "1,982.60",
+      "-45.10"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-02-hs4-value.html",
+    "sha256": "9f288d88b964d181af85ad361c2a633c32286a94277e61aad7699b5cced95c81",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Feb-2025\r\n\r\n                                            (R)",
+      "Feb-2026                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Feb-2025\r\n                                            (R)",
+      "Jan-Feb-2026                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "65",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "2,740.78",
+      "2,488.26",
+      "-9.21",
+      "6,352.09",
+      "4,470.86",
+      "-29.62"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-03-hs4-value.html",
+    "sha256": "6cf23577f183804ccc8c4d08a183304521515c91b36afaea0d9519a203bec23d",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Mar-2025\r\n\r\n                                            (R)",
+      "Mar-2026                        \r\n                                            (R)",
+      "%Growth",
+      "Jan-Mar-2025\r\n                                            (R)",
+      "Jan-Mar-2026                        \r\n                                            (R)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "65",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "4,029.39",
+      "3,249.04",
+      "-19.37",
+      "10,381.48",
+      "7,719.89",
+      "-25.64"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-04-hs4-value.html",
+    "sha256": "957cc2b87938d0e38690bfbadcd2e39edd136e28974a463ed7d1024422b97c00",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Apr-2025\r\n\r\n                                            (R)",
+      "Apr-2026                        \r\n                                            (F)",
+      "%Growth",
+      "Jan-Apr-2025\r\n                                            (R)",
+      "Jan-Apr-2026                        \r\n                                            (F)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "66",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "4,734.95",
+      "5,788.92",
+      "22.26",
+      "15,116.44",
+      "13,508.81",
+      "-10.63"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-05-hs4-value.html",
+    "sha256": "e761e4b9181305ae7a8bcbc0e51639c605033b0040841e7113d6b8c7d1a98564",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "May-2025\r\n\r\n                                            (R)",
+      "May-2026                        \r\n                                            (F)",
+      "%Growth",
+      "Jan-May-2025\r\n                                            (R)",
+      "Jan-May-2026                        \r\n                                            (F)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "66",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "4,422.22",
+      "8,087.93",
+      "82.89",
+      "19,538.66",
+      "21,596.74",
+      "10.53"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-06-hs4-value.html",
+    "sha256": "59bb35bf526c53673ec6fc2a6392934a69198e0437bf61c6fd2ad35710b4c627",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jun-2025\r\n\r\n                                            (R)",
+      "Jun-2026                        \r\n                                            (F)",
+      "%Growth",
+      "Jan-Jun-2025\r\n                                            (R)",
+      "Jan-Jun-2026                        \r\n                                            (F)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "66",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,401.70",
+      "7,182.07",
+      "111.13",
+      "22,940.35",
+      "28,778.81",
+      "25.45"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-07-hs4-value.html",
+    "sha256": "7a5dbfe8cfa3bdf366499134290703aff6da66787e548ef83879396bfad61f69",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Jul-2025\r\n\r\n                                            (R)",
+      "Jul-2026                        \r\n                                            (F)",
+      "%Growth",
+      "Jan-Jul-2025\r\n                                            (R)",
+      "Jan-Jul-2026                        \r\n                                            (F)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "68",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,625.22",
+      "7,269.61",
+      "100.53",
+      "26,565.58",
+      "36,048.42",
+      "35.70"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-08-hs4-value.html",
+    "sha256": "a7b82b2ed5b2e9f7e22040fba56d8cbbae5eaddb3502f378da6e338fa47adf5b",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Aug-2025\r\n\r\n                                            (R)",
+      "Aug-2026                        \r\n                                            (F)",
+      "%Growth",
+      "Jan-Aug-2025\r\n                                            (R)",
+      "Jan-Aug-2026                        \r\n                                            (F)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "68",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,598.35",
+      "5,442.63",
+      "51.25",
+      "30,163.93",
+      "41,491.06",
+      "37.55"
+    ]
+  },
+  {
+    "path": "tmp/india-oil-check-20261119/2026-09-hs4-value.html",
+    "sha256": "0c31d989df2c157d4657cdcc5305fe3a344f923278c66445e3d27a5cc9428ca8",
+    "headers": [
+      "S.No.",
+      "HSCode",
+      "Commodity",
+      "Sep-2025\n\n                                            (R)",
+      "Sep-2026                        \n                                            (F)",
+      "%Growth",
+      "Jan-Sep-2025\n                                            (R)",
+      "Jan-Sep-2026                        \n                                            (F)",
+      "%Growth"
+    ],
+    "oil_row": [
+      "71",
+      "2709",
+      "PETROLEUM OILS AND OILS OBTAINED FROM     BITUMINOUS MINERALS, CRUDE",
+      "3,321.03",
+      "4,752.62",
+      "43.11",
+      "33,484.96",
+      "46,243.67",
+      "38.10"
+    ]
+  }
+]

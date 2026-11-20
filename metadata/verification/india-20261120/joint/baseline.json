@@ -1,0 +1,8 @@
+{
+  "database": "db/unified_trade_data.duckdb",
+  "sha256": "1dbadcbd0476143d88e8be72c4125c4ec73e17aa9d250883ef1d43aa842c9fab",
+  "size": 1963470848,
+  "read_only": true,
+  "existing_rollback": "tmp/release-20261119-india/local-before",
+  "output_policy": "Separate audit artifacts only; original database is rollback baseline"
+}

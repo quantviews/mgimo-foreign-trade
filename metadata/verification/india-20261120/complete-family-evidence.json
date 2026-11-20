@@ -1,0 +1,37 @@
+{
+  "purpose": "Local complete-family sensitivity audit; not a source-code replacement registry",
+  "source": "https://thc.nic.in/Central%20Governmental%20Acts/The%20Finance%20Act%2C%202025.pdf",
+  "sha256": "6eb45d58a1859b5a25ab3d4ce9a56726121662d76b2ce3ee3b87b66274d42dd6",
+  "legal_effective_date": "2025-05-01",
+  "effective_date_locator": "section 103(b), PDF page 42; Third Schedule",
+  "statistical_first_children_observed": "2025-04-01",
+  "date_policy": "No automatic legal-date cutoff; complete observed representations are checked monthly; date discrepancy remains documented",
+  "families": [
+    {
+      "country": "IN",
+      "napr": "ИМ",
+      "old_code": "29241900",
+      "children": [
+        "29241910",
+        "29241990"
+      ],
+      "locator": "Third Schedule, PDF page 78, heading 2924, clause (a)"
+    },
+    {
+      "country": "IN",
+      "napr": "ИМ",
+      "old_code": "29334900",
+      "children": [
+        "29334910",
+        "29334990"
+      ],
+      "locator": "Third Schedule, PDF page 82, heading 2933, clause (g)"
+    }
+  ],
+  "not_applied": [
+    "Oil succession remains ambiguous",
+    "38089291 missing from local series",
+    "29269010 missing April 2025"
+  ],
+  "production_modified": false
+}

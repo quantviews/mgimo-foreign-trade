@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "version": "2026-11-20.v1",
+  "reviewed_on": "2026-11-20",
+  "supersedes": null,
+  "policy": {
+    "source_rows_immutable": true,
+    "missing_to_zero": false,
+    "production_enabled": false,
+    "date_policy": "Legal dates do not define statistical validity. Null validity dates mean unknown, not unlimited permission."
+  },
+  "entries": [
+    {
+      "id": "IN-2025-29241900",
+      "revision": 1,
+      "scope": {
+        "country": "IN",
+        "direction": "ИМ",
+        "source": "national",
+        "type": "fact"
+      },
+      "nomenclature": "India ITC(HS), national 8 digits",
+      "relation": "split",
+      "relationship_confirmed": true,
+      "predecessors": [
+        "29241900"
+      ],
+      "successors": [
+        "29241910",
+        "29241990"
+      ],
+      "observed_members": [],
+      "comparable": {
+        "code": "292419",
+        "level": 6,
+        "extent": "whole_heading"
+      },
+      "analysis_key": "2924190000",
+      "legal_effective_date": "2025-05-01",
+      "statistical_valid_from": null,
+      "statistical_valid_to": null,
+      "first_observed_successor": "2025-04-01",
+      "use": "local_complete_family",
+      "evidence": [
+        {
+          "url": "https://thc.nic.in/Central%20Governmental%20Acts/The%20Finance%20Act%2C%202025.pdf",
+          "sha256": "6eb45d58a1859b5a25ab3d4ce9a56726121662d76b2ce3ee3b87b66274d42dd6",
+          "locator": "Third Schedule, PDF page 78, heading 2924, clause (a)"
+        },
+        {
+          "path": "metadata/verification/india-20261120/complete-family-evidence.json",
+          "locator": "families / not_applied"
+        }
+      ],
+      "note": "Legal and observed dates differ. Every monthly representation must be complete; positive predecessor overlap is forbidden."
+    },
+    {
+      "id": "IN-2025-29334900",
+      "revision": 1,
+      "scope": {
+        "country": "IN",
+        "direction": "ИМ",
+        "source": "national",
+        "type": "fact"
+      },
+      "nomenclature": "India ITC(HS), national 8 digits",
+      "relation": "split",
+      "relationship_confirmed": true,
+      "predecessors": [
+        "29334900"
+      ],
+      "successors": [
+        "29334910",
+        "29334990"
+      ],
+      "observed_members": [],
+      "comparable": {
+        "code": "293349",
+        "level": 6,
+        "extent": "whole_heading"
+      },
+      "analysis_key": "2933490000",
+      "legal_effective_date": "2025-05-01",
+      "statistical_valid_from": null,
+      "statistical_valid_to": null,
+      "first_observed_successor": "2025-04-01",
+      "use": "local_complete_family",
+      "evidence": [
+        {
+          "url": "https://thc.nic.in/Central%20Governmental%20Acts/The%20Finance%20Act%2C%202025.pdf",
+          "sha256": "6eb45d58a1859b5a25ab3d4ce9a56726121662d76b2ce3ee3b87b66274d42dd6",
+          "locator": "Third Schedule, PDF page 82, heading 2933, clause (g)"
+        },
+        {
+          "path": "metadata/verification/india-20261120/complete-family-evidence.json",
+          "locator": "families / not_applied"
+        }
+      ],
+      "note": "Legal and observed dates differ. Every monthly representation must be complete; positive predecessor overlap is forbidden."
+    },
+    {
+      "id": "IN-2025-29269000",
+      "revision": 1,
+      "scope": {
+        "country": "IN",
+        "direction": "ИМ",
+        "source": "national",
+        "type": "fact"
+      },
+      "nomenclature": "India ITC(HS), national 8 digits",
+      "relation": "split",
+      "relationship_confirmed": true,
+      "predecessors": [
+        "29269000"
+      ],
+      "successors": [
+        "29269010",
+        "29269090"
+      ],
+      "observed_members": [],
+      "comparable": {
+        "code": "292690",
+        "level": 6,
+        "extent": "whole_heading"
+      },
+      "analysis_key": "2926900000",
+      "legal_effective_date": "2025-05-01",
+      "statistical_valid_from": null,
+      "statistical_valid_to": null,
+      "first_observed_successor": null,
+      "use": "review_only",
+      "evidence": [
+        {
+          "url": "https://thc.nic.in/Central%20Governmental%20Acts/The%20Finance%20Act%2C%202025.pdf",
+          "sha256": "6eb45d58a1859b5a25ab3d4ce9a56726121662d76b2ce3ee3b87b66274d42dd6",
+          "locator": "Third Schedule, heading 2926"
+        },
+        {
+          "path": "metadata/verification/india-20261120/complete-family-evidence.json",
+          "locator": "families / not_applied"
+        }
+      ],
+      "note": "29269010 is absent in April 2025. Absence is unknown, not zero."
+    },
+    {
+      "id": "IN-2025-38089290",
+      "revision": 1,
+      "scope": {
+        "country": "IN",
+        "direction": "ИМ",
+        "source": "national",
+        "type": "fact"
+      },
+      "nomenclature": "India ITC(HS), national 8 digits",
+      "relation": "split",
+      "relationship_confirmed": true,
+      "predecessors": [
+        "38089290"
+      ],
+      "successors": [
+        "38089280",
+        "38089291",
+        "38089299"
+      ],
+      "observed_members": [],
+      "comparable": {
+        "code": "380892",
+        "level": 6,
+        "extent": "subset"
+      },
+      "analysis_key": "3808929000",
+      "legal_effective_date": "2025-05-01",
+      "statistical_valid_from": null,
+      "statistical_valid_to": null,
+      "first_observed_successor": null,
+      "use": "review_only",
+      "evidence": [
+        {
+          "url": "https://thc.nic.in/Central%20Governmental%20Acts/The%20Finance%20Act%2C%202025.pdf",
+          "sha256": "6eb45d58a1859b5a25ab3d4ce9a56726121662d76b2ce3ee3b87b66274d42dd6",
+          "locator": "Third Schedule, heading 3808"
+        },
+        {
+          "path": "metadata/verification/india-20261120/complete-family-evidence.json",
+          "locator": "families / not_applied"
+        }
+      ],
+      "note": "38089291 is absent locally. This family is only a subset of HS6 380892."
+    },
+    {
+      "id": "IN-OIL-2709-OBSERVED",
+      "revision": 1,
+      "scope": {
+        "country": "IN",
+        "direction": "ЭК",
+        "source": "national",
+        "type": "fact"
+      },
+      "nomenclature": "India ITC(HS), national 8 digits",
+      "relation": "observed_family",
+      "relationship_confirmed": false,
+      "predecessors": [],
+      "successors": [],
+      "observed_members": [
+        "27090000",
+        "27092000",
+        "27090010"
+      ],
+      "comparable": {
+        "code": "2709",
+        "level": 4,
+        "extent": "whole_heading"
+      },
+      "analysis_key": "2709000000",
+      "legal_effective_date": null,
+      "statistical_valid_from": null,
+      "statistical_valid_to": null,
+      "first_observed_successor": null,
+      "use": "requires_monthly_reconciliation",
+      "evidence": [
+        {
+          "path": "metadata/india_code_validity_review.json",
+          "locator": "observed_family_reconciliation; candidates"
+        },
+        {
+          "path": "metadata/verification/india-20261120/joint/oil-monthly-reconciliation.csv",
+          "locator": "93 monthly checks, January 2019 through September 2026"
+        }
+      ],
+      "note": "Only the observed HS4 total is reconciled. Native succession and expiry are not confirmed. 27090090 is listed in the source directory but has no local rows; never infer a zero. New months or codes require a fresh independent reconciliation."
+    }
+  ]
+}

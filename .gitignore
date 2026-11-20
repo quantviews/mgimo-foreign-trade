@@ -3,6 +3,7 @@ metadata/*
 !metadata/national_release_coverage.json
 !metadata/publication_registry.json
 !metadata/india_code_validity_review.json
+!metadata/code_correspondence/
 # выверенные вручную наименования ТН ВЭД — их не пересоздать, храним в git
 !metadata/translations/
 metadata/translations/*

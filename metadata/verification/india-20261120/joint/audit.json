@@ -1,0 +1,15 @@
+{
+  "scenario_only": true,
+  "source_database_modified": false,
+  "zero_imputation": false,
+  "fisher_formula_unchanged": true,
+  "added_rows": 1,
+  "filled_mass_fields": 5,
+  "reconciled_oil_months": 93,
+  "oil_last_12_months_complete": true,
+  "oil_index_yoy_matches_rolling_mass": true,
+  "latest_oil_index_yoy_pct": -1.1591248994373138,
+  "all_value_changes_explained": true,
+  "unreviewed_input_changes": 0,
+  "value_coverage_definition": "Share of available monetary value in codes with complete current/reference windows and one unchanged source; not a published full aggregate index"
+}

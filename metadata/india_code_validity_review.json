@@ -1,5 +1,5 @@
 {
-  "reviewed_on": "2026-11-19",
+  "reviewed_on": "2026-11-20",
   "country": "IN",
   "source": "national",
   "purpose": "Evidence review only; not an executable retirement or zero-fill registry",
@@ -22,7 +22,10 @@
     {
       "url": "https://tradestat.commerce.gov.in/meidb/hscode",
       "method": "POST",
-      "parameters": {"hscode": "27", "description": ""},
+      "parameters": {
+        "hscode": "27",
+        "description": ""
+      },
       "finding": "All four eight-digit oil codes 27090000, 27090010, 27090090, 27092000 returned without asterisk. The search dialog currently mentions April 2026, conflicting with the help page's edition date."
     }
   ],
@@ -35,7 +38,10 @@
       "last_positive": "2022-03-01",
       "valid_to": null,
       "status": "pending_statistical_validity_confirmation",
-      "successor_candidates": ["2709001000", "2709009000"],
+      "successor_candidates": [
+        "2709001000",
+        "2709009000"
+      ],
       "mapping_approved": false
     },
     {
@@ -46,7 +52,9 @@
       "last_positive": "2022-03-01",
       "valid_to": null,
       "status": "pending_statistical_validity_confirmation",
-      "successor_candidates": ["2709001000"],
+      "successor_candidates": [
+        "2709001000"
+      ],
       "mapping_approved": false
     },
     {
@@ -62,5 +70,17 @@
       "first_observed": null,
       "status": "listed_in_directory_but_no_rows_in_local_series_not_confirmed_zero"
     }
-  ]
+  ],
+  "observed_family_reconciliation": {
+    "group": "2709",
+    "country": "IN",
+    "napr": "ЭК",
+    "months": 93,
+    "monthly_exact_matches": 92,
+    "exact_cumulative_matches": 1,
+    "status": "local_analysis_scenario_only",
+    "native_code_expiry_inferred": false,
+    "missing_native_codes_assigned_zero": false,
+    "evidence": "metadata/verification/india-20261120/joint/oil-monthly-reconciliation.csv"
+  }
 }
